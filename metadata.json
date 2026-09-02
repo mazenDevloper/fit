@@ -1,0 +1,6 @@
+{
+  "name": "APEX FITNESS PRO STUDIO",
+  "description": "تطبيق APEX FITNESS PRO STUDIO المتقدم: برنامج اليوم البصري التفاعلي، محاكي التمارين والحركات Biomechanical 3D، التشريح العضلي الدقيق، التضخيم الصافي، حماية الفقرات L4-L5، ومزامنة السحابة التلقائية عبر JSONBin.io.",
+  "requestFramePermissions": ["geolocation", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
