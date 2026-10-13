@@ -85,7 +85,8 @@ class App {
     this.launcher = new Launcher(this);
     this.calibration = new Calibration(this);
     this.toastUI = new Toast();
-    this.renderer.scene.add(this.launcher.group, this.calibration.group, this.toastUI.mesh);
+    this.renderer.scene.add(this.launcher.group, this.calibration.group);
+    this.renderer.overlay.add(this.toastUI.mesh);
     this.interaction = new Interaction(this);
     this.interaction.setTargets();
     this.debugYaw = 0; this.debugPitch = 0;
@@ -488,6 +489,7 @@ class App {
     this.toastUI.update(now, this.renderQ);
     if (this.launcher.group.visible) this.launcher.group.updateMatrixWorld();
     this.env.visible = settings.environment === 'immersive';
+    this.renderer.updateHandMask(settings.handsEnabled && this.hands.state === 'ready' ? this.hands.slots : null, now);
     this.renderer.render(this.renderQ, settings.environment);
   }
 }

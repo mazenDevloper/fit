@@ -23,6 +23,20 @@ const BG_FRAG = /* glsl */`
     gl_FragColor = vec4(mix(vec3(0.02,0.025,0.04), c, uHas * f), 1.0);
   }`;
 
+// Passthrough again, but only where the hand mask is set: real hands stay in front of virtual content.
+const HAND_FRAG = /* glsl */`
+  uniform sampler2D map; uniform sampler2D mask; uniform float uRot; uniform float uBright; varying vec2 vUv;
+  void main(){
+    float a = texture2D(mask, vUv).r;
+    if (a < 0.02) discard;
+    vec2 uv = vUv;
+    if (uRot > 0.5) uv = vec2(vUv.y, 1.0 - vUv.x);
+    else if (uRot < -0.5) uv = vec2(1.0 - vUv.y, vUv.x);
+    vec3 s = texture2D(map, uv).rgb;
+    vec3 c = mix(s * 0.0773993808, pow(s * 0.9478672986 + 0.0521327014, vec3(2.4)), step(0.04045, s)) * uBright;
+    gl_FragColor = vec4(c, smoothstep(0.02, 0.6, a));
+  }`;
+
 const DIST_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const DIST_FRAG = /* glsl */`
   uniform sampler2D tL; uniform sampler2D tR;
@@ -70,6 +84,23 @@ export class StereoRenderer {
     this.bgMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bgMat);
     this.bgMesh.frustumCulled = false;
     this.bgScene.add(this.bgMesh);
+
+    // Hand occlusion: a soft hand-shaped mask drawn from the tracked joints, in passthrough-image space.
+    this.maskCanvas = document.createElement('canvas');
+    this.maskCanvas.width = 320; this.maskCanvas.height = 180;
+    this.maskCtx = this.maskCanvas.getContext('2d');
+    this.maskTex = new THREE.CanvasTexture(this.maskCanvas);
+    this.maskTex.minFilter = THREE.LinearFilter; this.maskTex.magFilter = THREE.LinearFilter; this.maskTex.generateMipmaps = false;
+    this.maskOn = false;
+    this.handMat = new THREE.ShaderMaterial({
+      uniforms: { map: this.bgMat.uniforms.map, mask: { value: this.maskTex }, uExtent: this.bgMat.uniforms.uExtent, uRot: this.bgMat.uniforms.uRot, uBright: this.bgMat.uniforms.uBright },
+      vertexShader: BG_VERT, fragmentShader: HAND_FRAG, depthTest: false, depthWrite: false, transparent: true,
+    });
+    this.handScene = new THREE.Scene();
+    const hm = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.handMat); hm.frustumCulled = false;
+    this.handScene.add(hm);
+    // Cursors and toasts draw on top of everything, including hands.
+    this.overlay = new THREE.Scene();
 
     // Distortion pass.
     this.distScene = new THREE.Scene();
@@ -200,6 +231,38 @@ export class StereoRenderer {
     return [(sx - 0.5) * 2 * t.x, (0.5 - sy) * 2 * t.y];
   }
 
+  updateHandMask(slots, now) {
+    const ctx = this.maskCtx, W = this.maskCanvas.width, H = this.maskCanvas.height;
+    const live = (slots || []).filter(s => s.active && s.pts && now - s.ptsTime < 220);
+    if (!live.length) { if (this.maskOn) { ctx.clearRect(0, 0, W, H); this.maskTex.needsUpdate = true; this.maskOn = false; } return; }
+    const t = this.camTan();
+    const P = p => [(0.5 + p[0] / (2 * t.x)) * W, (0.5 - p[1] / (2 * t.y)) * H];
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = ctx.strokeStyle = '#fff';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const s of live) {
+      const q = s.pts.map(P);
+      const d = (a, b) => Math.hypot(q[a][0] - q[b][0], q[a][1] - q[b][1]);
+      const palm = Math.max(d(5, 17), d(0, 9) * 0.75, 4);
+      // Palm
+      ctx.beginPath(); [0, 1, 2, 5, 9, 13, 17].forEach((i, k) => k ? ctx.lineTo(q[i][0], q[i][1]) : ctx.moveTo(q[i][0], q[i][1])); ctx.closePath();
+      ctx.lineWidth = palm * 0.45; ctx.fill(); ctx.stroke();
+      // Fingers
+      const chains = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]];
+      chains.forEach((c, ci) => {
+        ctx.lineWidth = palm * (ci === 0 ? 0.42 : ci === 4 ? 0.32 : 0.36);
+        ctx.beginPath(); c.forEach((i, k) => k ? ctx.lineTo(q[i][0], q[i][1]) : ctx.moveTo(q[i][0], q[i][1])); ctx.stroke();
+        ctx.beginPath(); ctx.arc(q[c[3]][0], q[c[3]][1], ctx.lineWidth * 0.62, 0, 7); ctx.fill();
+      });
+      // Forearm: continue from the wrist away from the fingers.
+      const dx = q[0][0] - q[9][0], dy = q[0][1] - q[9][1], len = Math.hypot(dx, dy) || 1;
+      ctx.lineWidth = palm * 1.05;
+      ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); ctx.lineTo(q[0][0] + dx / len * palm * 4, q[0][1] + dy / len * palm * 4); ctx.stroke();
+    }
+    this.maskTex.needsUpdate = true;
+    this.maskOn = true;
+  }
+
   render(headQ, envMode) {
     const r = this.renderer;
     this.head.copy(headQ);
@@ -224,6 +287,9 @@ export class StereoRenderer {
       if (envMode !== 'immersive') r.render(this.bgScene, this.bgCam);
       r.clearDepth();
       r.render(this.scene, cam);
+      if (this.maskOn && u.uHas.value > 0) r.render(this.handScene, this.bgCam);
+      r.clearDepth();
+      r.render(this.overlay, cam);
     }
     r.setRenderTarget(null);
     r.setClearColor(0x000000, 1);

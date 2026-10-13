@@ -31,7 +31,7 @@ export class Interaction {
       drag: null, fired: false, dwellObj: null, dwellT: 0, dwellRegion: null,
       cursor: makeCursor(i < 2 ? 0x7cc4ff : 0xffffff),
     }));
-    this.pointers.forEach(p => app.renderer.scene.add(p.cursor));
+    this.pointers.forEach(p => app.renderer.overlay.add(p.cursor));
     this.scaleMode = null;
     this.recenterFired = false;
   }

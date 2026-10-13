@@ -139,6 +139,7 @@ export class HandTracker {
       else if (s.pinch && f.pinchDist > 0.045) s.pinch = false;
       s.strength = Math.max(0, Math.min(1, (0.07 - f.pinchDist) / 0.045));
       s.tips = [f.pts[4], f.pts[8]];
+      s.pts = f.pts; s.ptsTime = now;   // all 21 joints, used for the hand occlusion mask
     }
   }
 }
