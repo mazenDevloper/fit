@@ -81,7 +81,7 @@ export class Launcher {
       const list = [
         ['video', 'فيديو تجريبي', 'شاشة سينمائية', () => { a.windows.open({ kind: 'video', url: 'assets/sample.mp4' }); this.close(); }],
         ['cube', 'مجسم تجريبي', 'خوذة GLB', () => { a.windows.open({ kind: 'model', url: 'assets/helmet.glb' }); this.close(); }],
-        ['clock', 'الساعة', 'نافذة صغيرة', () => { a.windows.open({ kind: 'panel', panel: 'clock' }); this.close(); }],
+        ['globe', 'cplay2', 'بالتابات واليد', () => { a.openCplay(); this.close(); }],
         ['hand', 'دليل الإيماءات', 'كيف تتحكم', () => { a.windows.open({ kind: 'panel', panel: 'guide' }); this.close(); }],
         ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
         ['stack', 'ترتيب النوافذ', 'أمامك', () => { a.windows.arrange(); this.close(); }],
@@ -134,7 +134,7 @@ export class Launcher {
         ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['trash', 'إغلاق كل النوافذ', a.windows.windows.length + ' مفتوحة', () => { a.windows.closeAll(); this.panel.redraw(); }],
-        ['reload', 'إعادة تحميل', 'تحديث مدار', () => location.reload()],
+        ['target', 'المشي (تجريبي)', settings.walk ? 'مفعّل' : 'متوقف', () => { a.toggleWalk(); this.panel.redraw(); }],
         ['exit', 'الخروج', 'للشاشة الرئيسية', () => { this.close(); a.exit(); }],
       ];
       list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, i === 7 ? COLORS.danger : COLORS.accent); });
@@ -161,6 +161,7 @@ const ROWS = [
   ['vOffset', 'ارتفاع مركز العدسات', 1, -25, 25, v => (v > 0 ? '+' : '') + v + ' mm'],
   ['camFov', 'حجم الواقع (مجال الكاميرا)', 1, 40, 130, v => v + '°'],
   ['poseDelay', 'مزامنة الحركة مع الكاميرا', 10, 0, 200, v => v + ' ms'],
+  ['walkScale', 'مقياس المشي', 0.1, 0.3, 5, v => v.toFixed(1) + '×'],
 ];
 
 export class Calibration {

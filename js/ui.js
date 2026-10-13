@@ -212,7 +212,7 @@ export function makeBar(width = 0.2, height = 0.024) {
   draw(false);
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false }));
   // Larger invisible hit area makes the bar easy to grab.
-  const hit = new THREE.Mesh(new THREE.PlaneGeometry(width * 1.6, height * 3.2), new THREE.MeshBasicMaterial({ visible: false }));
+  const hit = new THREE.Mesh(new THREE.PlaneGeometry(width * 3, height * 5.5), new THREE.MeshBasicMaterial({ visible: false }));
   mesh.add(hit);
   mesh.userData.drawHover = draw;
   return { mesh, hit };

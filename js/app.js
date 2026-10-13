@@ -8,6 +8,7 @@ import { HandTracker } from './hands.js';
 import { Interaction } from './interaction.js';
 import { WindowManager } from './windows.js';
 import { Launcher, Calibration, Toast } from './panels.js';
+import { Slam } from './slam.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
@@ -88,6 +89,7 @@ class App {
     this.renderer.scene.add(this.launcher.group, this.calibration.group);
     this.renderer.overlay.add(this.toastUI.mesh);
     this.interaction = new Interaction(this);
+    this.slam = new Slam(this);
     this.interaction.setTargets();
     this.debugYaw = 0; this.debugPitch = 0;
     this.bindHome();
@@ -145,6 +147,11 @@ class App {
   links() { return loadLinks(); }
   toast(msg, ms) { this.toastUI.show(msg, ms); }
   toggleLauncher() { this.launcher.toggle(); }
+  toggleWalk() {
+    saveSettings({ walk: !settings.walk });
+    if (settings.walk) this.slam.start(); else { this.slam.stop(); this.toast('المشي متوقف'); }
+  }
+  openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay2.netlify.app/media', title: 'cplay2' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
     const order = ['passthrough', 'dim', 'immersive'];
@@ -287,6 +294,7 @@ class App {
     this.active = true;
     try { sessionStorage.setItem('madar.inMR', String(Date.now())); sessionStorage.removeItem('madar.last'); } catch {}
     this.log('دخول البيئة');
+    if (settings.walk) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
     this.last = performance.now();
@@ -334,6 +342,7 @@ class App {
     clearTimeout(this.windows.saveTimer);
     saveLayout({ windows: snapshot });
     this.launcher.close(); this.calibration.close();
+    this.slam.stop();
     const s = this.camVideo.srcObject; if (s) s.getTracks().forEach(t => t.stop());
     this.camVideo.srcObject = null;
     this.renderer.setVideo(null);
@@ -492,6 +501,7 @@ class App {
     else this.renderQ.setFromEuler(new THREE.Euler(-this.debugPitch, -this.debugYaw, 0, 'YXZ'));
     this.headForward.set(0, 0, -1).applyQuaternion(this.renderQ);
     if (settings.handsEnabled) this.hands.update(this.camVideo, now, (x, y) => { const [sx, sy] = this.renderer.imageToStage(x, y); return this.renderer.stageToTan(sx, sy); });
+    this.slam.update(this.camVideo, now, this.renderQ);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
     this.toastUI.update(now, this.renderQ);

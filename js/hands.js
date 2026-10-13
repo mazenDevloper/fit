@@ -135,8 +135,8 @@ export class HandTracker {
       s.depth = s.fd.filter(f.depth, now);
       s.pinchDist = f.pinchDist;
       // Hysteresis keeps pinch stable.
-      if (!s.pinch && f.pinchDist < 0.026) s.pinch = true;
-      else if (s.pinch && f.pinchDist > 0.045) s.pinch = false;
+      if (!s.pinch && f.pinchDist < 0.032) s.pinch = true;
+      else if (s.pinch && f.pinchDist > 0.052) s.pinch = false;
       s.strength = Math.max(0, Math.min(1, (0.07 - f.pinchDist) / 0.045));
       s.tips = [f.pts[4], f.pts[8]];
       s.pts = f.pts; s.ptsTime = now;   // all 21 joints, used for the hand occlusion mask

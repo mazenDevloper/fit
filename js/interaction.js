@@ -60,6 +60,10 @@ export class Interaction {
     if (obj) obj.userData.interact.hover?.(true, hit);
     p.hoverObj = obj;
   }
+  castOn(mesh, dir) {
+    this.raycaster.set(new THREE.Vector3(0, 0, 0), dir);
+    return this.raycaster.intersectObject(mesh, false)[0] || null;
+  }
   hand3d(slot) { return new THREE.Vector3(slot.tx * slot.depth, slot.ty * slot.depth, -slot.depth); }
   clickable(hit) {
     if (!hit) return false;
@@ -84,11 +88,12 @@ export class Interaction {
     if (other) { this.beginScale(win); p.scaleHelper = true; p.fired = true; return; }
     const obj = win.group;
     const rq = new THREE.Quaternion().setFromUnitVectors(FWD, p.dir);
-    p.drag = { win, obj, local: obj.position.clone().applyQuaternion(rq.clone().invert()), depth0: slot ? slot.depth : 0.45, target: obj.position.clone() };
+    const wp = obj.getWorldPosition(new THREE.Vector3());
+    p.drag = { win, obj, local: wp.applyQuaternion(rq.clone().invert()), depth0: slot ? slot.depth : 0.45, target: new THREE.Vector3() };
     blip('grab', settings.sounds);
   }
   reanchor() {
-    for (const o of this.pointers) if (o.drag) { const slot = this.app.hands.slots[o.i]; const rq = new THREE.Quaternion().setFromUnitVectors(FWD, o.dir); o.drag.local = o.drag.obj.position.clone().applyQuaternion(rq.invert()); o.drag.depth0 = slot.depth; }
+    for (const o of this.pointers) if (o.drag) { const slot = this.app.hands.slots[o.i]; const rq = new THREE.Quaternion().setFromUnitVectors(FWD, o.dir); o.drag.local = o.drag.obj.getWorldPosition(new THREE.Vector3()).applyQuaternion(rq.invert()); o.drag.depth0 = slot.depth; }
   }
   beginScale(win) {
     const a = this.app.hands.slots[0], b = this.app.hands.slots[1];
@@ -100,10 +105,14 @@ export class Interaction {
     const d = p.drag; if (!d) return;
     const rq = new THREE.Quaternion().setFromUnitVectors(FWD, p.dir);
     const len0 = d.local.length();
-    const push = slot ? (slot.depth - d.depth0) * 4.0 : 0;
-    const len = THREE.MathUtils.clamp(len0 + push, 0.45, 9);
-    d.target.copy(d.local).multiplyScalar(len / len0).applyQuaternion(rq);
-    d.obj.position.lerp(d.target, 0.5);
+    // Push/pull: moving the hand away or closer changes the distance (small dead zone against depth noise).
+    let dd = slot ? slot.depth - d.depth0 : 0;
+    dd = Math.sign(dd) * Math.max(0, Math.abs(dd) - 0.02);
+    const len = THREE.MathUtils.clamp(len0 + dd * 3.2, 0.45, 9);
+    d.target.copy(d.local).multiplyScalar(len / len0).applyQuaternion(rq);   // world position
+    const parent = d.obj.parent;
+    const localTarget = parent ? parent.worldToLocal(d.target.clone()) : d.target;
+    d.obj.position.lerp(localTarget, 0.42);
     if (d.win.kind !== 'model') d.obj.lookAt(0, 0, 0);
   }
   endDrag(p) {
@@ -138,14 +147,31 @@ export class Interaction {
       if (pinch && !p.wasPinch) {
         p.t0 = now; p.start = [s.tx, s.ty]; p.moved = 0; p.fired = false;
         p.downObj = hit ? hit.object : null; p.downHit = hit;
-        if (hit && hit.object.userData.interact.type === 'drag') this.startDrag(p, hit, s);
-        else {
+        p.surf = null; p.pendingDrag = null;
+        const it = hit && hit.object.userData.interact;
+        if (it && it.type === 'drag') this.startDrag(p, hit, s);
+        else if (it && it.type === 'surface' && it.scroll && it.scroll()) {
+          // Pinch-drag inside an interactive page scrolls it, like a finger on a touch screen.
+          p.surf = { win: it.window, mesh: hit.object, last: it.toPx(hit.uv), total: 0 };
+        } else if (it && it.type === 'surface' && it.window) {
+          p.pendingDrag = hit;   // becomes a window drag once the hand moves
+        } else {
           const other = this.pointers[1 - i];
           if (other.drag) { this.beginScale(other.drag.win); p.scaleHelper = true; p.fired = true; p.downObj = null; }
         }
       }
       if (pinch) {
         p.moved = Math.max(p.moved, Math.hypot(s.tx - p.start[0], s.ty - p.start[1]));
+        if (p.pendingDrag && !p.drag && p.moved > 0.035) { this.startDrag(p, p.pendingDrag, s); p.pendingDrag = null; p.fired = true; }
+        if (p.surf) {
+          const h = this.castOn(p.surf.mesh, p.dir);
+          if (h && h.uv) {
+            const it = p.surf.mesh.userData.interact, cur = it.toPx(h.uv);
+            const dx = p.surf.last[0] - cur[0], dy = p.surf.last[1] - cur[1];
+            if (Math.abs(dx) + Math.abs(dy) > 0.5) { it.scrollBy(dx * 1.6, dy * 1.6, cur); p.surf.total += Math.abs(dx) + Math.abs(dy); p.surf.last = cur; }
+            if (p.surf.total > 14) p.fired = true;   // it was a scroll, not a tap
+          }
+        }
         if (p.drag) this.updateDrag(p, s);
         else if (!p.downObj && !p.fired && !p.scaleHelper && p.moved < 0.05 && now - p.t0 > LONG_PRESS) {
           const other = this.pointers[1 - i];
@@ -195,6 +221,7 @@ export class Interaction {
 
   release(p, now, hit) {
     if (p.scaleHelper) { p.scaleHelper = false; this.scaleMode = null; this.reanchor(); this.app.windows.changed(); p.downObj = null; return; }
+    p.surf = null; p.pendingDrag = null;
     if (p.drag) { this.endDrag(p); return; }
     if (!p.fired && p.downObj && p.moved < 0.07 && now - p.t0 < 1000) {
       // Click whatever is under the pointer now if it is the same object, else the original target.

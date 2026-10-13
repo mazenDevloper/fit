@@ -27,6 +27,8 @@ export const DEFAULTS = {
   sounds: true,
   environment: 'passthrough', // 'passthrough' | 'dim' | 'immersive'
   handsEnabled: true,
+  walk: false,          // experimental 6DoF walking
+  walkScale: 1.5,       // metres per SLAM unit (monocular SLAM has no absolute scale)
   v: 3,
 };
 
@@ -69,10 +71,16 @@ export function loadLayout() { try { return JSON.parse(safeGet(LAYOUT_KEY) || 'n
 export function saveLayout(l) { safeSet(LAYOUT_KEY, JSON.stringify(l)); }
 
 export const DEFAULT_LINKS = [
+  { id: 'cplay2', title: 'cplay2', url: 'https://cplay2.netlify.app/media' },
   { id: 'l1', title: 'فيديو تجريبي من يوتيوب', url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ' },
 ];
 export function loadLinks() {
-  try { const v = JSON.parse(safeGet(LINKS_KEY) || 'null'); return Array.isArray(v) ? v : DEFAULT_LINKS.slice(); }
+  try {
+    const v = JSON.parse(safeGet(LINKS_KEY) || 'null');
+    if (!Array.isArray(v)) return DEFAULT_LINKS.slice();
+    if (!v.some(l => /cplay2\.netlify\.app/.test(l.url))) v.unshift(DEFAULT_LINKS[0]);
+    return v;
+  }
   catch { return DEFAULT_LINKS.slice(); }
 }
 export function saveLinks(l) { safeSet(LINKS_KEY, JSON.stringify(l)); }

@@ -125,6 +125,8 @@ class SpatialWindow {
     this.group.add(this.content);
     this.frame = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x1b1d26, transparent: true, opacity: 0.55, depthWrite: false }));
     this.frame.position.z = -0.006;
+    // The frame margin around the content is a grab handle too.
+    this.frame.userData.interact = { type: 'drag', window: this, hover: () => true };
     this.group.add(this.frame);
     const { mesh: bar, hit } = makeBar(0.2, 0.022);
     this.bar = bar;
@@ -141,7 +143,7 @@ class SpatialWindow {
     this.content.geometry = surfaceGeometry(w, h, this.curved ? this.radius : 0);
     this.mat.uniforms.uSize.value.set(w, h);
     this.frame.geometry.dispose();
-    this.frame.geometry = roundedRectGeometry(w + 0.03, h + 0.03, 0.04);
+    this.frame.geometry = roundedRectGeometry(w + 0.09, h + 0.09, 0.06);
     this.frame.visible = !this.curved;
     const y = -h / 2 - 0.042;
     this.bar.position.set(0, y, 0.002);
@@ -157,7 +159,7 @@ class SpatialWindow {
     this.mgr.changed();
   }
   updateRadius() {
-    const d = this.group.position.length() || 2;
+    const d = this.group.getWorldPosition(new THREE.Vector3()).length() || 2;
     this.radius = Math.max(0.6, d / this.group.scale.x);
   }
   scaleBy(f) {
@@ -345,7 +347,7 @@ export class PanelWindow extends SpatialWindow {
       if (k === 'welcome') text(ctx, 'النوافذ معلّقة في غرفتك، التفت حولك', W - 70, 170, 42, { align: 'right', color: '#d5ddef', weight: 600 });
       const rows = [
         ['hand', 'للنقر', 'ضع إصبعيك فوق الزر واقرص'],
-        ['stack', 'لنقل نافذة', 'اقرص الشريط أسفلها واسحب'],
+        ['stack', 'لنقل نافذة', 'اقرص النافذة أو إطارها واسحب'],
         ['plus', 'للتكبير', 'اقرص باليدين وباعد بينهما'],
         ['grid', 'لفتح القائمة', 'اقرص مطوّلاً في الفراغ'],
         ['target', 'لإعادة التمركز', 'اقرص باليدين مطوّلاً'],
@@ -397,7 +399,19 @@ export class WebWindow extends SpatialWindow {
     this.cv.texture.needsUpdate = true;
     this.mat.uniforms.map.value = this.cv.texture;
     this.ytState = { playing: true, muted: true, times: [0, 0] };
-    const items = [{ icon: 'reload', action: () => this.reload() }];
+    let host = ''; try { host = new URL(url).hostname; } catch {}
+    this.cplay = host === 'cplay2.netlify.app';
+    this.base = (() => { try { return new URL(url).origin; } catch { return ''; } })();
+    this.bridge = false; this.path = '';
+    // Pages that include madar-bridge.js (cplay2) accept taps and scrolls from the hands.
+    Object.assign(this.content.userData.interact, {
+      scroll: () => this.bridge,
+      toPx: uv => [uv.x * 1024, (1 - uv.y) * 640],
+      scrollBy: (dx, dy, at) => this.send({ type: 'scroll', dx, dy, x: at[0], y: at[1] }),
+    });
+    const items = [];
+    if (this.cplay) items.push({ icon: 'chevR', action: () => this.send({ type: 'back' }) });
+    items.push({ icon: 'reload', action: () => this.reload() });
     if (this.yt) items.push(
       { icon: () => this.ytState.playing ? 'pause' : 'play', action: () => this.ytToggle() },
       { icon: () => this.ytState.muted ? 'mute' : 'sound', action: () => this.ytMute(!this.ytState.muted) },
@@ -405,12 +419,48 @@ export class WebWindow extends SpatialWindow {
     items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) });
     this.toolbar = new Toolbar(items).install();
     this.group.add(this.toolbar.mesh);
+    if (this.cplay) this.makeTabs();
     this.layout();
     this.css = [0, 1].map(i => this.makeCss(i));
     mgr.app.renderer.cssCount++;
     this.onMsg = e => this.handleMessage(e);
     window.addEventListener('message', this.onMsg);
     this.lastSync = 0;
+  }
+  makeTabs() {
+    this.tabs = [['الوسائط', '/media'], ['المباريات', '/matches'], ['لوحة القيادة', '/dashboard'], ['القرآن', '/quran'], ['IPTV', '/iptv'], ['الأذكار', '/football'], ['الإعدادات', '/settings']];
+    this.tabPanel = new CanvasPanel(0.96, 0.075, (ctx, W, H, p) => {
+      glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
+      const n = this.tabs.length, pad = 10, tw = (W - pad * 2) / n;
+      this.tabs.forEach(([label, path], i) => {
+        const x = W - pad - (i + 1) * tw, on = this.path.startsWith(path), hov = p.isHover(i);
+        if (on || hov) { roundRect(ctx, x + 4, 8, tw - 8, H - 16, (H - 16) / 2); ctx.fillStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.2)'; ctx.fill(); }
+        text(ctx, label, x + tw / 2, H / 2 + 2, H * 0.36, { weight: 800, color: on ? '#141824' : COLORS.text, maxWidth: tw - 16, dir: 'auto' });
+        p.region(x, 0, tw, H, () => { blip('tap', settings.sounds); this.navTo(path); }, i);
+      });
+    }, { pxPerM: 1500 });
+    this.group.add(this.tabPanel.mesh);
+  }
+  layout() {
+    super.layout();
+    if (this.tabPanel) this.tabPanel.mesh.position.set(0, this.h / 2 + 0.065, 0.004);
+  }
+  send(msg) {
+    if (!this.bridge || !this.css) return;
+    msg.madar = 1;
+    this.css.forEach(c => { try { c.f.contentWindow.postMessage(msg, this.base); } catch {} });
+  }
+  navTo(path) {
+    this.path = path; this.tabPanel?.redraw();
+    if (this.bridge) this.send({ type: 'nav', path });
+    else this.css.forEach(c => { c.f.src = this.base + path; });
+  }
+  onContentClick(hit) {
+    if (!this.bridge || !hit || !hit.uv) return false;
+    const [x, y] = this.content.userData.interact.toPx(hit.uv);
+    this.send({ type: 'tap', x, y });
+    blip('tap', settings.sounds);
+    return true;
   }
   src(eye) {
     if (this.yt) {
@@ -441,6 +491,7 @@ export class WebWindow extends SpatialWindow {
     return { el, f, obj };
   }
   onFrameLoad(eye, f) {
+    if (this.base && !this.yt) { try { f.contentWindow.postMessage({ madar: 1, type: 'hello' }, this.base); } catch {} }
     if (!this.yt) return;
     const post = o => { try { f.contentWindow.postMessage(JSON.stringify(o), 'https://www.youtube.com'); } catch {} };
     post({ event: 'listening', id: 'madar' + this.id + '-' + eye, channel: 'widget' });
@@ -450,6 +501,11 @@ export class WebWindow extends SpatialWindow {
   ytToggle() { const p = !this.ytState.playing; this.ytState.playing = p; [0, 1].forEach(e => this.cmd(e, p ? 'playVideo' : 'pauseVideo')); }
   ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
   handleMessage(e) {
+    if (e.origin === this.base && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
+      if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
+      if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }
+      return;
+    }
     if (!this.yt || !String(e.origin).includes('youtube.com')) return;
     let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch { return; }
     if (!d || !d.info) return;
@@ -464,7 +520,7 @@ export class WebWindow extends SpatialWindow {
   reload() { this.css.forEach((c, i) => { c.f.src = this.src(i); }); }
   update(dt, now) {
     const head = this.mgr.app.headForward;
-    const toWin = this.group.position.clone().normalize();
+    const toWin = this.group.getWorldPosition(new THREE.Vector3()).normalize();
     const visible = head.dot(toWin) > 0.2;
     const sm = new THREE.Matrix4().makeScale(1 / 1024, 1 / 1024, 1);
     const km = new THREE.Matrix4().makeScale(CSS_K, CSS_K, CSS_K);
@@ -485,6 +541,7 @@ export class WebWindow extends SpatialWindow {
   ref() { return { url: this.url, title: this.title }; }
   dispose() {
     super.dispose();
+    this.tabPanel?.dispose();
     window.removeEventListener('message', this.onMsg);
     this.css.forEach((c, i) => { c.f.src = 'about:blank'; this.mgr.app.renderer.cssScenes[i].remove(c.obj); c.el.remove(); });
     this.mgr.app.renderer.cssCount--;
@@ -566,8 +623,8 @@ export class ModelVolume {
     if (this.spin) this.pivot.rotation.y += dt * 0.6;
     this.mixer?.update(dt);
     // Keep the toolbar facing the viewer.
-    const yaw = Math.atan2(-this.group.position.x, -this.group.position.z);
-    this.group.rotation.y = yaw;
+    const wp = this.group.getWorldPosition(new THREE.Vector3());
+    this.group.rotation.y = Math.atan2(-wp.x, -wp.z);
   }
   serialize() {
     const g = this.group;
@@ -598,6 +655,7 @@ export class WindowManager {
     this.targets = t;
     this.app.interaction?.setTargets();
   }
+  headLocal() { this.root.updateMatrixWorld(); return this.root.worldToLocal(new THREE.Vector3(0, 0, 0)); }
   forwardYaw() { return this.app.head.currentYaw() - this.app.head.yawOffset; }
   // Place a group in front of the viewer, avoiding overlap with existing windows.
   place(group, dist, y = 0, avoid = true) {
@@ -608,14 +666,15 @@ export class WindowManager {
       const ok = !avoid || this.windows.every(w => { const p = w.group.position; const wa = Math.atan2(-p.x, -p.z); return Math.abs(Math.atan2(Math.sin(wa - a), Math.cos(wa - a))) > 0.35 || Math.abs(p.y - y) > 0.6; });
       if (ok) { yaw = a; break; }
     }
-    group.position.set(-Math.sin(yaw) * dist, y, -Math.cos(yaw) * dist);
-    group.lookAt(0, group.position.y, 0);
+    const h = this.headLocal();
+    group.position.set(h.x - Math.sin(yaw) * dist, h.y + y, h.z - Math.cos(yaw) * dist);
+    if (group.parent) group.lookAt(0, 0, 0); else { group.lookAt(h.x, h.y + y, h.z); }
   }
   add(win, { dist = 2, y = 0, scale = 1, place = true } = {}) {
     win.group.scale.setScalar(scale);
     if (place) {
       if (win.kind === 'model') { this.place(win.group, dist, y); win.group.rotation.set(0, 0, 0); }
-      else { this.place(win.group, dist, y); win.group.lookAt(0, 0, 0); }
+      else this.place(win.group, dist, y);
     }
     this.root.add(win.group);
     this.windows.push(win);
@@ -657,7 +716,8 @@ export class WindowManager {
       const a = yaw + (i - (n - 1) / 2) * 0.55;
       const d = w.kind === 'model' ? 1.25 : 2.1;
       const y = w.kind === 'model' ? -0.38 : 0;
-      w.group.position.set(-Math.sin(a) * d, y, -Math.cos(a) * d);
+      const h = this.headLocal();
+      w.group.position.set(h.x - Math.sin(a) * d, h.y + y, h.z - Math.cos(a) * d);
       if (w.kind !== 'model') w.group.lookAt(0, 0, 0);
       w.onDragEnd?.();
     });
