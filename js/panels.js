@@ -46,8 +46,8 @@ export class Launcher {
     g.addColorStop(0, 'rgba(255,255,255,0.20)'); g.addColorStop(1, 'rgba(255,255,255,0.06)');
     ctx.fillStyle = g; ctx.fill();
     icon(ctx, ic, cx, cy, h * 0.2, tint);
-    text(ctx, label, cx, y + h * 0.76, h * 0.105, { weight: 650, maxWidth: w - 30 });
-    if (sub) text(ctx, sub, cx, y + h * 0.9, h * 0.075, { color: COLORS.dim, maxWidth: w - 30, dir: 'auto' });
+    text(ctx, label, cx, y + h * 0.75, h * 0.13, { weight: 800, maxWidth: w - 24 });
+    if (sub) text(ctx, sub, cx, y + h * 0.9, h * 0.095, { color: '#d5ddef', weight: 600, maxWidth: w - 24, dir: 'auto' });
     p.region(x, y, w, h, () => { blip('tap', settings.sounds); action(); }, id);
   }
 
@@ -62,7 +62,7 @@ export class Launcher {
       const id = 'tab-' + k, hov = p.isHover(id), on = this.tab === k;
       roundRect(ctx, tx, 48, tw, th, th / 2);
       ctx.fillStyle = on ? 'rgba(255,255,255,0.9)' : hov ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)'; ctx.fill();
-      text(ctx, label, tx + tw / 2, 48 + th / 2 + 2, 30, { weight: 650, color: on ? '#151821' : COLORS.text });
+      text(ctx, label, tx + tw / 2, 48 + th / 2 + 2, 36, { weight: 800, color: on ? '#151821' : COLORS.text });
       p.region(tx, 48, tw, th, () => { blip('tap', settings.sounds); this.setTab(k); }, id);
       tx += tw + gap;
     });

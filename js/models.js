@@ -79,6 +79,23 @@ export async function loadModelFromUrl(url) {
   return { object: g.scene, animations: g.animations || [], revoke() {} };
 }
 
+// Large textures (e.g. 2048-4096 px) are redrawn at most `max` px to keep GPU memory low on iPhone.
+const shrunk = new WeakSet();
+function shrinkTexture(t, max) {
+  const img = t.image;
+  if (!img || shrunk.has(t)) return;
+  const w = img.width || img.videoWidth, h = img.height || img.videoHeight;
+  if (!w || !h || Math.max(w, h) <= max || img instanceof HTMLVideoElement) return;
+  try {
+    const k = max / Math.max(w, h);
+    const c = document.createElement('canvas');
+    c.width = Math.round(w * k); c.height = Math.round(h * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    if (img.close) img.close();
+    t.image = c; t.needsUpdate = true; shrunk.add(t);
+  } catch {}
+}
+
 // Scale to `size` metres on the longest side and sit the model on y = 0, centred in x/z.
 export function normalize(object, size = 0.42) {
   object.updateMatrixWorld(true);
@@ -95,7 +112,10 @@ export function normalize(object, size = 0.42) {
     if (o.isMesh) {
       o.frustumCulled = false;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
-      mats.forEach(m => { if (m && m.map) m.map.anisotropy = 4; });
+      mats.forEach(m => {
+        if (!m) return;
+        for (const v of Object.values(m)) if (v && v.isTexture) { shrinkTexture(v, 1024); v.anisotropy = 4; }
+      });
     }
   });
   const d = box.getSize(new THREE.Vector3());

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings, pxPerMm } from './config.js';
 
-const TAN_MAX = 1.5;   // half-extent (tan) covered by each eye's render target
+const TAN_MAX = 1.22;  // half-extent (tan) covered by each eye's render target (smaller = sharper centre)
 export const CSS_K = 1000; // CSS layer works in millimetres so browsers keep 3D precision
 
 const BG_VERT = /* glsl */`
@@ -131,7 +131,7 @@ export class StereoRenderer {
 
   makeTargets(size) {
     this.rts.forEach(r => r.dispose());
-    const samples = Math.min(4, this.renderer.capabilities.maxSamples || 0);
+    const samples = Math.min(2, this.renderer.capabilities.maxSamples || 0);
     this.rts = [0, 1].map(() => {
       const rt = new THREE.WebGLRenderTarget(size, size, { samples, depthBuffer: true, type: THREE.UnsignedByteType });
       rt.texture.colorSpace = THREE.SRGBColorSpace;
@@ -152,7 +152,8 @@ export class StereoRenderer {
     this.applySettings();
     const px = pxPerMm();
     const cssSize = 2 * TAN_MAX * settings.screenToLens * px;
-    const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr * 0.75 / 64) * 64, 768, 1280);
+    // Match the screen's pixel density at the lens centre (1:1), within memory limits.
+    const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr / 64) * 64, 1024, 1664);
     if (want !== this.rtSize) this.makeTargets(want);
     this.layoutCss();
   }

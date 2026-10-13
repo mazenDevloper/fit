@@ -134,6 +134,7 @@ class App {
     let was = null, last = '';
     try { was = sessionStorage.getItem('madar.inMR'); last = sessionStorage.getItem('madar.last') || ''; sessionStorage.removeItem('madar.inMR'); } catch {}
     if (!was) return;
+    this.crashed = true;
     this.log('انتهت الجلسة فجأة' + (last ? ' بعد: ' + last : ''));
     const n = $('#crashNote');
     n.textContent = 'أغلق iOS الجلسة السابقة فجأة' + (last ? ' أثناء «' + last + '»' : '') + '. غالباً بسبب امتلاء الذاكرة: أغلق التطبيقات الأخرى ثم ادخل مجدداً.';
@@ -298,6 +299,13 @@ class App {
     const saved = loadLayout();
     let first = false; try { first = !localStorage.getItem(FIRST_RUN); } catch {}
     if (this.windows.windows.length) return;
+    if (this.crashed) {
+      // The last session ended unexpectedly: start light, keep the saved layout for later.
+      this.crashed = false;
+      const w = this.windows.open({ kind: 'panel', panel: 'welcome' });
+      setTimeout(() => this.toast('بدأنا بمساحة خفيفة بعد الإغلاق المفاجئ', 4000), 1500);
+      return;
+    }
     if (saved && saved.windows && saved.windows.length && !first) { this.windows.restore(saved.windows); return; }
     // Default first scene.
     const w = this.windows;

@@ -3,11 +3,11 @@ import * as THREE from 'three';
 
 export const FONT = 'system-ui, -apple-system, "SF Arabic", "Geeza Pro", "Helvetica Neue", sans-serif';
 export const COLORS = {
-  glass: 'rgba(32,34,44,0.74)',
-  glassHi: 'rgba(58,62,78,0.86)',
+  glass: 'rgba(24,26,36,0.86)',
+  glassHi: 'rgba(58,62,80,0.92)',
   stroke: 'rgba(255,255,255,0.16)',
   text: '#f4f6fb',
-  dim: 'rgba(235,240,255,0.62)',
+  dim: 'rgba(225,232,248,0.86)',
   accent: '#7cc4ff',
   accent2: '#b59cff',
   warm: '#ffc88a',

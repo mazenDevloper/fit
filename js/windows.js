@@ -80,7 +80,7 @@ export class Toolbar {
         const f = dur > 0 ? Math.min(1, cur / dur) : 0;
         ctx.fillStyle = COLORS.text; roundRect(ctx, bx, y - 4, Math.max(8, bwid * f), 8, 4); ctx.fill();
         ctx.beginPath(); ctx.arc(bx + bwid * f, y, p.isHover('prog') ? 13 : 9, 0, 7); ctx.fill();
-        text(ctx, fmtTime(cur), bx + bwid + H * 0.65, y, H * 0.26, { dir: 'ltr', color: COLORS.dim, weight: 600 });
+        text(ctx, fmtTime(cur), bx + bwid + H * 0.65, y, H * 0.3, { dir: 'ltr', color: '#e8edf8', weight: 700 });
         p.region(bx - 10, 0, bwid + 20, H, null, 'prog');
         p.regions[p.regions.length - 1].action = () => {};
         p.regions[p.regions.length - 1].seek = true;
@@ -310,7 +310,7 @@ export class PanelWindow extends SpatialWindow {
     super(mgr, 'panel');
     this.panelKind = panel;
     this.canCurve = false;
-    const specs = { welcome: [1, 0.66], guide: [1, 0.72], clock: [1, 0.42] };
+    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42] };
     const [w, h] = specs[panel] || [1, 0.6];
     this.aspect = w / h;
     this.cv = canvasTexture(1400, Math.round(1400 * h / w));
@@ -337,27 +337,27 @@ export class PanelWindow extends SpatialWindow {
       const now = new Date();
       const t = now.toLocaleTimeString('ar-OM-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true });
       const d = now.toLocaleDateString('ar-OM-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' });
-      text(ctx, t, W / 2, H * 0.44, H * 0.36, { weight: 300, dir: 'rtl' });
-      text(ctx, d, W / 2, H * 0.8, H * 0.11, { color: COLORS.dim, weight: 500 });
+      text(ctx, t, W / 2, H * 0.44, H * 0.4, { weight: 500, dir: 'rtl' });
+      text(ctx, d, W / 2, H * 0.82, H * 0.13, { color: '#dfe6f5', weight: 600 });
     } else {
       const title = k === 'welcome' ? 'أهلاً بك في مدار' : 'دليل الإيماءات';
-      text(ctx, title, W - 80, 95, 64, { align: 'right', weight: 700 });
-      if (k === 'welcome') text(ctx, 'بيئتك المكانية. هذه النوافذ معلّقة في غرفتك، التفت حولك.', W - 80, 165, 34, { align: 'right', color: COLORS.dim });
+      text(ctx, title, W - 70, 92, 76, { align: 'right', weight: 800 });
+      if (k === 'welcome') text(ctx, 'النوافذ معلّقة في غرفتك، التفت حولك', W - 70, 170, 42, { align: 'right', color: '#d5ddef', weight: 600 });
       const rows = [
-        ['hand', 'للنقر', 'ضع إصبعيك فوق الزر ثم المس الإبهام بالسبابة'],
-        ['stack', 'لنقل نافذة', 'اقرص الشريط أسفلها واسحب. قرّب يدك أو أبعدها لتغيير المسافة'],
-        ['plus', 'للتكبير', 'اقرص باليدين معاً على النافذة أو المجسم ثم باعد بينهما'],
-        ['grid', 'لفتح القائمة', 'اقرص مطوّلاً في الفراغ (أقل من ثانية)'],
-        ['target', 'لإعادة التمركز', 'اقرص باليدين معاً مطوّلاً في الفراغ'],
-        ['sun', 'بدون يدين', 'وجّه النقطة بنظرك إلى الزر وانتظر لحظة، أو المس الشاشة'],
+        ['hand', 'للنقر', 'ضع إصبعيك فوق الزر واقرص'],
+        ['stack', 'لنقل نافذة', 'اقرص الشريط أسفلها واسحب'],
+        ['plus', 'للتكبير', 'اقرص باليدين وباعد بينهما'],
+        ['grid', 'لفتح القائمة', 'اقرص مطوّلاً في الفراغ'],
+        ['target', 'لإعادة التمركز', 'اقرص باليدين مطوّلاً'],
+        ['sun', 'بدون يدين', 'انظر إلى الزر لحظة أو المس الشاشة'],
       ];
-      const top = k === 'welcome' ? 230 : 175, rh = (H - top - 40) / rows.length;
+      const top = k === 'welcome' ? 225 : 165, rh = (H - top - 30) / rows.length;
       rows.forEach(([ic, a, b], i) => {
         const y = top + i * rh + rh / 2;
-        ctx.beginPath(); ctx.arc(W - 125, y, 38, 0, 7); ctx.fillStyle = 'rgba(124,196,255,0.16)'; ctx.fill();
-        icon(ctx, ic, W - 125, y, 42, COLORS.accent);
-        text(ctx, a, W - 190, y - 20, 36, { align: 'right', weight: 700 });
-        text(ctx, b, W - 190, y + 24, 29, { align: 'right', color: COLORS.dim, maxWidth: W - 300 });
+        ctx.beginPath(); ctx.arc(W - 120, y, 44, 0, 7); ctx.fillStyle = 'rgba(124,196,255,0.2)'; ctx.fill();
+        icon(ctx, ic, W - 120, y, 48, COLORS.accent);
+        text(ctx, a, W - 190, y - 22, 44, { align: 'right', weight: 800 });
+        text(ctx, b, W - 190, y + 27, 38, { align: 'right', color: '#d5ddef', weight: 600, maxWidth: W - 260 });
       });
     }
     texture.needsUpdate = true;
@@ -392,7 +392,7 @@ export class WebWindow extends SpatialWindow {
     this.cv = canvasTexture(640, 400);
     const { ctx } = this.cv;
     ctx.fillStyle = '#10131c'; ctx.fillRect(0, 0, 640, 400);
-    text(ctx, 'جاري تحميل الصفحة…', 320, 185, 30, { color: COLORS.dim });
+    text(ctx, 'جاري تحميل الصفحة…', 320, 185, 36, { color: '#d5ddef', weight: 600 });
     text(ctx, title || url, 320, 235, 20, { color: 'rgba(255,255,255,0.35)', dir: 'ltr', maxWidth: 560 });
     this.cv.texture.needsUpdate = true;
     this.mat.uniforms.map.value = this.cv.texture;
