@@ -153,7 +153,8 @@ export class StereoRenderer {
     const px = pxPerMm();
     const cssSize = 2 * TAN_MAX * settings.screenToLens * px;
     // Match the screen's pixel density at the lens centre (1:1), within memory limits.
-    const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr / 64) * 64, 1024, 1664);
+    const cap = this.cssCount > 0 ? 1280 : 1664;   // leave memory for web pages when one is open
+    const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr / 64) * 64, 1024, cap);
     if (want !== this.rtSize) this.makeTargets(want);
     this.layoutCss();
   }
@@ -299,6 +300,7 @@ export class StereoRenderer {
     this.distMat.uniforms.tR.value = this.rts[1].texture;
     r.render(this.distScene, this.distCam);
 
+    if (this.cssCount !== this.lastCss) { this.lastCss = this.cssCount; this.resize(); }
     if (this.cssCount > 0) for (let i = 0; i < 2; i++) {
       const c = this.cssCams[i];
       c.quaternion.copy(this.eyes[i].quaternion);

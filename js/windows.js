@@ -466,7 +466,7 @@ export class WebWindow extends SpatialWindow {
     const head = this.mgr.app.headForward;
     const toWin = this.group.position.clone().normalize();
     const visible = head.dot(toWin) > 0.2;
-    const sm = new THREE.Matrix4().makeScale(1 / 1280, 1 / 1280, 1);
+    const sm = new THREE.Matrix4().makeScale(1 / 1024, 1 / 1024, 1);
     const km = new THREE.Matrix4().makeScale(CSS_K, CSS_K, CSS_K);
     this.content.updateMatrixWorld();
     for (const c of this.css) {
@@ -639,7 +639,12 @@ export class WindowManager {
     const k = spec.kind;
     if (k === 'video') return this.add(new VideoWindow(this, spec), { dist: 2.3, scale: 1.7, y: 0.05 });
     if (k === 'image') return this.add(new ImageWindow(this, spec), { dist: 1.9, scale: 1.25 });
-    if (k === 'web') return this.add(new WebWindow(this, spec), { dist: 2.1, scale: 1.6 });
+    if (k === 'web') {
+      // Each site runs twice (one copy per eye), so keep a single web window to stay within iPhone memory.
+      const old = this.windows.filter(w => w.kind === 'web');
+      if (old.length) { old.forEach(w => this.close(w)); this.app.toast('أُغلق الموقع السابق لتوفير الذاكرة'); }
+      return this.add(new WebWindow(this, spec), { dist: 2.1, scale: 1.6 });
+    }
     if (k === 'panel') return this.add(new PanelWindow(this, spec), { dist: 1.6, scale: spec.panel === 'clock' ? 0.55 : 0.95, y: spec.panel === 'clock' ? 0.45 : 0 });
     if (k === 'model') return this.add(new ModelVolume(this, spec), { dist: 1.25, y: -0.38 });
   }
@@ -664,7 +669,13 @@ export class WindowManager {
   }
   serialize() { return this.windows.map(w => w.serialize()).filter(x => x.ref); }
   restore(list) {
+    const seen = new Set();
+    let webs = 0;
     for (const s of list || []) {
+      const key = s.kind + JSON.stringify(s.ref);
+      if (seen.has(key)) continue;          // drop duplicates saved by older versions
+      seen.add(key);
+      if (s.kind === 'web' && ++webs > 1) continue;
       try {
         const spec = Object.assign({ kind: s.kind }, s.ref);
         if (s.ref.item) spec.itemId = s.ref.item;

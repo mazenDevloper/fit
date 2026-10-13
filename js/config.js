@@ -7,15 +7,16 @@ export const VIEWER_PRESETS = {
   vrbox:     { label: 'علبة VR عامة',      lensSep: 63,   screenToLens: 39.5, k1: 0.22, k2: 0.10 },
   cardboard: { label: 'Cardboard v2',       lensSep: 64,   screenToLens: 39.3, k1: 0.34, k2: 0.55 },
   light:     { label: 'عدسات خفيفة',       lensSep: 62,   screenToLens: 45,   k1: 0.10, k2: 0.00 },
+  myglasses: { label: 'مع نظارتي الطبية',   lensSep: 63,   screenToLens: 40,   k1: 0.17, k2: 0.06 },
   none:      { label: 'بدون تصحيح عدسات',  lensSep: 62,   screenToLens: 45,   k1: 0.00, k2: 0.00 },
 };
 
 export const DEFAULTS = {
-  preset: 'vrbox',
+  preset: 'myglasses',
   lensSep: 63,          // mm between lens centres
-  screenToLens: 39.5,   // mm, sets the field of view (smaller = bigger image)
-  k1: 0.22, k2: 0.10,   // radial distortion
-  ipd: 64,              // mm, eye separation used for virtual content
+  screenToLens: 40,     // mm, sets the field of view (smaller = bigger image)
+  k1: 0.17, k2: 0.06,   // radial distortion
+  ipd: 68,              // mm, eye separation used for virtual content
   vOffset: -6,          // mm, vertical shift of lens centres (negative = lower, for a phone sitting high so the camera is clear)
   camera: 'wide',       // 'wide' | 'ultra'
   camFov: 69,           // horizontal FOV of camera in degrees (real-scale passthrough)
@@ -26,7 +27,7 @@ export const DEFAULTS = {
   sounds: true,
   environment: 'passthrough', // 'passthrough' | 'dim' | 'immersive'
   handsEnabled: true,
-  v: 2,
+  v: 3,
 };
 
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -38,6 +39,13 @@ if (!settings.v || settings.v < 2) {
   if (settings.vOffset === 0) settings.vOffset = DEFAULTS.vOffset;
   if (settings.preset === 'vrbox' && settings.screenToLens === 42) settings.screenToLens = 39.5;
   settings.v = 2;
+  safeSet(KEY, JSON.stringify(settings));
+}
+// v3: eye distance measured from the user's photo (~68 mm); glasses-friendly lens profile.
+if (settings.v < 3) {
+  if (settings.ipd === 64) settings.ipd = 68;
+  if (['vrbox', 'custom'].includes(settings.preset)) Object.assign(settings, { preset: 'myglasses', screenToLens: 40, k1: 0.17, k2: 0.06 });
+  settings.v = 3;
   safeSet(KEY, JSON.stringify(settings));
 }
 
