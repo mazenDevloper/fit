@@ -1,0 +1,250 @@
+// System panels: the Launcher (home), in-headset calibration, and head-locked toasts.
+import * as THREE from 'three';
+import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip, canvasTexture } from './ui.js';
+import { settings, saveSettings, VIEWER_PRESETS, applyPreset } from './config.js';
+import { listItems, formatSize } from './db.js';
+
+const ENV_LABEL = { passthrough: 'الواقع', dim: 'خافت', immersive: 'غامر' };
+const TABS = [['apps', 'التطبيقات'], ['library', 'مكتبتي'], ['links', 'المواقع'], ['settings', 'الإعدادات']];
+
+export class Launcher {
+  constructor(app) {
+    this.app = app;
+    this.tab = 'apps'; this.page = 0;
+    this.items = []; this.links = [];
+    this.panel = new CanvasPanel(1.3, 0.84, (ctx, W, H, p) => this.draw(ctx, W, H, p), { pxPerM: 1300 });
+    this.group = new THREE.Group();
+    this.group.add(this.panel.mesh);
+    this.group.visible = false;
+  }
+  get targets() { return [this.panel.mesh]; }
+  async refresh() {
+    try { this.items = (await listItems()).map(i => ({ id: i.id, name: i.name, type: i.type, size: i.size, format: i.format })); } catch { this.items = []; }
+    this.links = this.app.links();
+    this.panel.redraw();
+  }
+  open() {
+    this.refresh();
+    const yaw = this.app.windows.forwardYaw();
+    const d = 1.25;
+    this.group.position.set(-Math.sin(yaw) * d, -0.08, -Math.cos(yaw) * d);
+    this.group.lookAt(0, 0, 0);
+    this.group.visible = true;
+    blip('open', settings.sounds);
+  }
+  close() { this.group.visible = false; }
+  toggle() { this.group.visible ? this.close() : this.open(); }
+  setTab(t) { this.tab = t; this.page = 0; this.panel.redraw(); }
+
+  tile(ctx, p, x, y, w, h, ic, label, sub, action, id, tint = COLORS.accent) {
+    const hov = p.isHover(id);
+    glass(ctx, x, y, w, h, 34, hov);
+    if (hov) { roundRect(ctx, x, y, w, h, 34); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 4; ctx.stroke(); }
+    const cx = x + w / 2, cy = y + h * 0.4;
+    ctx.beginPath(); ctx.arc(cx, cy, h * 0.2, 0, 7);
+    const g = ctx.createLinearGradient(cx, cy - h * 0.2, cx, cy + h * 0.2);
+    g.addColorStop(0, 'rgba(255,255,255,0.20)'); g.addColorStop(1, 'rgba(255,255,255,0.06)');
+    ctx.fillStyle = g; ctx.fill();
+    icon(ctx, ic, cx, cy, h * 0.2, tint);
+    text(ctx, label, cx, y + h * 0.76, h * 0.105, { weight: 650, maxWidth: w - 30 });
+    if (sub) text(ctx, sub, cx, y + h * 0.9, h * 0.075, { color: COLORS.dim, maxWidth: w - 30, dir: 'auto' });
+    p.region(x, y, w, h, () => { blip('tap', settings.sounds); action(); }, id);
+  }
+
+  draw(ctx, W, H, p) {
+    roundRect(ctx, 0, 0, W, H, 70); ctx.fillStyle = 'rgba(14,16,24,0.55)'; ctx.fill();
+    glass(ctx, 0, 0, W, H, 70);
+    // Header
+    text(ctx, 'مدار', W - 70, 82, 58, { align: 'right', weight: 750 });
+    const tw = 205, th = 66, gap = 14, total = TABS.length * tw + (TABS.length - 1) * gap;
+    let tx = (W - total) / 2;
+    [...TABS].reverse().forEach(([k, label]) => {
+      const id = 'tab-' + k, hov = p.isHover(id), on = this.tab === k;
+      roundRect(ctx, tx, 48, tw, th, th / 2);
+      ctx.fillStyle = on ? 'rgba(255,255,255,0.9)' : hov ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.06)'; ctx.fill();
+      text(ctx, label, tx + tw / 2, 48 + th / 2 + 2, 30, { weight: 650, color: on ? '#151821' : COLORS.text });
+      p.region(tx, 48, tw, th, () => { blip('tap', settings.sounds); this.setTab(k); }, id);
+      tx += tw + gap;
+    });
+    // Close
+    const hc = p.isHover('close');
+    ctx.beginPath(); ctx.arc(95, 81, 38, 0, 7); ctx.fillStyle = hc ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
+    icon(ctx, 'close', 95, 81, 34);
+    p.region(50, 36, 90, 90, () => { blip('close', settings.sounds); this.close(); }, 'close');
+
+    const top = 150, pad = 60, cols = 4, rows = 2, g = 26;
+    const tileW = (W - pad * 2 - g * (cols - 1)) / cols, tileH = (H - top - 60 - g * (rows - 1)) / rows;
+    const cell = (i) => { const c = i % cols, r = Math.floor(i / cols); return [W - pad - (c + 1) * tileW - c * g, top + r * (tileH + g)]; };
+    const a = this.app;
+
+    if (this.tab === 'apps') {
+      const list = [
+        ['video', 'فيديو تجريبي', 'شاشة سينمائية', () => { a.windows.open({ kind: 'video', url: 'assets/sample.mp4' }); this.close(); }],
+        ['cube', 'مجسم تجريبي', 'خوذة GLB', () => { a.windows.open({ kind: 'model', url: 'assets/helmet.glb' }); this.close(); }],
+        ['clock', 'الساعة', 'نافذة صغيرة', () => { a.windows.open({ kind: 'panel', panel: 'clock' }); this.close(); }],
+        ['hand', 'دليل الإيماءات', 'كيف تتحكم', () => { a.windows.open({ kind: 'panel', panel: 'guide' }); this.close(); }],
+        ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
+        ['stack', 'ترتيب النوافذ', 'أمامك', () => { a.windows.arrange(); this.close(); }],
+        ['target', 'إعادة التمركز', 'اجعل الأمام هنا', () => { a.recenter(); this.close(); }],
+        ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
+      ];
+      list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'app' + i); });
+    } else if (this.tab === 'library') {
+      const per = 8, items = this.items;
+      if (!items.length) {
+        text(ctx, 'مكتبتك فارغة', W / 2, H * 0.48, 44, { weight: 700 });
+        text(ctx, 'أضف الفيديوهات والصور والمجسمات من شاشة مدار الرئيسية قبل الدخول', W / 2, H * 0.58, 30, { color: COLORS.dim });
+      } else {
+        const pages = Math.ceil(items.length / per);
+        this.page = Math.min(this.page, pages - 1);
+        items.slice(this.page * per, this.page * per + per).forEach((it, i) => {
+          const [x, y] = cell(i);
+          const ic = it.type === 'video' ? 'video' : it.type === 'image' ? 'image' : 'cube';
+          const tint = it.type === 'video' ? COLORS.accent : it.type === 'image' ? COLORS.warm : COLORS.accent2;
+          this.tile(ctx, p, x, y, tileW, tileH, ic, it.name, (it.format ? it.format.toUpperCase() + ' · ' : '') + formatSize(it.size), () => {
+            a.windows.open({ kind: it.type, itemId: it.id, name: it.name }); this.close();
+          }, 'lib' + i, tint);
+        });
+        if (pages > 1) this.pager(ctx, p, W, H, pages);
+      }
+    } else if (this.tab === 'links') {
+      const per = 6, links = this.links;
+      if (!links.length) {
+        text(ctx, 'لا توجد مواقع محفوظة', W / 2, H * 0.48, 44, { weight: 700 });
+        text(ctx, 'أضف روابطك (مثل فيديوهات يوتيوب) من الشاشة الرئيسية', W / 2, H * 0.58, 30, { color: COLORS.dim });
+      } else {
+        const pages = Math.ceil(links.length / per);
+        this.page = Math.min(this.page, pages - 1);
+        const rh = (H - top - 70) / per;
+        links.slice(this.page * per, this.page * per + per).forEach((l, i) => {
+          const y = top + i * rh, id = 'link' + i, hov = p.isHover(id);
+          glass(ctx, pad, y + 6, W - pad * 2, rh - 12, 26, hov);
+          icon(ctx, 'globe', W - pad - 55, y + rh / 2, 40, COLORS.accent);
+          text(ctx, l.title || l.url, W - pad - 105, y + rh / 2 - 15, 32, { align: 'right', weight: 650, maxWidth: W - pad * 2 - 160, dir: 'auto' });
+          text(ctx, l.url, W - pad - 105, y + rh / 2 + 22, 22, { align: 'right', color: COLORS.dim, dir: 'ltr', maxWidth: W - pad * 2 - 160 });
+          p.region(pad, y + 6, W - pad * 2, rh - 12, () => { blip('tap', settings.sounds); a.windows.open({ kind: 'web', url: l.url, title: l.title }); this.close(); }, id);
+        });
+        if (pages > 1) this.pager(ctx, p, W, H, pages);
+      }
+    } else {
+      const list = [
+        ['target', 'النقر بالنظر', settings.dwell ? 'مفعّل' : 'متوقف', () => { saveSettings({ dwell: !settings.dwell }); this.panel.redraw(); }],
+        ['sound', 'أصوات الواجهة', settings.sounds ? 'مفعّلة' : 'متوقفة', () => { saveSettings({ sounds: !settings.sounds }); this.panel.redraw(); }],
+        ['hand', 'تتبع اليد', settings.handsEnabled ? 'مفعّل' : 'متوقف', () => { saveSettings({ handsEnabled: !settings.handsEnabled }); this.panel.redraw(); }],
+        ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
+        ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
+        ['trash', 'إغلاق كل النوافذ', a.windows.windows.length + ' مفتوحة', () => { a.windows.closeAll(); this.panel.redraw(); }],
+        ['reload', 'إعادة تحميل', 'تحديث مدار', () => location.reload()],
+        ['exit', 'الخروج', 'للشاشة الرئيسية', () => { this.close(); a.exit(); }],
+      ];
+      list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, i === 7 ? COLORS.danger : COLORS.accent); });
+    }
+  }
+  pager(ctx, p, W, H, pages) {
+    const y = H - 34;
+    text(ctx, `${this.page + 1} / ${pages}`, W / 2, y, 26, { color: COLORS.dim, dir: 'ltr' });
+    [['chevR', W / 2 - 110, -1], ['chevL', W / 2 + 110, 1]].forEach(([ic, x, d]) => {
+      const id = 'pg' + d, hov = p.isHover(id);
+      ctx.beginPath(); ctx.arc(x, y, 26, 0, 7); ctx.fillStyle = hov ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'; ctx.fill();
+      icon(ctx, ic, x, y, 26);
+      p.region(x - 40, y - 34, 80, 68, () => { blip('tap', settings.sounds); this.page = (this.page + d + pages) % pages; this.panel.redraw(); }, id);
+    });
+  }
+}
+
+const ROWS = [
+  ['ipd', 'المسافة بين العينين', 1, 50, 80, v => v + ' mm'],
+  ['lensSep', 'المسافة بين العدستين', 1, 50, 80, v => v + ' mm'],
+  ['screenToLens', 'عمق العدسة (مجال الرؤية)', 1, 25, 70, v => v.toFixed(1) + ' mm'],
+  ['k1', 'تصحيح التشوه k1', 0.02, -0.2, 1.2, v => v.toFixed(2)],
+  ['k2', 'تصحيح التشوه k2', 0.02, -0.2, 1.2, v => v.toFixed(2)],
+  ['vOffset', 'ارتفاع مركز العدسات', 1, -25, 25, v => (v > 0 ? '+' : '') + v + ' mm'],
+  ['camFov', 'حجم الواقع (مجال الكاميرا)', 1, 40, 130, v => v + '°'],
+  ['poseDelay', 'مزامنة الحركة مع الكاميرا', 10, 0, 200, v => v + ' ms'],
+];
+
+export class Calibration {
+  constructor(app) {
+    this.app = app;
+    this.panel = new CanvasPanel(1.15, 0.92, (ctx, W, H, p) => this.draw(ctx, W, H, p), { pxPerM: 1300 });
+    this.group = new THREE.Group();
+    this.group.add(this.panel.mesh);
+    // Grid behind the panel: straight lines should look straight when distortion is right.
+    const { canvas, ctx, texture } = canvasTexture(1024, 1024);
+    ctx.clearRect(0, 0, 1024, 1024);
+    ctx.strokeStyle = 'rgba(124,196,255,0.75)'; ctx.lineWidth = 3;
+    for (let i = 0; i <= 16; i++) { const v = i * 64; ctx.beginPath(); ctx.moveTo(v, 0); ctx.lineTo(v, 1024); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, v); ctx.lineTo(1024, v); ctx.stroke(); }
+    texture.needsUpdate = true;
+    this.grid = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 4.5), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, opacity: 0.8 }));
+    this.grid.position.z = -1.6;
+    this.group.add(this.grid);
+    this.group.visible = false;
+  }
+  get targets() { return [this.panel.mesh]; }
+  open() {
+    const yaw = this.app.windows.forwardYaw();
+    this.group.position.set(-Math.sin(yaw) * 1.2, -0.02, -Math.cos(yaw) * 1.2);
+    this.group.lookAt(0, 0, 0);
+    this.group.visible = true;
+    this.panel.redraw();
+  }
+  close() { this.group.visible = false; }
+  draw(ctx, W, H, p) {
+    roundRect(ctx, 0, 0, W, H, 60); ctx.fillStyle = 'rgba(14,16,24,0.55)'; ctx.fill();
+    glass(ctx, 0, 0, W, H, 60);
+    text(ctx, 'معايرة النظارة', W - 60, 72, 50, { align: 'right', weight: 750 });
+    text(ctx, 'عدّل حتى تبدو الشبكة خلف اللوحة مستقيمة وواضحة بعين واحدة وبالعينين', W - 60, 124, 25, { align: 'right', color: COLORS.dim });
+    // Preset button
+    const pname = VIEWER_PRESETS[settings.preset]?.label || 'مخصص';
+    const hp = p.isHover('preset');
+    roundRect(ctx, 50, 44, 330, 64, 32); ctx.fillStyle = hp ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'; ctx.fill();
+    text(ctx, 'النظارة: ' + pname, 215, 77, 25, { weight: 650 });
+    p.region(50, 44, 330, 64, () => {
+      const keys = Object.keys(VIEWER_PRESETS); const i = (keys.indexOf(settings.preset) + 1) % keys.length;
+      applyPreset(keys[i]); this.app.applySettings(); blip('tap', settings.sounds); this.panel.redraw();
+    }, 'preset');
+    const top = 160, rh = (H - top - 120) / ROWS.length;
+    ROWS.forEach(([key, label, step, min, max, fmt], i) => {
+      const y = top + i * rh + rh / 2;
+      if (i % 2 === 0) { roundRect(ctx, 40, y - rh / 2 + 3, W - 80, rh - 6, 20); ctx.fillStyle = 'rgba(255,255,255,0.035)'; ctx.fill(); }
+      text(ctx, label, W - 70, y, 29, { align: 'right', weight: 600 });
+      text(ctx, fmt(settings[key]), 330, y, 29, { dir: 'ltr', weight: 700, color: COLORS.accent });
+      [['minus', 120, -1], ['plus', 220, 1]].forEach(([ic, x, d]) => {
+        const id = key + d, hov = p.isHover(id);
+        ctx.beginPath(); ctx.arc(x, y, rh * 0.36, 0, 7); ctx.fillStyle = hov ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.1)'; ctx.fill();
+        icon(ctx, ic, x, y, rh * 0.32);
+        p.region(x - rh * 0.45, y - rh / 2, rh * 0.9, rh, () => {
+          const v = Math.round((settings[key] + d * step) * 1000) / 1000;
+          saveSettings({ [key]: Math.min(max, Math.max(min, v)), preset: ['k1', 'k2', 'lensSep', 'screenToLens'].includes(key) ? 'custom' : settings.preset });
+          this.app.applySettings(); blip('tap', settings.sounds); this.panel.redraw();
+        }, id);
+      });
+    });
+    const hd = p.isHover('done');
+    roundRect(ctx, W / 2 - 170, H - 95, 340, 70, 35); ctx.fillStyle = hd ? '#ffffff' : 'rgba(255,255,255,0.85)'; ctx.fill();
+    text(ctx, 'تم', W / 2, H - 59, 32, { weight: 750, color: '#151821' });
+    p.region(W / 2 - 170, H - 95, 340, 70, () => { blip('tap', settings.sounds); this.close(); }, 'done');
+  }
+}
+
+export class Toast {
+  constructor() {
+    this.panel = new CanvasPanel(0.78, 0.1, (ctx, W, H) => this.draw(ctx, W, H), { pxPerM: 1300 });
+    this.panel.mesh.userData.interact = null;
+    this.panel.mesh.material.depthTest = false;
+    this.panel.mesh.renderOrder = 999;
+    this.msg = ''; this.until = 0;
+    this.mesh = this.panel.mesh;
+    this.mesh.visible = false;
+  }
+  draw(ctx, W, H) { if (!this.msg) return; glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2, true); text(ctx, this.msg, W / 2, H / 2 + 2, H * 0.36, { weight: 600, maxWidth: W - 60, dir: 'auto' }); }
+  show(msg, ms = 2800) { this.msg = msg; this.until = performance.now() + ms; this.panel.redraw(); this.mesh.visible = true; }
+  update(now, Q) {
+    if (!this.mesh.visible) return;
+    if (now > this.until) { this.mesh.visible = false; return; }
+    this.mesh.position.set(0, -0.27, -1.1).applyQuaternion(Q);
+    this.mesh.quaternion.copy(Q);
+    const left = this.until - now;
+    this.mesh.material.opacity = Math.min(1, left / 300);
+  }
+}

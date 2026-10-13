@@ -1,0 +1,23 @@
+# Downloads the MediaPipe hand model next to the app so hand tracking never depends on a third-party CDN.
+name: Fetch hand model
+on:
+  push:
+    branches: [gh-pages]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download model if missing
+        run: |
+          if [ ! -s assets/hand_landmarker.task ]; then
+            curl -fsSL -o assets/hand_landmarker.task https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task
+            git config user.name "madar-bot"
+            git config user.email "madar-bot@users.noreply.github.com"
+            git add assets/hand_landmarker.task
+            git commit -m "Add hand landmarker model"
+            git push
+          fi
