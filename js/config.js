@@ -4,7 +4,7 @@ const LAYOUT_KEY = 'madar.layout.v1';
 const LINKS_KEY = 'madar.links.v1';
 
 export const VIEWER_PRESETS = {
-  vrbox:     { label: 'علبة VR عامة',      lensSep: 63,   screenToLens: 42,   k1: 0.22, k2: 0.10 },
+  vrbox:     { label: 'علبة VR عامة',      lensSep: 63,   screenToLens: 39.5, k1: 0.22, k2: 0.10 },
   cardboard: { label: 'Cardboard v2',       lensSep: 64,   screenToLens: 39.3, k1: 0.34, k2: 0.55 },
   light:     { label: 'عدسات خفيفة',       lensSep: 62,   screenToLens: 45,   k1: 0.10, k2: 0.00 },
   none:      { label: 'بدون تصحيح عدسات',  lensSep: 62,   screenToLens: 45,   k1: 0.00, k2: 0.00 },
@@ -13,10 +13,10 @@ export const VIEWER_PRESETS = {
 export const DEFAULTS = {
   preset: 'vrbox',
   lensSep: 63,          // mm between lens centres
-  screenToLens: 42,     // mm, sets the field of view
+  screenToLens: 39.5,   // mm, sets the field of view (smaller = bigger image)
   k1: 0.22, k2: 0.10,   // radial distortion
   ipd: 64,              // mm, eye separation used for virtual content
-  vOffset: 0,           // mm, vertical shift of lens centres
+  vOffset: -6,          // mm, vertical shift of lens centres (negative = lower, for a phone sitting high so the camera is clear)
   camera: 'wide',       // 'wide' | 'ultra'
   camFov: 69,           // horizontal FOV of camera in degrees (real-scale passthrough)
   worldScale: 1,        // passthrough zoom (1 = real size)
@@ -26,12 +26,20 @@ export const DEFAULTS = {
   sounds: true,
   environment: 'passthrough', // 'passthrough' | 'dim' | 'immersive'
   handsEnabled: true,
+  v: 2,
 };
 
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
 export const settings = Object.assign({}, DEFAULTS, JSON.parse(safeGet(KEY) || '{}'));
+// v2: views sit lower and slightly larger by default; move users still on the old defaults.
+if (!settings.v || settings.v < 2) {
+  if (settings.vOffset === 0) settings.vOffset = DEFAULTS.vOffset;
+  if (settings.preset === 'vrbox' && settings.screenToLens === 42) settings.screenToLens = 39.5;
+  settings.v = 2;
+  safeSet(KEY, JSON.stringify(settings));
+}
 
 const listeners = new Set();
 export function onSettings(fn) { listeners.add(fn); return () => listeners.delete(fn); }

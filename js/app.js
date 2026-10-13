@@ -91,6 +91,10 @@ class App {
     this.debugYaw = 0; this.debugPitch = 0;
     this.bindHome();
     this.bindStageInput();
+    this.checkCrash();
+    this.renderLog();
+    window.addEventListener('error', e => { this.log('خطأ: ' + (e.message || e.error)); if (this.active) this.toast('حدث خطأ: ' + String(e.message || '').slice(0, 60)); });
+    window.addEventListener('unhandledrejection', e => { this.log('خطأ: ' + String(e.reason && e.reason.message || e.reason).slice(0, 120)); });
     this.hands.onChange(() => this.renderStatus());
     this.hands.load();
     this.renderStatus();
@@ -109,6 +113,30 @@ class App {
     const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(1, 2, 1.5); scene.add(d);
     this.env = makeEnvironment();
     scene.add(this.env);
+  }
+
+  // Small diagnostic log kept on the device so problems can be reported.
+  log(msg) {
+    const line = new Date().toLocaleTimeString('en-GB') + '  ' + msg;
+    try {
+      const a = JSON.parse(localStorage.getItem('madar.log') || '[]');
+      a.push(line); while (a.length > 60) a.shift();
+      localStorage.setItem('madar.log', JSON.stringify(a));
+      if (this.active) sessionStorage.setItem('madar.last', msg);
+    } catch {}
+  }
+  renderLog() {
+    try { $('#logView').textContent = JSON.parse(localStorage.getItem('madar.log') || '[]').slice().reverse().join('\n') || 'لا شيء بعد'; } catch {}
+  }
+  // If the page reloads while a session was open, iOS ended it (usually memory). Tell the user what was happening.
+  checkCrash() {
+    let was = null, last = '';
+    try { was = sessionStorage.getItem('madar.inMR'); last = sessionStorage.getItem('madar.last') || ''; sessionStorage.removeItem('madar.inMR'); } catch {}
+    if (!was) return;
+    this.log('انتهت الجلسة فجأة' + (last ? ' بعد: ' + last : ''));
+    const n = $('#crashNote');
+    n.textContent = 'أغلق iOS الجلسة السابقة فجأة' + (last ? ' أثناء «' + last + '»' : '') + '. غالباً بسبب امتلاء الذاكرة: أغلق التطبيقات الأخرى ثم ادخل مجدداً.';
+    n.hidden = false;
   }
 
   systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || [])]; }
@@ -138,18 +166,26 @@ class App {
       this.renderLibrary();
       setTimeout(() => { $('#libStatus').textContent = ''; }, 3500);
     });
-    $('#linkForm').addEventListener('submit', e => {
-      e.preventDefault();
-      let url = $('#linkUrl').value.trim();
-      if (!url) return;
+    const saveLink = () => {
+      const msg = $('#linkMsg');
+      const raw = $('#linkUrl').value.trim();
+      // Accept pasted text that contains a link somewhere inside it.
+      const found = raw.match(/https?:\/\/[^\s]+/i) || raw.match(/(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[\/?#][^\s]*)?/i);
+      let url = found ? found[0] : raw.replace(/\s+/g, '');
+      if (!url) { msg.textContent = 'اكتب الرابط أولاً'; return; }
       if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-      try { new URL(url); } catch { $('#linkUrl').setCustomValidity('رابط غير صالح'); $('#linkUrl').reportValidity(); return; }
-      const title = $('#linkTitle').value.trim() || new URL(url).hostname.replace(/^www\./, '');
+      let host = '';
+      try { host = new URL(url).hostname; } catch {}
+      if (!host || !host.includes('.')) { msg.textContent = 'الرابط غير صحيح، مثال: youtube.com/watch?v=…'; return; }
+      const title = $('#linkName').value.trim() || host.replace(/^www\./, '');
       const l = loadLinks(); l.unshift({ id: 'l' + Date.now(), title, url }); saveLinks(l);
-      $('#linkUrl').value = ''; $('#linkTitle').value = '';
+      $('#linkUrl').value = ''; $('#linkName').value = '';
+      $('#linkUrl').blur(); $('#linkName').blur();
+      msg.textContent = 'تم حفظ «' + title + '» — تجده في القائمة ← المواقع';
+      setTimeout(() => { if (msg.textContent.startsWith('تم')) msg.textContent = ''; }, 4000);
       this.renderLinks();
-    });
-    $('#linkUrl').addEventListener('input', e => e.target.setCustomValidity(''));
+    };
+    $('#linkForm').addEventListener('submit', e => { e.preventDefault(); saveLink(); });
     // Viewer presets
     const pre = $('#presets');
     Object.entries(VIEWER_PRESETS).forEach(([k, p]) => {
@@ -247,6 +283,8 @@ class App {
     this.orientation.layout();
     this.renderer.resize();
     this.active = true;
+    try { sessionStorage.setItem('madar.inMR', String(Date.now())); sessionStorage.removeItem('madar.last'); } catch {}
+    this.log('دخول البيئة');
     this.head.recenter();
     this.restoreScene();
     this.last = performance.now();
@@ -278,6 +316,8 @@ class App {
     if (!this.active) return;
     const snapshot = this.windows.serialize();
     this.active = false;
+    try { sessionStorage.removeItem('madar.inMR'); } catch {}
+    this.log('خروج من البيئة');
     this.renderer.renderer.setAnimationLoop(null);
     this.windows.windows.forEach(w => { if (w.video) w.video.pause(); });
     this.windows.closeAll();
@@ -293,6 +333,7 @@ class App {
     this.stage.hidden = true;
     document.body.classList.remove('in-mr');
     this.renderLibrary();
+    this.renderLog();
   }
 
   async requestMotion() {
@@ -327,8 +368,21 @@ class App {
     v.muted = true; v.playsInline = true;
     try { await v.play(); } catch (e) { console.warn(e); }
     this.renderer.setVideo(v);
-    stream.getVideoTracks()[0]?.addEventListener('ended', () => { if (this.active) this.toast('توقفت الكاميرا — اخرج وادخل مجدداً', 5000); });
+    const track = stream.getVideoTracks()[0];
+    track?.addEventListener('ended', () => this.recoverCamera('ended'));
+    track?.addEventListener('mute', () => setTimeout(() => { if (track.muted) this.recoverCamera('mute'); }, 1500));
     return true;
+  }
+
+  // iOS can stop the camera (e.g. when another app or audio takes over). Restart it quietly.
+  async recoverCamera(why) {
+    if (!this.active || this.recovering) return;
+    this.recovering = true;
+    this.log('إعادة تشغيل الكاميرا (' + why + ')');
+    try { const old = this.camVideo.srcObject; old && old.getTracks().forEach(t => t.stop()); } catch {}
+    const ok = await this.startCamera();
+    if (!ok) this.toast('توقفت الكاميرا — اخرج وادخل مجدداً', 5000);
+    this.recovering = false;
   }
 
   async requestWakeLock() {
@@ -346,7 +400,8 @@ class App {
       const t = e.touches[0];
       t0 = performance.now(); sx = lastX = t.clientX; sy = lastY = t.clientY; moved = false;
       clearTimeout(timer);
-      timer = setTimeout(() => { if (!moved) { blip('close', settings.sounds); this.exit(); } }, 2200);
+      // Exit needs two fingers held for 2 s, so a headset button that stays pressed can never close the session.
+      if (e.touches.length >= 2) timer = setTimeout(() => { if (this.active) { this.log('خروج بإصبعين'); blip('close', settings.sounds); this.exit(); } }, 2000);
     }, { passive: false });
     st.addEventListener('touchmove', e => {
       e.preventDefault();

@@ -214,18 +214,44 @@ export class VideoWindow extends SpatialWindow {
     const v = this.video;
     v.loop = true; v.muted = false; v.playsInline = true;
     v.src = src;
-    v.onloadedmetadata = () => this.setAspect(v.videoWidth / v.videoHeight);
     v.onerror = () => this.mgr.app.toast('تعذّر تشغيل هذا الفيديو');
-    this.tex = new THREE.VideoTexture(v);
-    this.tex.colorSpace = THREE.SRGBColorSpace;
-    this.tex.minFilter = THREE.LinearFilter; this.tex.generateMipmaps = false;
-    this.mat.uniforms.map.value = this.tex;
+    v.onloadedmetadata = () => { this.setAspect(v.videoWidth / v.videoHeight); this.setupTexture(); };
+    this.mgr.app.log('فتح فيديو: ' + (this.name || this.url));
     try { await v.play(); } catch { v.muted = true; try { await v.play(); this.mgr.app.toast('الصوت مكتوم — اضغط زر الصوت'); } catch {} }
+  }
+  // Videos wider than 1920 px (4K from the iPhone camera) are scaled down through a canvas to save GPU memory.
+  setupTexture() {
+    const v = this.video;
+    this.tex?.dispose();
+    const w = v.videoWidth, h = v.videoHeight;
+    if (Math.max(w, h) > 1920) {
+      const k = 1920 / Math.max(w, h);
+      const c = document.createElement('canvas');
+      c.width = Math.round(w * k); c.height = Math.round(h * k);
+      this.canvas = c; this.cctx = c.getContext('2d');
+      this.tex = new THREE.CanvasTexture(c);
+      this.tex.colorSpace = THREE.SRGBColorSpace;
+      this.tex.minFilter = THREE.LinearFilter; this.tex.generateMipmaps = false;
+      this.mat.uniforms.uVideo.value = 0;
+      this.lastFrameTime = -1;
+    } else {
+      this.canvas = null;
+      this.tex = new THREE.VideoTexture(v);
+      this.tex.colorSpace = THREE.SRGBColorSpace;
+      this.tex.minFilter = THREE.LinearFilter; this.tex.generateMipmaps = false;
+      this.mat.uniforms.uVideo.value = 1;
+    }
+    this.mat.uniforms.map.value = this.tex;
   }
   togglePlay() { const v = this.video; if (v.paused) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); else v.pause(); }
   onContentClick() { this.togglePlay(); blip('tap', settings.sounds); this.toolbar.redraw(); return true; }
   update(dt, now) {
-    this.mat.uniforms.uHas.value = this.video.readyState >= 2 ? 1 : 0;
+    const v = this.video;
+    this.mat.uniforms.uHas.value = v.readyState >= 2 && this.tex ? 1 : 0;
+    if (this.canvas && v.readyState >= 2 && v.currentTime !== this.lastFrameTime) {
+      this.lastFrameTime = v.currentTime;
+      try { this.cctx.drawImage(v, 0, 0, this.canvas.width, this.canvas.height); this.tex.needsUpdate = true; } catch {}
+    }
     if (now - this.lastBar > 250) { this.lastBar = now; this.toolbar.redraw(); }
   }
   ref() { return this.itemId ? { item: this.itemId } : { url: this.url }; }
@@ -254,22 +280,25 @@ export class ImageWindow extends SpatialWindow {
   async load() {
     const item = await getItem(this.itemId);
     if (!item) { this.mgr.close(this); return; }
+    this.mgr.app.log('فتح صورة: ' + item.name);
     try {
-      const bmp = await createImageBitmap(item.files[0].blob);
-      const t = new THREE.Texture(bmp);
-      t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; t.anisotropy = 4; t.needsUpdate = true;
-      // ImageBitmap textures are not flipped, so flip the UVs instead.
-      const geo = this.content.geometry;
-      this.flip = true;
+      // Decode, then shrink to at most 2560 px so large camera photos do not exhaust memory.
+      const url = URL.createObjectURL(item.files[0].blob);
+      const img = new Image();
+      img.decoding = 'async';
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+      const k = Math.min(1, 2560 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      img.src = '';
+      const t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
       this.mat.uniforms.map.value = t; this.mat.uniforms.uHas.value = 1;
       this.tex = t;
-      this.setAspect(bmp.width / bmp.height);
-      this.layout();
+      this.setAspect(c.width / c.height);
     } catch { this.mgr.app.toast('تعذّر فتح الصورة'); }
-  }
-  layout() {
-    super.layout();
-    if (this.flip) { const uv = this.content.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i)); uv.needsUpdate = true; }
   }
   ref() { return { item: this.itemId }; }
   dispose() { super.dispose(); this.tex?.dispose(); }
@@ -355,6 +384,7 @@ export class WebWindow extends SpatialWindow {
   constructor(mgr, { url, title = '' }) {
     super(mgr, 'web');
     this.url = url; this.title = title;
+    mgr.app.log('فتح موقع: ' + url);
     this.canCurve = false;
     this.aspect = 16 / 10;
     this.yt = youtubeId(url);
@@ -399,6 +429,8 @@ export class WebWindow extends SpatialWindow {
     const f = document.createElement('iframe');
     f.src = this.src(eye);
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    // No allow-top-navigation: a site that tries to break out of frames can no longer replace Madar.
+    f.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation');
     f.referrerPolicy = 'strict-origin-when-cross-origin';
     f.setAttribute('loading', 'eager');
     f.addEventListener('load', () => this.onFrameLoad(eye, f));
@@ -465,6 +497,7 @@ let shadowTex = null;
 export class ModelVolume {
   constructor(mgr, { itemId = null, url = null, name = '' }) {
     this.mgr = mgr; this.kind = 'model'; this.id = ++winId;
+    mgr.app.log('فتح مجسم: ' + (name || url || itemId));
     this.itemId = itemId; this.url = url; this.name = name;
     this.group = new THREE.Group();
     this.group.userData.window = this;

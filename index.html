@@ -126,8 +126,9 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
       <li id="st-mode" data-state="wait"><span>وضع العرض</span><em>…</em></li>
     </ul>
     <button id="enter" class="primary" type="button">ادخل إلى مدار</button>
-    <p class="hint">يعمل أفقياً دائماً، سواء كان قفل الاتجاه مفعّلاً أم لا. للخروج: المس الشاشة مطوّلاً ثانيتين، أو من القائمة ← الإعدادات ← الخروج.</p>
+    <p class="hint">يعمل أفقياً دائماً، سواء كان قفل الاتجاه مفعّلاً أم لا. للخروج: المس الشاشة بإصبعين لثانيتين، أو من القائمة ← الإعدادات ← الخروج.</p>
     <p id="homeError" class="err" hidden></p>
+    <p id="crashNote" class="err" hidden></p>
   </section>
 
   <section id="install" class="card" aria-labelledby="installTitle">
@@ -161,10 +162,11 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
 
   <section class="card" aria-labelledby="linkTitle">
     <h2 id="linkTitle">مواقعي</h2>
-    <form id="linkForm" class="row">
-      <input id="linkUrl" type="url" dir="ltr" inputmode="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" required>
-      <input id="linkTitle" type="text" placeholder="اسم الرابط (اختياري)" autocomplete="off">
-      <button class="add" type="submit" style="justify-content:center">حفظ الرابط</button>
+    <form id="linkForm" class="row" novalidate>
+      <input id="linkUrl" type="text" dir="ltr" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="youtube.com/watch?v=…  أو أي رابط" autocomplete="off" enterkeyhint="done">
+      <input id="linkName" type="text" placeholder="اسم الرابط (اختياري)" autocomplete="off">
+      <button id="linkSave" class="add" type="submit" style="justify-content:center">حفظ الرابط</button>
+      <p id="linkMsg" class="hint" aria-live="polite" style="margin:0"></p>
     </form>
     <p class="hint">روابط يوتيوب تُعرض كمشغّل كامل. بعض المواقع تمنع عرضها داخل تطبيقات أخرى، فتظهر فارغة.</p>
     <ul id="linkList" class="list"></ul>
@@ -201,6 +203,14 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
       <button id="resetSettings" class="ghost" type="button">استعادة الإعدادات الافتراضية</button>
       <button id="resetLayout" class="ghost" type="button">إعادة ترتيب النوافذ الافتراضي</button>
     </div>
+  </section>
+
+  <section class="card" aria-labelledby="logTitle">
+    <details>
+      <summary id="logTitle">سجل التشخيص</summary>
+      <p class="hint">إذا واجهت مشكلة، صوّر هذا السجل وأرسله.</p>
+      <pre id="logView" dir="auto" style="white-space:pre-wrap;font-size:12px;color:var(--dim);margin:8px 0 0;max-height:240px;overflow:auto"></pre>
+    </details>
   </section>
 
   <footer>مدار · يعمل محلياً على جهازك، ولا تُرفع ملفاتك أو صور الكاميرا إلى أي خادم.</footer>
