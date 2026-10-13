@@ -470,25 +470,33 @@ export class WebWindow extends SpatialWindow {
     return this.url;
   }
   makeCss(eye) {
-    // Zero-size wrapper: CSS3DObject centres its element with translate(-50%), which must not be scaled.
+    // Plain 2D-positioned iframe per eye (3D CSS transforms are unreliable on iOS Safari).
     const el = document.createElement('div');
-    el.className = 'webwrap';
-    const box = document.createElement('div');
-    box.className = 'webwin';
-    el.appendChild(box);
+    el.className = 'webwin';
     const f = document.createElement('iframe');
     f.src = this.src(eye);
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
     // No allow-top-navigation: a site that tries to break out of frames can no longer replace Madar.
     f.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation');
     f.referrerPolicy = 'strict-origin-when-cross-origin';
-    f.setAttribute('loading', 'eager');
     f.addEventListener('load', () => this.onFrameLoad(eye, f));
-    box.appendChild(f);
-    const obj = new CSS3DObject(el);
-    obj.matrixAutoUpdate = false;
-    this.mgr.app.renderer.cssScenes[eye].add(obj);
-    return { el, f, obj };
+    el.appendChild(f);
+    this.mgr.app.renderer.cssHolders[eye].appendChild(el);
+    return { el, f };
+  }
+  // Called after each render with the current eye cameras: place both iframes over the window.
+  placeCss() {
+    const r = this.mgr.app.renderer, m = this.content.matrixWorld, h = this.h;
+    const corners = [[-0.5, h / 2], [0.5, h / 2], [-0.5, -h / 2]].map(([x, y]) => new THREE.Vector3(x, y, 0).applyMatrix4(m));
+    this.css.forEach((c, i) => {
+      const P = corners.map(v => r.eyePx(i, v));
+      const head = this.mgr.app.headForward, toWin = this.group.getWorldPosition(new THREE.Vector3()).normalize();
+      if (P.some(q => !q) || head.dot(toWin) < 0.2) { if (c.el.style.display !== 'none') c.el.style.display = 'none'; return; }
+      if (c.el.style.display) c.el.style.display = '';
+      const [tl, tr, bl] = P;
+      const a = (tr[0] - tl[0]) / 1024, b = (tr[1] - tl[1]) / 1024, cc = (bl[0] - tl[0]) / 640, d = (bl[1] - tl[1]) / 640;
+      c.el.style.transform = `matrix(${a.toFixed(5)},${b.toFixed(5)},${cc.toFixed(5)},${d.toFixed(5)},${tl[0].toFixed(1)},${tl[1].toFixed(1)})`;
+    });
   }
   onFrameLoad(eye, f) {
     if (this.base && !this.yt) { try { f.contentWindow.postMessage({ madar: 1, type: 'hello' }, this.base); } catch {} }
@@ -519,18 +527,7 @@ export class WebWindow extends SpatialWindow {
   userGesture() { if (this.yt && this.ytState.muted) this.ytMute(false); }
   reload() { this.css.forEach((c, i) => { c.f.src = this.src(i); }); }
   update(dt, now) {
-    const head = this.mgr.app.headForward;
-    const toWin = this.group.getWorldPosition(new THREE.Vector3()).normalize();
-    const visible = head.dot(toWin) > 0.2;
-    const sm = new THREE.Matrix4().makeScale(1 / 1024, 1 / 1024, 1);
-    const km = new THREE.Matrix4().makeScale(CSS_K, CSS_K, CSS_K);
     this.content.updateMatrixWorld();
-    for (const c of this.css) {
-      c.obj.matrix.copy(km).multiply(this.content.matrixWorld).multiply(sm);
-      c.obj.matrixWorldNeedsUpdate = true;
-      const disp = visible ? '' : 'none';
-      if (c.el.style.display !== disp) c.el.style.display = disp;
-    }
     if (this.yt && now - this.lastSync > 2000) {
       this.lastSync = now;
       const [a, b] = this.ytState.times;
@@ -543,7 +540,7 @@ export class WebWindow extends SpatialWindow {
     super.dispose();
     this.tabPanel?.dispose();
     window.removeEventListener('message', this.onMsg);
-    this.css.forEach((c, i) => { c.f.src = 'about:blank'; this.mgr.app.renderer.cssScenes[i].remove(c.obj); c.el.remove(); });
+    this.css.forEach(c => { c.f.src = 'about:blank'; c.el.remove(); });
     this.mgr.app.renderer.cssCount--;
     this.cv.texture.dispose();
   }

@@ -190,6 +190,19 @@ export class StereoRenderer {
     });
   }
 
+  // Project a world point into eye i's CSS holder, in px (linear lens approximation). Null if behind.
+  eyePx(i, v) {
+    const cam = this.eyes[i];
+    const p = v.clone().applyMatrix4(cam.matrixWorldInverse);
+    if (p.z > -0.05) return null;
+    const tx = p.x / -p.z, ty = p.y / -p.z;
+    const { width, height } = this.orientation;
+    const px = pxPerMm(), k = settings.screenToLens * px, halfW = width / 2;
+    const cx = (i ? 1 : -1) * settings.lensSep * 0.5 * px + halfW - (i ? halfW : 0);
+    const cy = height / 2 - settings.vOffset * px;
+    return [cx + tx * k, cy - ty * k];
+  }
+
   setVideo(video) {
     if (this.videoTex) this.videoTex.dispose();
     this.video = video;
@@ -301,7 +314,8 @@ export class StereoRenderer {
     r.render(this.distScene, this.distCam);
 
     if (this.cssCount !== this.lastCss) { this.lastCss = this.cssCount; this.resize(); }
-    if (this.cssCount > 0) for (let i = 0; i < 2; i++) {
+    this.afterRender?.();
+    if (false) for (let i = 0; i < 2; i++) {
       const c = this.cssCams[i];
       c.quaternion.copy(this.eyes[i].quaternion);
       c.position.copy(this.eyes[i].position).multiplyScalar(CSS_K);

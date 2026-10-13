@@ -90,6 +90,7 @@ class App {
     this.renderer.overlay.add(this.toastUI.mesh);
     this.interaction = new Interaction(this);
     this.slam = new Slam(this);
+    this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     this.interaction.setTargets();
     this.debugYaw = 0; this.debugPitch = 0;
     this.bindHome();
