@@ -58,6 +58,11 @@ if (settings.v < 3) {
 }
 // v4: per-eye prescription, sharpening, 3 s gaze click.
 if (settings.v < 4) { Object.assign(settings, { sharpen: 0.55, rxStrength: 1, rxR: { sph: -0.75, cyl: -0.5, axis: 90 }, rxL: { sph: 0.5, cyl: -3, axis: 65 }, dwellMs: 3000, v: 4 }); safeSet(KEY, JSON.stringify(settings)); }
+// v5: laptops/desktops start in laptop mode (front camera, keyboard and mouse).
+if (settings.v < 5) {
+  try { if (!('ontouchstart' in window) && matchMedia('(pointer: fine)').matches && typeof DeviceOrientationEvent?.requestPermission !== 'function') settings.viewMode = 'desktop'; } catch {}
+  settings.v = 5; safeSet(KEY, JSON.stringify(settings));
+}
 
 const listeners = new Set();
 export function onSettings(fn) { listeners.add(fn); return () => listeners.delete(fn); }

@@ -154,12 +154,21 @@ class App {
     saveSettings({ walk: !settings.walk });
     if (settings.walk) this.slam.start(); else { this.slam.stop(); this.toast('المشي متوقف'); }
   }
+  toggleFullscreen() {
+    const el = document.documentElement;
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)?.catch?.(() => {});
+    } catch {}
+  }
   setViewMode(m) {
+    const camChange = (m === 'desktop') !== (settings.viewMode === 'desktop');
     saveSettings({ viewMode: m });
+    if (camChange && this.active) this.recoverCamera('mode');
     this.controls.sync();
     this.renderer.resize();
-    this.toast(m === 'mono' ? 'وضع الهاتف: المس النوافذ مباشرة، والعصا للتحرك' : 'وضع النظارة', 2500);
-    this.log(m === 'mono' ? 'وضع الهاتف' : 'وضع النظارة');
+    this.toast({ mono: 'وضع الهاتف: عصا للتحرك وعصا للنظر، والمس النوافذ مباشرة', desktop: 'وضع اللابتوب: WASD للتحرك، الأسهم أو السحب للنظر، M للقائمة', sbs: 'وضع النظارة' }[m], 3500);
+    this.log('وضع العرض: ' + m);
   }
   openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay2.netlify.app/media', title: 'cplay2' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
@@ -287,6 +296,7 @@ class App {
     // Everything that needs the tap's user activation happens first, synchronously where possible.
     try { audioContext()?.resume(); } catch {}
     this.media.unlock();
+    if (settings.viewMode === 'desktop') this.toggleFullscreen();
     const motionP = this.requestMotion();
     const camP = this.startCamera();
     this.startVoice();
@@ -306,7 +316,8 @@ class App {
     this.active = true;
     try { sessionStorage.setItem('madar.inMR', String(Date.now())); sessionStorage.removeItem('madar.last'); } catch {}
     this.log('دخول البيئة');
-    this.controls.sync(); this.controls.nav.set(0, 0, 0);
+    this.controls.sync(); this.controls.reset();
+    if (settings.viewMode === 'desktop') { setTimeout(() => this.toast('WASD للتحرك · الأسهم أو السحب للنظر · M القائمة · F ملء الشاشة', 6000), 2500); }
     if (settings.walk) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
@@ -382,7 +393,7 @@ class App {
     if (!navigator.mediaDevices?.getUserMedia) return false;
     const base = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } };
     let stream = null;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...base, facingMode: { ideal: 'environment' } } }); }
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...base, facingMode: { ideal: settings.viewMode === 'desktop' ? 'user' : 'environment' } } }); }
     catch (e) { console.warn(e); try { stream = await navigator.mediaDevices.getUserMedia({ video: true }); } catch { return false; } }
     if (settings.camera === 'ultra') {
       try {
@@ -428,7 +439,7 @@ class App {
     const st = this.stage;
     st.addEventListener('touchstart', e => {
       e.preventDefault();
-      if (settings.viewMode === 'mono') { this.controls.touchDown(e.changedTouches); return; }
+      if (this.controls.direct) { this.controls.touchDown(e.changedTouches); return; }
       const t = e.touches[0];
       t0 = performance.now(); sx = lastX = t.clientX; sy = lastY = t.clientY; moved = false;
       clearTimeout(timer);
@@ -437,7 +448,7 @@ class App {
     }, { passive: false });
     st.addEventListener('touchmove', e => {
       e.preventDefault();
-      if (settings.viewMode === 'mono') { this.controls.touchMove(e.changedTouches); return; }
+      if (this.controls.direct) { this.controls.touchMove(e.changedTouches); return; }
       const t = e.touches[0];
       if (Math.hypot(t.clientX - sx, t.clientY - sy) > 12) { moved = true; clearTimeout(timer); }
       if (!this.head.hasData) {
@@ -446,7 +457,7 @@ class App {
       }
       lastX = t.clientX; lastY = t.clientY;
     }, { passive: false });
-    const touchUp = e => { if (settings.viewMode === 'mono') { e.preventDefault(); this.controls.touchUp(e.changedTouches); return true; } return false; };
+    const touchUp = e => { if (this.controls.direct) { e.preventDefault(); this.controls.touchUp(e.changedTouches); return true; } return false; };
     st.addEventListener('touchcancel', touchUp, { passive: false });
     st.addEventListener('touchend', e => {
       if (touchUp(e)) return;
@@ -456,20 +467,13 @@ class App {
     }, { passive: false });
     // Desktop testing: mouse drag rotates the view, click = tap.
     let down = false;
-    st.addEventListener('mousedown', e => { down = true; sx = e.clientX; sy = e.clientY; moved = false; });
+    st.addEventListener('mousedown', e => { if (this.controls.direct) return; down = true; sx = e.clientX; sy = e.clientY; moved = false; });
     window.addEventListener('mousemove', e => {
       if (!down || this.head.hasData) return;
       this.debugYaw += e.movementX * 0.004; this.debugPitch = THREE.MathUtils.clamp(this.debugPitch + e.movementY * 0.004, -1.2, 1.2);
       if (Math.hypot(e.clientX - sx, e.clientY - sy) > 6) moved = true;
     });
     window.addEventListener('mouseup', () => { if (down && !moved) this.onRealTap(); down = false; });
-    window.addEventListener('keydown', e => {
-      if (!this.active) return;
-      if (e.key === 'Escape') this.exit();
-      if (e.key === ' ' || e.key === 'Enter') this.onRealTap();
-      if (e.key === 'm' || e.key === 'M') this.toggleLauncher();
-      if (e.key === 'r' || e.key === 'R') this.recenter();
-    });
   }
   onRealTap() {
     if (!this.active) return;
@@ -518,6 +522,7 @@ class App {
     this.renderer.adapt(dt);
     if (this.head.hasData) this.head.pose(settings.poseDelay, this.renderQ);
     else this.renderQ.setFromEuler(new THREE.Euler(-this.debugPitch, -this.debugYaw, 0, 'YXZ'));
+    this.controls.applyLook(this.renderQ);
     this.headForward.set(0, 0, -1).applyQuaternion(this.renderQ);
     const touching = this.controls.applyTouches(now);
     if (settings.handsEnabled && !touching) this.hands.update(this.camVideo, now, (x, y) => { const [sx, sy] = this.renderer.imageToStage(x, y); return this.renderer.stageToTan(sx, sy); });

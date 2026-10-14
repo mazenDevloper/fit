@@ -10,9 +10,9 @@ const BG_VERT = /* glsl */`
   uniform vec2 uExtent; varying vec2 vUv;
   void main(){ vUv = uv; gl_Position = vec4(position.xy * uExtent, 0.0, 1.0); }`;
 const BG_FRAG = /* glsl */`
-  uniform sampler2D map; uniform float uRot; uniform float uBright; uniform float uHas; varying vec2 vUv;
+  uniform sampler2D map; uniform float uRot; uniform float uBright; uniform float uHas; uniform float uMirror; varying vec2 vUv;
   void main(){
-    vec2 uv = vUv;
+    vec2 uv = vec2(uMirror > 0.5 ? 1.0 - vUv.x : vUv.x, vUv.y);
     if (uRot > 0.5) uv = vec2(vUv.y, 1.0 - vUv.x);
     else if (uRot < -0.5) uv = vec2(1.0 - vUv.y, vUv.x);
     vec3 s = texture2D(map, uv).rgb;
@@ -25,11 +25,11 @@ const BG_FRAG = /* glsl */`
 
 // Passthrough again, but only where the hand mask is set: real hands stay in front of virtual content.
 const HAND_FRAG = /* glsl */`
-  uniform sampler2D map; uniform sampler2D mask; uniform float uRot; uniform float uBright; varying vec2 vUv;
+  uniform sampler2D map; uniform sampler2D mask; uniform float uRot; uniform float uBright; uniform float uMirror; varying vec2 vUv;
   void main(){
     float a = texture2D(mask, vUv).r;
     if (a < 0.02) discard;
-    vec2 uv = vUv;
+    vec2 uv = vec2(uMirror > 0.5 ? 1.0 - vUv.x : vUv.x, vUv.y);
     if (uRot > 0.5) uv = vec2(vUv.y, 1.0 - vUv.x);
     else if (uRot < -0.5) uv = vec2(1.0 - vUv.y, vUv.x);
     vec3 s = texture2D(map, uv).rgb;
@@ -92,7 +92,7 @@ export class StereoRenderer {
     this.bgCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this.videoTex = null;
     this.bgMat = new THREE.ShaderMaterial({
-      uniforms: { map: { value: null }, uExtent: { value: new THREE.Vector2(0.6, 0.35) }, uRot: { value: 0 }, uBright: { value: 1 }, uHas: { value: 0 } },
+      uniforms: { map: { value: null }, uExtent: { value: new THREE.Vector2(0.6, 0.35) }, uRot: { value: 0 }, uBright: { value: 1 }, uHas: { value: 0 }, uMirror: { value: 0 } },
       vertexShader: BG_VERT, fragmentShader: BG_FRAG, depthTest: false, depthWrite: false,
     });
     this.bgMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bgMat);
@@ -107,7 +107,7 @@ export class StereoRenderer {
     this.maskTex.minFilter = THREE.LinearFilter; this.maskTex.magFilter = THREE.LinearFilter; this.maskTex.generateMipmaps = false;
     this.maskOn = false;
     this.handMat = new THREE.ShaderMaterial({
-      uniforms: { map: this.bgMat.uniforms.map, mask: { value: this.maskTex }, uExtent: this.bgMat.uniforms.uExtent, uRot: this.bgMat.uniforms.uRot, uBright: this.bgMat.uniforms.uBright },
+      uniforms: { map: this.bgMat.uniforms.map, mask: { value: this.maskTex }, uExtent: this.bgMat.uniforms.uExtent, uRot: this.bgMat.uniforms.uRot, uBright: this.bgMat.uniforms.uBright, uMirror: this.bgMat.uniforms.uMirror },
       vertexShader: BG_VERT, fragmentShader: HAND_FRAG, depthTest: false, depthWrite: false, transparent: true,
     });
     this.handScene = new THREE.Scene();
@@ -199,7 +199,7 @@ export class StereoRenderer {
     const px = pxPerMm();
     const size = 2 * TAN_MAX * settings.screenToLens * px;
     const halfW = width / 2;
-    if (settings.viewMode === 'mono') {
+    if (settings.viewMode !== 'sbs') {
       Object.assign(this.cssHolders[0].style, { left: '0px', width: width + 'px', height: height + 'px', display: '' });
       this.cssHolders[1].style.display = 'none';
       return;
@@ -222,7 +222,7 @@ export class StereoRenderer {
 
   // Project a world point into eye i's CSS holder, in px (linear lens approximation). Null if behind.
   eyePx(i, v) {
-    if (settings.viewMode === 'mono') {
+    if (settings.viewMode !== 'sbs') {
       if (i === 1) return null;
       const p = v.clone().applyMatrix4(this.center.matrixWorldInverse);
       if (p.z > -0.05) return null;
@@ -278,6 +278,7 @@ export class StereoRenderer {
 
   // Convert a MediaPipe landmark (image normalised, y down) into stage-normalised coords (y down).
   imageToStage(ix, iy) {
+    if (settings.viewMode === 'desktop') ix = 1 - ix;   // front camera is shown mirrored
     const r = this.videoRotation();
     if (r === 90) return [iy, 1 - ix];
     if (r === -90) return [1 - iy, ix];
@@ -374,7 +375,8 @@ export class StereoRenderer {
     u.uHas.value = this.video && this.video.readyState >= 2 ? 1 : 0;
 
     this.center.quaternion.copy(headQ); this.center.position.set(0, 0, 0); this.center.updateMatrixWorld();
-    if (settings.viewMode === 'mono') { this.renderMono(t, envMode); return; }
+    u.uMirror.value = settings.viewMode === 'desktop' ? 1 : 0;
+    if (settings.viewMode !== 'sbs') { this.renderMono(t, envMode); return; }
     for (let i = 0; i < 2; i++) {
       const cam = this.eyes[i];
       cam.quaternion.copy(headQ);

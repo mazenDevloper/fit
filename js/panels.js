@@ -15,6 +15,8 @@ export class Launcher {
     this.panel = new CanvasPanel(1.3, 0.84, (ctx, W, H, p) => this.draw(ctx, W, H, p), { pxPerM: 1300 });
     this.group = new THREE.Group();
     this.group.add(this.panel.mesh);
+    // The launcher always draws on top of windows, like a system overlay.
+    this.panel.mesh.material.depthTest = false; this.panel.mesh.renderOrder = 900;
     this.group.visible = false;
   }
   get targets() { return [this.panel.mesh]; }
@@ -26,7 +28,7 @@ export class Launcher {
   open() {
     this.refresh();
     const yaw = this.app.windows.forwardYaw();
-    const d = settings.viewMode === 'mono' ? 1.75 : 1.25;
+    const d = settings.viewMode !== 'sbs' ? 1.75 : 1.25;
     this.group.position.set(-Math.sin(yaw) * d, -0.08, -Math.cos(yaw) * d);
     this.group.lookAt(0, 0, 0);
     this.group.visible = true;
@@ -133,7 +135,7 @@ export class Launcher {
         ['hand', 'تتبع اليد', settings.handsEnabled ? 'مفعّل' : 'متوقف', () => { saveSettings({ handsEnabled: !settings.handsEnabled }); this.panel.redraw(); }],
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['trash', 'إغلاق كل النوافذ', a.windows.windows.length + ' مفتوحة', () => { a.windows.closeAll(); this.panel.redraw(); }],
-        ['grid', 'وضع العرض', settings.viewMode === 'mono' ? 'هاتف' : 'نظارة', () => { a.setViewMode(settings.viewMode === 'mono' ? 'sbs' : 'mono'); this.panel.redraw(); }],
+        ['grid', 'وضع العرض', { sbs: 'نظارة', mono: 'هاتف', desktop: 'لابتوب' }[settings.viewMode], () => { const o = ['sbs', 'mono', 'desktop']; a.setViewMode(o[(o.indexOf(settings.viewMode) + 1) % 3]); this.panel.redraw(); }],
         ['target', 'المشي (تجريبي)', settings.walk ? 'مفعّل' : 'متوقف', () => { a.toggleWalk(); this.panel.redraw(); }],
         ['exit', 'الخروج', 'للشاشة الرئيسية', () => { this.close(); a.exit(); }],
       ];

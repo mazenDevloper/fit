@@ -107,11 +107,20 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
 .webwin iframe{width:100%;height:100%;border:0;display:block;background:#0f121a}
 
 #controls{position:absolute;inset:0;z-index:5;pointer-events:none;font-family:var(--font)}
-#controls .joy{pointer-events:auto;position:absolute;left:calc(24px + env(safe-area-inset-left,0px));bottom:22px;width:128px;height:128px;border-radius:50%;background:rgba(20,24,36,.45);border:2px solid rgba(255,255,255,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);touch-action:none}
+#controls .joy{pointer-events:auto;position:absolute;bottom:22px;width:132px;height:132px;border-radius:50%;background:rgba(20,24,36,.42);border:2px solid rgba(255,255,255,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);touch-action:none}
+#controls .joy[data-stick=move]{left:calc(22px + env(safe-area-inset-left,0px))}
+#controls .joy[data-stick=look]{right:calc(22px + env(safe-area-inset-right,0px))}
+#controls .joy span{position:absolute;top:-22px;left:0;right:0;text-align:center;font-size:12px;font-weight:800;color:rgba(255,255,255,.8);text-shadow:0 1px 3px #000}
 #controls .knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 4px 14px rgba(0,0,0,.4);transition:transform .08s}
-#controls .pad{pointer-events:auto;position:absolute;right:calc(18px + env(safe-area-inset-right,0px));bottom:18px;display:grid;grid-template-columns:repeat(2,auto);gap:8px}
+#controls .pad{pointer-events:auto;position:absolute;left:50%;transform:translateX(-50%);bottom:14px;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:46%}
 #controls .pad button{min-width:74px;padding:11px 12px;border-radius:16px;background:rgba(20,24,36,.55);color:#fff;font-weight:800;font-size:15px;border:1.5px solid rgba(255,255,255,.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #controls .pad button:active{background:rgba(255,255,255,.35)}
+#controls .pad button{min-width:64px;padding:9px 11px;font-size:14px}
+#controls[data-mode=desktop] .joy,#controls[data-mode=desktop] .ph,#controls[data-mode=mono] .dk{display:none}
+#controls .keys{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:12px;background:rgba(20,24,36,.55);color:#fff;font-size:12.5px;font-weight:700;white-space:nowrap;pointer-events:none}
+/* Phone and laptop: web pages take touches and clicks directly. */
+#stage.direct #gl{pointer-events:none}
+#stage.direct .eye .webwin, #stage.direct .eye .webwin iframe{pointer-events:auto}
 #cam{position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:0}
 #mediaPool{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none}
 #mediaPool video{width:2px;height:2px}
@@ -187,6 +196,7 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
     <div class="seg" role="group" aria-label="وضع العرض" style="margin-top:8px">
       <button type="button" data-view="sbs">نظارة (عينان)</button>
       <button type="button" data-view="mono">هاتف (شاشة كاملة + عصا)</button>
+      <button type="button" data-view="desktop">لابتوب (كاميرا أمامية + لوحة مفاتيح)</button>
     </div>
     <div class="field" style="margin-top:16px"><label>الكاميرا</label></div>
     <div class="seg" role="group" aria-label="الكاميرا" style="margin-top:8px">
@@ -233,15 +243,19 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
   <div id="eyeL" class="eye"></div>
   <div id="eyeR" class="eye"></div>
   <div id="controls" hidden>
-    <div class="joy" aria-label="عصا التحرك"><div class="knob"></div></div>
+    <div class="joy" data-stick="move" aria-label="عصا التحرك"><div class="knob"></div><span>تحرك</span></div>
+    <div class="joy" data-stick="look" aria-label="عصا النظر"><div class="knob"></div><span>نظر</span></div>
     <div class="pad">
-      <button type="button" data-act="up" aria-label="أعلى">▲</button>
-      <button type="button" data-act="down" aria-label="أسفل">▼</button>
       <button type="button" data-act="menu">القائمة</button>
       <button type="button" data-act="recenter">تمركز</button>
-      <button type="button" data-act="headset">نظارة</button>
+      <button type="button" data-act="up" class="ph">▲</button>
+      <button type="button" data-act="down" class="ph">▼</button>
+      <button type="button" data-act="headset" class="ph">نظارة</button>
+      <button type="button" data-act="full" class="dk">ملء الشاشة</button>
       <button type="button" data-act="exit">خروج</button>
     </div>
+    <div class="keys dk">WASD تحرك · الأسهم/السحب نظر · Q/E نزول/صعود · مسافة نقر · M قائمة · عجلة الفأرة تمرير</div>
+  </div>
   </div>
 </div>
 <video id="cam" playsinline webkit-playsinline muted autoplay></video>

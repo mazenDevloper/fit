@@ -724,7 +724,7 @@ export class WindowManager {
     this.app.interaction?.setTargets();
   }
   headLocal() { this.root.updateMatrixWorld(); return this.root.worldToLocal(new THREE.Vector3(0, 0, 0)); }
-  forwardYaw() { return this.app.head.currentYaw() - this.app.head.yawOffset; }
+  forwardYaw() { const f = this.app.headForward; return Math.atan2(-f.x, -f.z); }
   // Place a group in front of the viewer, avoiding overlap with existing windows.
   place(group, dist, y = 0, avoid = true) {
     let yaw = this.forwardYaw();

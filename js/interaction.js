@@ -51,6 +51,8 @@ export class Interaction {
   cast(dir) {
     this.raycaster.set(new THREE.Vector3(0, 0, 0), dir);
     const hits = this.raycaster.intersectObjects(this.targets, false);
+    const top = hits.find(h => h.object.renderOrder >= 900 && h.object.userData.interact && this.isLive(h.object));
+    if (top) return top;
     for (const h of hits) if (h.object.userData.interact && this.isLive(h.object)) return h;
     return null;
   }

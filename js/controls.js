@@ -1,97 +1,180 @@
-// Phone mode controls (virtual joystick + buttons + direct touch) and game controller support for both modes.
+// Non-headset controls.
+// Phone mode: two virtual sticks (move / look), buttons, and direct touch on windows.
+// Laptop mode: keyboard + mouse, front camera hand gestures, full screen.
+// Game controllers work in every mode (Quest-style).
 import * as THREE from 'three';
 import { settings } from './config.js';
 import { blip } from './ui.js';
 
+const STICK_R = 40;
+
 export class Controls {
   constructor(app) {
     this.app = app;
-    this.nav = new THREE.Vector3();        // how far the viewer has moved with stick / joystick
-    this.joy = { x: 0, y: 0, id: null };
-    this.touches = new Map();               // finger id -> stage point, for direct touch on windows
+    this.nav = new THREE.Vector3();          // how far the viewer moved with sticks / keys
+    this.look = { yaw: 0, pitch: 0 };         // extra look from the right stick, keys and mouse
+    this.sticks = { move: { x: 0, y: 0, id: null }, look: { x: 0, y: 0, id: null } };
+    this.touches = new Map();
+    this.keys = new Set();
     this.pad = { prev: [] };
     this.el = document.getElementById('controls');
-    this.knob = this.el.querySelector('.knob');
-    this.bindJoystick();
+    this.el.querySelectorAll('.joy').forEach(j => this.bindStick(j, this.sticks[j.dataset.stick]));
     this.el.querySelectorAll('[data-act]').forEach(b => {
       const go = e => { e.preventDefault(); e.stopPropagation(); blip('tap', settings.sounds); this.action(b.dataset.act); };
       b.addEventListener('touchend', go, { passive: false });
       b.addEventListener('click', go);
       b.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+      b.addEventListener('mousedown', e => e.stopPropagation());
     });
+    this.bindDesktop();
     this.sync();
   }
-  get mono() { return settings.viewMode === 'mono'; }
-  sync() { this.el.hidden = !this.mono; }
+  get mode() { return settings.viewMode; }
+  get direct() { return this.mode !== 'sbs'; }        // phone + laptop: point and touch directly
+  sync() {
+    this.el.hidden = !this.direct;
+    this.el.dataset.mode = this.mode;
+    this.app.stage.classList.toggle('direct', this.direct);
+  }
   action(a) {
     const app = this.app;
     if (a === 'menu') app.toggleLauncher();
-    else if (a === 'recenter') { this.nav.set(0, 0, 0); app.recenter(); }
+    else if (a === 'recenter') { this.reset(); app.recenter(); }
     else if (a === 'exit') app.exit();
     else if (a === 'headset') app.setViewMode('sbs');
     else if (a === 'up' || a === 'down') this.nav.y += a === 'up' ? 0.15 : -0.15;
+    else if (a === 'full') app.toggleFullscreen();
   }
-  bindJoystick() {
-    const base = this.el.querySelector('.joy');
+  reset() { this.nav.set(0, 0, 0); this.look.yaw = 0; this.look.pitch = 0; }
+
+  bindStick(base, st) {
+    const knob = base.querySelector('.knob');
     const move = t => {
       const r = base.getBoundingClientRect();
       const s = this.app.orientation.toStage(t.clientX, t.clientY);
       const c = this.app.orientation.toStage(r.left + r.width / 2, r.top + r.height / 2);
-      // Rect is in viewport space; convert the centre too, so a rotated stage still works.
       let dx = (s.x - c.x) / (base.offsetWidth / 2), dy = (s.y - c.y) / (base.offsetWidth / 2);
       const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
-      this.joy.x = dx; this.joy.y = dy;
-      this.knob.style.transform = `translate(${dx * 38}px, ${dy * 38}px)`;
+      st.x = dx; st.y = dy;
+      knob.style.transform = `translate(${dx * STICK_R}px, ${dy * STICK_R}px)`;
     };
-    base.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); const t = e.changedTouches[0]; this.joy.id = t.identifier; move(t); }, { passive: false });
-    base.addEventListener('touchmove', e => { e.preventDefault(); e.stopPropagation(); for (const t of e.changedTouches) if (t.identifier === this.joy.id) move(t); }, { passive: false });
-    const end = e => { e.preventDefault(); e.stopPropagation(); for (const t of e.changedTouches) if (t.identifier === this.joy.id) { this.joy = { x: 0, y: 0, id: null }; this.knob.style.transform = ''; } };
+    const stop = e => e.preventDefault() || e.stopPropagation();
+    base.addEventListener('touchstart', e => { stop(e); const t = e.changedTouches[0]; st.id = t.identifier; move(t); }, { passive: false });
+    base.addEventListener('touchmove', e => { stop(e); for (const t of e.changedTouches) if (t.identifier === st.id) move(t); }, { passive: false });
+    const end = e => { stop(e); for (const t of e.changedTouches) if (t.identifier === st.id) { st.x = st.y = 0; st.id = null; knob.style.transform = ''; } };
     base.addEventListener('touchend', end, { passive: false });
     base.addEventListener('touchcancel', end, { passive: false });
   }
-  // Touches on the scene itself act like pinching hands at that point (tap, drag, two-finger resize, scroll).
+
+  // ---- Direct touch / mouse on windows: behaves like a pinching hand at that point ----
   touchDown(list) { for (const t of list) this.touches.set(t.identifier, this.app.orientation.toStage(t.clientX, t.clientY)); }
   touchMove(list) { for (const t of list) if (this.touches.has(t.identifier)) this.touches.set(t.identifier, this.app.orientation.toStage(t.clientX, t.clientY)); }
   touchUp(list) { for (const t of list) this.touches.delete(t.identifier); }
-  // Returns true when touch is driving the pointers this frame (hand tracking is then skipped).
+  screenDir(x, y) {
+    const m = this.app.renderer.monoTan(), W = this.app.orientation.width, H = this.app.orientation.height;
+    return [(x / W * 2 - 1) * m.x, (1 - y / H * 2) * m.y];
+  }
   applyTouches(now) {
-    if (!this.mono) return false;
+    if (!this.direct) return false;
     const slots = this.app.hands.slots;
     const pts = [...this.touches.values()].slice(0, 2);
     if (!pts.length && !this.touchWas) return false;
-    const m = this.app.renderer.monoTan(), W = this.app.orientation.width, H = this.app.orientation.height;
     slots.forEach((s, i) => {
       const p = pts[i];
       if (p) {
-        Object.assign(s, { active: true, seen: now + 400, pinch: true, strength: 1, depth: 0.45,
-          tx: (p.x / W * 2 - 1) * m.x, ty: (1 - p.y / H * 2) * m.y, pts: null });
-      } else if (s.pinch) { s.pinch = false; s.strength = 0; s.seen = now + 60; }   // release on lift so taps click
+        const [tx, ty] = this.screenDir(p.x, p.y);
+        Object.assign(s, { active: true, seen: now + 400, pinch: true, strength: 1, depth: 0.45, tx, ty, pts: null });
+      } else if (s.pinch) { s.pinch = false; s.strength = 0; s.seen = now + 60; }
       else s.active = false;
     });
     this.touchWas = pts.length > 0;
     return true;
   }
+
+  // ---- Laptop: keyboard, mouse, wheel ----
+  bindDesktop() {
+    const st = this.app.stage;
+    let drag = null;
+    st.addEventListener('mousedown', e => {
+      if (!this.app.active || !this.direct || e.button !== 0) return;
+      const p = this.app.orientation.toStage(e.clientX, e.clientY);
+      const [tx, ty] = this.screenDir(p.x, p.y);
+      const dir = new THREE.Vector3(tx, ty, -1).normalize().applyQuaternion(this.app.renderQ);
+      // On a window: act like a finger. On empty space: drag to look around.
+      if (this.app.interaction.cast(dir)) { this.touches.set('mouse', p); drag = 'touch'; }
+      else drag = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!drag) return;
+      if (drag === 'touch') { this.touches.set('mouse', this.app.orientation.toStage(e.clientX, e.clientY)); return; }
+      this.look.yaw -= (e.clientX - drag.x) * 0.0035;
+      this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - (e.clientY - drag.y) * 0.0035, -1.3, 1.3);
+      drag.x = e.clientX; drag.y = e.clientY;
+    });
+    window.addEventListener('mouseup', () => { if (drag === 'touch') this.touches.delete('mouse'); drag = null; });
+    st.addEventListener('wheel', e => {
+      if (!this.app.active || !this.direct) return;
+      e.preventDefault();
+      const hit = this.app.interaction.pointers.find(p => p.active && p.hit)?.hit;
+      const it = hit && hit.object.userData.interact, w = it && it.window;
+      if (w && w.send && w.bridge && !e.ctrlKey) w.send({ type: 'scroll', dx: e.deltaX, dy: e.deltaY, x: 512, y: 320 });
+      else if (w && w.scaleBy) w.scaleBy(e.deltaY < 0 ? 1.06 : 1 / 1.06);
+    }, { passive: false });
+    window.addEventListener('keydown', e => {
+      if (!this.app.active) return;
+      const k = e.key.toLowerCase();
+      this.keys.add(k);
+      if (k === ' ' || k === 'enter') { e.preventDefault(); this.app.onRealTap(); }
+      else if (k === 'm' || k === 'tab') { e.preventDefault(); this.app.toggleLauncher(); }
+      else if (k === 'r') { this.reset(); this.app.recenter(); }
+      else if (k === 'f') this.app.toggleFullscreen();
+      else if (k === '+' || k === '=' || k === '-') {
+        const hit = this.app.interaction.pointers.find(p => p.active && p.hit)?.hit;
+        const w = hit && hit.object.userData.interact.window;
+        if (w && w.scaleBy) w.scaleBy(k === '-' ? 1 / 1.12 : 1.12);
+      }
+      else if (k === 'escape' && !document.fullscreenElement) this.app.exit();
+    });
+    window.addEventListener('keyup', e => this.keys.delete(e.key.toLowerCase()));
+    window.addEventListener('blur', () => this.keys.clear());
+  }
+
   update(dt) {
-    const app = this.app;
-    const yaw = app.head.currentYaw() - app.head.yawOffset;
+    const app = this.app, K = this.keys;
+    let mx = 0, my = 0, lx = 0, ly = 0, up = 0;
+    if (this.mode === 'mono') { mx = this.sticks.move.x; my = this.sticks.move.y; lx = this.sticks.look.x; ly = this.sticks.look.y; }
+    // Keyboard (any mode): WASD move, arrows look, Q/E down/up.
+    if (K.has('w')) my -= 1; if (K.has('s')) my += 1; if (K.has('a')) mx -= 1; if (K.has('d')) mx += 1;
+    if (K.has('arrowleft')) lx -= 1; if (K.has('arrowright')) lx += 1; if (K.has('arrowup')) ly -= 1; if (K.has('arrowdown')) ly += 1;
+    if (K.has('e')) up += 1; if (K.has('q')) up -= 1;
+    this.pollPad(dt, (m, l) => { if (m) { mx = m[0]; my = m[1]; } if (l) { lx = l[0]; ly = l[1]; } });
+    const dz = v => Math.abs(v) < 0.12 ? 0 : v;
+    mx = dz(mx); my = dz(my); lx = dz(lx); ly = dz(ly);
+    this.look.yaw -= lx * 1.9 * dt;
+    this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - ly * 1.4 * dt, -1.3, 1.3);
+    const yaw = Math.atan2(-app.headForward.x, -app.headForward.z);
     const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-    let mx = this.mono ? this.joy.x : 0, my = this.mono ? this.joy.y : 0;
-    this.pollPad(dt, v => { mx = v[0]; my = v[1]; });
     const speed = 1.4;
-    if (Math.abs(mx) > 0.12 || Math.abs(my) > 0.12) this.nav.addScaledVector(right, mx * speed * dt).addScaledVector(fwd, -my * speed * dt);
-    // The world moves opposite to the viewer (stick + walking).
+    this.nav.addScaledVector(right, mx * speed * dt).addScaledVector(fwd, -my * speed * dt);
+    this.nav.y += up * speed * 0.6 * dt;
+    // The world moves opposite to the viewer (sticks/keys + walking).
     app.windows.root.position.copy(app.slam.pos).add(this.nav).negate();
   }
-  // Standard game controllers (Bluetooth), Quest-style: left stick move, right stick turn,
-  // A = select, B = back, Menu = launcher, LB/RB = smaller/bigger for what you point at.
-  pollPad(dt, setMove) {
+  // Apply look offset to the head rotation (yaw around world up, pitch around the view's right axis).
+  applyLook(q) {
+    if (!this.look.yaw && !this.look.pitch) return q;
+    const yq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.look.yaw);
+    const pq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.look.pitch);
+    return q.premultiply(yq).multiply(pq);
+  }
+
+  // Bluetooth controllers: left stick move, right stick look, A select, B back, Menu launcher, LB/RB resize.
+  pollPad(dt, set) {
     const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
     const gp = pads[0]; if (!gp) return;
     const ax = gp.axes, b = gp.buttons.map(x => x.pressed);
-    const dz = v => Math.abs(v) < 0.15 ? 0 : v;
-    setMove([dz(ax[0] || 0), dz(ax[1] || 0)]);
-    const turn = dz(ax[2] || 0);
-    if (turn) this.app.head.yawOffset -= turn * 1.8 * dt;
+    set([ax[0] || 0, ax[1] || 0], [ax[2] || 0, ax[3] || 0]);
     const edge = i => b[i] && !this.pad.prev[i];
     if (edge(0)) this.app.onRealTap();
     if (edge(1)) { if (this.app.launcher.group.visible) this.app.launcher.close(); else if (this.app.calibration.group.visible) this.app.calibration.close(); }
@@ -101,7 +184,7 @@ export class Controls {
       const w = p && p.hit.object.userData.interact.window;
       if (w && w.scaleBy) w.scaleBy(edge(5) ? 1.15 : 1 / 1.15);
     }
-    if (edge(10) || edge(11)) { this.nav.set(0, 0, 0); this.app.recenter(); }
+    if (edge(10) || edge(11)) { this.reset(); this.app.recenter(); }
     this.pad.prev = b;
   }
 }
