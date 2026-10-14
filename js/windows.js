@@ -352,7 +352,7 @@ export class PanelWindow extends SpatialWindow {
     super(mgr, 'panel');
     this.panelKind = panel;
     this.canCurve = false;
-    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42] };
+    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42], pad: [1, 0.86] };
     const [w, h] = specs[panel] || [1, 0.6];
     this.aspect = w / h;
     this.cv = canvasTexture(1400, Math.round(1400 * h / w));
@@ -382,7 +382,7 @@ export class PanelWindow extends SpatialWindow {
       text(ctx, t, W / 2, H * 0.44, H * 0.4, { weight: 500, dir: 'rtl' });
       text(ctx, d, W / 2, H * 0.82, H * 0.13, { color: '#dfe6f5', weight: 600 });
     } else {
-      const title = k === 'welcome' ? 'أهلاً بك في مدار' : 'دليل الإيماءات';
+      const title = k === 'welcome' ? 'أهلاً بك في مدار' : k === 'pad' ? 'يد التحكم' : 'دليل الإيماءات';
       text(ctx, title, W - 70, 92, 76, { align: 'right', weight: 800 });
       if (k === 'welcome') text(ctx, 'النوافذ معلّقة في غرفتك، التفت حولك', W - 70, 170, 42, { align: 'right', color: '#d5ddef', weight: 600 });
       const rows = [
@@ -393,6 +393,16 @@ export class PanelWindow extends SpatialWindow {
         ['target', 'لإعادة التمركز', 'اقرص باليدين معاً في الفراغ ثانية'],
         ['sun', 'بدون يدين', 'انظر إلى الزر 3 ثوانٍ أو المس الشاشة'],
       ];
+      if (k === 'pad') rows.splice(0, rows.length,
+        ['hand', '✕ / A', 'اختيار · اضغط مطوّلاً للسحب والتمرير'],
+        ['close', '○ / B', 'رجوع وإغلاق القائمة'],
+        ['grid', 'Options', 'القائمة الرئيسية'],
+        ['stack', 'العصا اليسرى', 'التحرك في المكان'],
+        ['reload', 'العصا اليمنى', 'التفاف 30° · أعلى/أسفل للتمرير'],
+        ['plus', 'L1 / R1', 'تصغير / تكبير ما تشير إليه'],
+        ['sliders', 'L2 / R2', 'تمرير الصفحة'],
+        ['target', '□ / X', 'إعادة التمركز · △ لوحة المفاتيح'],
+      );
       const top = k === 'welcome' ? 225 : 165, rh = (H - top - 30) / rows.length;
       rows.forEach(([ic, a, b], i) => {
         const y = top + i * rh + rh / 2;

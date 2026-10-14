@@ -87,7 +87,7 @@ export class Launcher {
         ['globe', 'cplay3', 'بالتابات واليد', () => { a.openCplay(); this.close(); }],
         ['grid', 'لوحة المفاتيح', 'رابط أو نص أو رمز', () => { a.windows.open({ kind: 'keyboard' }); this.close(); }],
         ['video', settings.viewMode === 'desktop' ? 'عرض شاشة/نافذة' : 'شاشة اللابتوب', settings.viewMode === 'desktop' ? 'أو الآيفون عبر AirPlay' : settings.mirrorCode ? 'الرمز ' + settings.mirrorCode : 'أدخل الرمز', () => { this.close(); settings.viewMode === 'desktop' ? a.showLocalScreen() : settings.mirrorCode ? a.connectMirror(settings.mirrorCode) : (a.windows.open({ kind: 'keyboard' }), a.toast('اكتب رمز اللابتوب (6 أرقام) واضغط فتح', 4000)); }],
-        ['hand', 'دليل الإيماءات', 'كيف تتحكم', () => { a.windows.open({ kind: 'panel', panel: 'guide' }); this.close(); }],
+        ['hand', 'دليل الإيماءات', 'كيف تتحكم', () => { a.windows.open({ kind: 'panel', panel: a.controls.pad.id ? 'pad' : 'guide' }); this.close(); }],
         ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
         ['stack', 'ترتيب النوافذ', 'أمامك', () => { a.windows.arrange(); this.close(); }],
         ['target', 'إعادة التمركز', 'اجعل الأمام هنا', () => { a.recenter(); this.close(); }],

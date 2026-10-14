@@ -3,7 +3,7 @@
 // Laptop mode: keyboard + mouse, front camera hand gestures, full screen.
 // Game controllers work in every mode (Quest-style).
 import * as THREE from 'three';
-import { settings } from './config.js';
+import { settings, saveSettings, pxPerMm } from './config.js';
 import { blip } from './ui.js';
 
 const STICK_R = 40;
@@ -17,6 +17,7 @@ export class Controls {
     this.touches = new Map();
     this.keys = new Set();
     this.pad = { prev: [] };
+    this.padPtr = { tx: 0, ty: 0, down: false, last: -1e9, active(now) { return this.down || now - this.last < 1500; } };
     this.el = document.getElementById('controls');
     this.el.querySelectorAll('.joy').forEach(j => this.bindStick(j, this.sticks[j.dataset.stick]));
     this.el.querySelectorAll('[data-act]').forEach(b => {
@@ -93,48 +94,84 @@ export class Controls {
     const m = this.app.renderer.monoTan(), W = this.app.orientation.width, H = this.app.orientation.height;
     return [(x / W * 2 - 1) * m.x, (1 - y / H * 2) * m.y];
   }
+  // Which pointer drives the "hand" slots this frame: touches > mouse > game controller > (real hands).
   applyTouches(now) {
-    if (!this.direct) return false;
     const slots = this.app.hands.slots;
-    const pts = [...this.touches.values()].slice(0, 2);
-    if (!pts.length && !this.touchWas) return false;
-    slots.forEach((s, i) => {
-      const p = pts[i];
-      if (p) {
-        const [tx, ty] = this.screenDir(p.x, p.y);
-        Object.assign(s, { active: true, seen: now + 400, pinch: true, strength: 1, depth: 0.45, tx, ty, pts: null });
-      } else if (s.pinch) { s.pinch = false; s.strength = 0; s.seen = now + 60; }
+    const pts = this.direct ? [...this.touches.values()].slice(0, 2) : [];
+    if (pts.length || this.touchWas) {
+      slots.forEach((s, i) => {
+        const p = pts[i];
+        if (p) {
+          const [tx, ty] = this.screenDir(p.x, p.y);
+          Object.assign(s, { active: true, seen: now + 400, pinch: true, strength: 1, depth: 0.45, tx, ty, pts: null });
+        } else if (s.pinch) { s.pinch = false; s.strength = 0; s.seen = now + 60; }
+        else s.active = false;
+      });
+      this.touchWas = pts.length > 0;
+      if (this.touchWas) return true;
+    }
+    // Mouse (any mode) and controller: one pointer in slot 0 while in use.
+    const v = this.mouse.active(now) ? this.mouse : this.padPtr.active(now) ? this.padPtr : null;
+    if (v || this.virtWas) {
+      const s = slots[0];
+      if (v) Object.assign(s, { active: true, seen: now + 300, pinch: v.down, strength: v.down ? 1 : 0, depth: 0.45, tx: v.tx, ty: v.ty, pts: null });
+      else if (s.pinch) { s.pinch = false; s.strength = 0; s.seen = now + 60; }
       else s.active = false;
-    });
-    this.touchWas = pts.length > 0;
-    return true;
+      slots[1].active = false;
+      this.virtWas = !!v || s.pinch;
+      return true;
+    }
+    return false;
+  }
+  // Screen point → view direction (tan) for the current mode; in headset mode, through the lens of that eye.
+  pointTan(x, y) {
+    if (this.direct) return this.screenDir(x, y);
+    const W = this.app.orientation.width, H = this.app.orientation.height, px = pxPerMm();
+    const right = x >= W / 2;
+    const cx = W / 2 + (right ? 1 : -1) * settings.lensSep * 0.5 * px, cy = H / 2 - settings.vOffset * px;
+    const ox = (x - cx) / px / settings.screenToLens, oy = -(y - cy) / px / settings.screenToLens;
+    const r2 = ox * ox + oy * oy, k = 1 + settings.k1 * r2 + settings.k2 * r2 * r2;
+    return [ox * k, oy * k];
   }
 
   // ---- Laptop: keyboard, mouse, wheel ----
   bindDesktop() {
     const st = this.app.stage;
     let drag = null;
-    st.addEventListener('mousedown', e => {
-      if (!this.app.active || !this.direct || e.button !== 0) return;
+    const mouse = this.mouse = { tx: 0, ty: 0, down: false, last: -1e9, active(now) { return this.down || now - this.last < 2500; } };
+    const isMouse = e => e.pointerType === 'mouse' || e.pointerType === 'pen';
+    const setMouse = e => {
       const p = this.app.orientation.toStage(e.clientX, e.clientY);
-      const [tx, ty] = this.screenDir(p.x, p.y);
-      const dir = new THREE.Vector3(tx, ty, -1).normalize().applyQuaternion(this.app.renderQ);
-      // On a window: act like a finger. On empty space: drag to look around.
-      if (this.app.interaction.cast(dir)) { this.touches.set('mouse', p); drag = 'touch'; }
-      else drag = { x: e.clientX, y: e.clientY };
+      [mouse.tx, mouse.ty] = this.pointTan(p.x, p.y);
+      mouse.last = performance.now();
+      return p;
+    };
+    st.addEventListener('pointerdown', e => {
+      if (!this.app.active || !isMouse(e)) return;
       e.preventDefault();
+      if (e.button === 2) { this.app.toggleLauncher(); return; }          // right click = menu
+      if (e.button !== 0) return;
+      setMouse(e);
+      const dir = new THREE.Vector3(mouse.tx, mouse.ty, -1).normalize().applyQuaternion(this.app.renderQ);
+      // On a window or button: press like a pinch (click, drag, scroll). On empty space in phone/laptop: drag to look.
+      if (this.app.interaction.cast(dir) || !this.direct) { mouse.down = true; drag = 'press'; }
+      else drag = { x: e.clientX, y: e.clientY };
     });
-    window.addEventListener('mousemove', e => {
-      if (!drag) return;
-      if (drag === 'touch') { this.touches.set('mouse', this.app.orientation.toStage(e.clientX, e.clientY)); return; }
-      if (this.orbit) this.orbitBy(-(e.clientX - drag.x) * 0.006);
-      else this.look.yaw -= (e.clientX - drag.x) * 0.0035;
-      this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - (e.clientY - drag.y) * 0.0035, -1.3, 1.3);
-      drag.x = e.clientX; drag.y = e.clientY;
+    st.addEventListener('contextmenu', e => e.preventDefault());
+    window.addEventListener('pointermove', e => {
+      if (!this.app.active || !isMouse(e)) return;
+      if (drag && drag !== 'press') {
+        if (this.orbit) this.orbitBy(-(e.clientX - drag.x) * 0.006);
+        else this.look.yaw -= (e.clientX - drag.x) * 0.0035;
+        this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - (e.clientY - drag.y) * 0.0035, -1.3, 1.3);
+        drag.x = e.clientX; drag.y = e.clientY;
+        return;
+      }
+      setMouse(e);
     });
-    window.addEventListener('mouseup', () => { if (drag === 'touch') this.touches.delete('mouse'); drag = null; });
+    window.addEventListener('pointerup', e => { if (!isMouse(e)) return; mouse.down = false; drag = null; });
     st.addEventListener('wheel', e => {
-      if (!this.app.active || !this.direct) return;
+      if (!this.app.active) return;
       e.preventDefault();
       const hit = this.app.interaction.pointers.find(p => p.active && p.hit)?.hit;
       const it = hit && hit.object.userData.interact, w = it && it.window;
@@ -205,22 +242,64 @@ export class Controls {
     return q.premultiply(yq).multiply(pq);
   }
 
-  // Bluetooth controllers: left stick move, right stick look, A select, B back, Menu launcher, LB/RB resize.
+  // ---- Game controllers (PlayStation DualSense/DualShock, Xbox, MFi) — standard mapping ----
+  //  ✕/A select (hold = grab/drag/scroll at the pointer)   ○/B back   △/Y keyboard   □/X recenter
+  //  L1/R1 smaller/bigger   L2/R2 scroll page   left stick move   right stick turn (snap in headset) / look
+  //  D-pad ↑↓ up/down, ←→ turn   Options/Menu launcher   Share/View environment   L3 recenter   R3 orbit
   pollPad(dt, set) {
     const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
-    const gp = pads[0]; if (!gp) return;
-    const ax = gp.axes, b = gp.buttons.map(x => x.pressed);
-    set([ax[0] || 0, ax[1] || 0], [ax[2] || 0, ax[3] || 0]);
-    const edge = i => b[i] && !this.pad.prev[i];
-    if (edge(0)) this.app.onRealTap();
-    if (edge(1)) { if (this.app.launcher.group.visible) this.app.launcher.close(); else if (this.app.calibration.group.visible) this.app.calibration.close(); }
-    if (edge(9) || edge(8) || edge(3)) this.app.toggleLauncher();
-    if (edge(4) || edge(5)) {
-      const p = this.app.interaction.pointers.find(x => x.active && x.hit);
-      const w = p && p.hit.object.userData.interact.window;
-      if (w && w.scaleBy) w.scaleBy(edge(5) ? 1.15 : 1 / 1.15);
+    const gp = pads.find(p => p.connected) || null;
+    if (!gp) { if (this.pad.id) { this.app.toast('انفصلت يد التحكم'); this.pad.id = null; } this.padPtr.down = false; return; }
+    if (gp.id !== this.pad.id) {
+      this.pad.id = gp.id; this.pad.prev = [];
+      const ps = /054c|dualsense|dualshock|wireless controller|playstation/i.test(gp.id);
+      this.pad.ps = ps;
+      this.app.toast((ps ? 'يد بلايستيشن' : 'يد تحكم') + ' متصلة · ✕ اختيار · ○ رجوع · Options القائمة', 4500);
+      this.app.log('يد تحكم: ' + gp.id.slice(0, 60));
+      if (!settings.padGuideShown) { settings.padGuideShown = true; saveSettings({}); setTimeout(() => this.app.windows.open({ kind: 'panel', panel: 'pad' }), 600); }
     }
-    if (edge(10) || edge(11)) { this.reset(); this.app.recenter(); }
+    const ax = gp.axes, b = gp.buttons.map(x => x.pressed), val = i => (gp.buttons[i] && gp.buttons[i].value) || 0;
+    const dz = v => Math.abs(v) < 0.15 ? 0 : v;
+    const now = performance.now();
+    const any = b.some(Boolean) || ax.some(v => Math.abs(v) > 0.3);
+    if (any) this.padPtr.last = now;
+    // Movement and look
+    let rx = dz(ax[2] || 0), ry = dz(ax[3] || 0);
+    if (!this.direct) {
+      // Headset: right stick X snaps 30° (comfortable), right stick Y scrolls the page you point at.
+      if (Math.abs(rx) > 0.7 && !this.pad.snapped) { this.pad.snapped = true; if (this.orbit) this.orbitBy(-Math.sign(rx) * Math.PI / 6); else this.look.yaw -= Math.sign(rx) * Math.PI / 6; this.rumble(gp, 0.15, 30); }
+      if (Math.abs(rx) < 0.3) this.pad.snapped = false;
+      if (ry) this.scrollPointed(ry * 900 * dt);
+      rx = 0; ry = 0;
+    }
+    set([dz(ax[0] || 0), dz(ax[1] || 0)], [rx, ry]);
+    // Triggers scroll (analog)
+    const tr = val(7) - val(6);
+    if (Math.abs(tr) > 0.05) this.scrollPointed(tr * 1400 * dt);
+    const edge = i => b[i] && !this.pad.prev[i];
+    // ✕ acts as a pinch at the pointer: tap = click, hold = drag / scroll / resize-hold.
+    this.padPtr.down = !!b[0];
+    if (edge(0)) this.rumble(gp, 0.25, 25);
+    if (edge(1)) { const a = this.app; if (a.launcher.group.visible) a.launcher.close(); else if (a.calibration.group.visible) a.calibration.close(); else { const kb = a.windows.windows.find(w => w.kind === 'keyboard'); if (kb) a.windows.close(kb); } }
+    if (edge(3)) this.app.windows.open({ kind: 'keyboard' });
+    if (edge(2) || edge(10)) { this.reset(); this.app.recenter(); this.rumble(gp, 0.3, 60); }
+    if (edge(9) || edge(16)) this.app.toggleLauncher();
+    if (edge(8)) this.app.cycleEnvironment();
+    if (edge(11)) { const w = this.pointedWindow(); if (w && w.kind === 'model') this.toggleOrbit(w); }
+    if (edge(4) || edge(5)) { const w = this.pointedWindow(); if (w && w.scaleBy) { w.scaleBy(edge(5) ? 1.15 : 1 / 1.15); this.rumble(gp, 0.2, 20); } }
+    if (b[12]) this.nav.y += 0.8 * dt; if (b[13]) this.nav.y -= 0.8 * dt;
+    if (edge(14) || edge(15)) this.look.yaw += edge(14) ? Math.PI / 6 : -Math.PI / 6;
     this.pad.prev = b;
+  }
+  pointedWindow() {
+    const p = this.app.interaction.pointers.find(x => x.active && x.hit);
+    return p ? p.hit.object.userData.interact.window : null;
+  }
+  scrollPointed(dy) {
+    const w = this.pointedWindow();
+    if (w && w.send && w.bridge) w.send({ type: 'scroll', dx: 0, dy, x: 512, y: 320 });
+  }
+  rumble(gp, strength, ms) {
+    try { gp.vibrationActuator?.playEffect?.('dual-rumble', { duration: ms, strongMagnitude: strength, weakMagnitude: strength }); } catch {}
   }
 }

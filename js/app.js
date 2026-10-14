@@ -540,13 +540,13 @@ class App {
     }, { passive: false });
     // Desktop testing: mouse drag rotates the view, click = tap.
     let down = false;
-    st.addEventListener('mousedown', e => { if (this.controls.direct) return; down = true; sx = e.clientX; sy = e.clientY; moved = false; });
+    st.addEventListener('mousedown', e => { return; down = true; sx = e.clientX; sy = e.clientY; moved = false; });
     window.addEventListener('mousemove', e => {
       if (!down || this.head.hasData) return;
       this.debugYaw += e.movementX * 0.004; this.debugPitch = THREE.MathUtils.clamp(this.debugPitch + e.movementY * 0.004, -1.2, 1.2);
       if (Math.hypot(e.clientX - sx, e.clientY - sy) > 6) moved = true;
     });
-    window.addEventListener('mouseup', () => { if (down && !moved) this.onRealTap(); down = false; });
+    window.addEventListener('mouseup', () => { down = false; });
   }
   onRealTap() {
     if (!this.active) return;
