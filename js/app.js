@@ -203,9 +203,13 @@ class App {
       if (c.length !== 6) { $('#mirMsg').textContent = 'الرمز 6 أرقام'; return; }
       saveSettings({ mirrorCode: c }); $('#mirMsg').textContent = 'حُفظ. ستظهر شاشة اللابتوب عند الدخول'; $('#mirInput').blur();
     });
-    const canShare = !!navigator.mediaDevices?.getDisplayMedia && !/iPhone|iPad|Android/i.test(navigator.userAgent);
-    $('#mirHost').hidden = !canShare;
-    if (!canShare) return;
+    // Decide by what the browser supports (not by device name): Chrome/Edge/Firefox on computers can share;
+    // phone and tablet browsers (iPhone, Android incl. Galaxy Tab) can only receive.
+    const canShare = typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+    if (!canShare) {
+      $('#mirHost').innerHTML = '<p class="hint" style="margin-top:0">متصفح هذا الجهاز لا يسمح بمشاركة شاشته (هذا قيد في متصفحات الهواتف والأجهزة اللوحية). يمكنه استقبال شاشة جهاز آخر بإدخال رمزه في الأسفل.</p>';
+      return;
+    }
     this.host = new ScreenHost(s => {
       if (s.synced) { this.renderLinks(); return; }
       $('#mirLive').hidden = !s.live; $('#mirStart').hidden = !!s.live;
