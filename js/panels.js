@@ -4,7 +4,8 @@ import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip, canvasTexture 
 import { settings, saveSettings, VIEWER_PRESETS, applyPreset } from './config.js';
 import { listItems, formatSize } from './db.js';
 
-const ENV_LABEL = { passthrough: 'الواقع', dim: 'خافت', immersive: 'غامر' };
+import { ENVS, envKey } from './envs.js';
+const ENV_LABEL = new Proxy({}, { get: (_, k) => ENVS[envKey(k)].label });
 const TABS = [['apps', 'التطبيقات'], ['library', 'مكتبتي'], ['links', 'المواقع'], ['settings', 'الإعدادات']];
 
 export class Launcher {
@@ -133,7 +134,7 @@ export class Launcher {
         ['target', 'النقر بالنظر', settings.dwell ? 'مفعّل' : 'متوقف', () => { saveSettings({ dwell: !settings.dwell }); this.panel.redraw(); }],
         ['sound', 'أصوات الواجهة', settings.sounds ? 'مفعّلة' : 'متوقفة', () => { saveSettings({ sounds: !settings.sounds }); this.panel.redraw(); }],
         ['hand', 'تتبع اليد', settings.handsEnabled ? 'مفعّل' : 'متوقف', () => { saveSettings({ handsEnabled: !settings.handsEnabled }); this.panel.redraw(); }],
-        ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
+        ['target', 'تتبع العين', settings.eyeTrack ? 'مفعّل · لابتوب' : 'متوقف', () => { a.toggleEyeTrack(); this.panel.redraw(); }],
         ['trash', 'إغلاق كل النوافذ', a.windows.windows.length + ' مفتوحة', () => { a.windows.closeAll(); this.panel.redraw(); }],
         ['grid', 'وضع العرض', { sbs: 'نظارة', mono: 'هاتف', desktop: 'لابتوب' }[settings.viewMode], () => { const o = ['sbs', 'mono', 'desktop']; a.setViewMode(o[(o.indexOf(settings.viewMode) + 1) % 3]); this.panel.redraw(); }],
         ['target', 'المشي (تجريبي)', settings.walk ? 'مفعّل' : 'متوقف', () => { a.toggleWalk(); this.panel.redraw(); }],

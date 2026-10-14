@@ -10,6 +10,8 @@ import { WindowManager } from './windows.js';
 import { Launcher, Calibration, Toast } from './panels.js';
 import { Slam } from './slam.js';
 import { Controls } from './controls.js';
+import { GazeTracker } from './gaze.js';
+import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
@@ -43,32 +45,6 @@ class MediaPool {
   release(v) { if (v.parentNode !== this.host) this.host.appendChild(v); this.free.push(v); }
 }
 
-// Immersive environment: night-sky dome with stars and a soft floor ring.
-function makeEnvironment() {
-  const g = new THREE.Group();
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(80, 48, 24), new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false,
-    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: `varying vec3 vP;
-      void main(){ float h = vP.y; vec3 top = vec3(0.012,0.02,0.06); vec3 mid = vec3(0.05,0.06,0.13); vec3 low = vec3(0.10,0.07,0.12);
-      vec3 c = h > 0.0 ? mix(mid, top, pow(h, 0.6)) : mix(mid, low, pow(-h, 0.5)); gl_FragColor = vec4(c,1.0); }`,
-  }));
-  g.add(sky);
-  const n = 1800, pos = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) {
-    const u = Math.random(), v = Math.random() * 0.9 + 0.1;
-    const th = u * Math.PI * 2, ph = Math.acos(v);
-    pos.set([Math.sin(ph) * Math.cos(th) * 70, Math.cos(ph) * 70, Math.sin(ph) * Math.sin(th) * 70], i * 3);
-  }
-  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xcfe2ff, size: 0.18, sizeAttenuation: true, transparent: true, opacity: 0.85, depthWrite: false })));
-  const floor = new THREE.Mesh(new THREE.RingGeometry(0.3, 6, 64, 6), new THREE.MeshBasicMaterial({ color: 0x8fb4ff, transparent: true, opacity: 0.05, wireframe: true, depthWrite: false }));
-  floor.rotation.x = -Math.PI / 2; floor.position.y = -1.55;
-  g.add(floor);
-  g.visible = false;
-  return g;
-}
-
 class App {
   constructor() {
     this.stage = $('#stage');
@@ -92,6 +68,8 @@ class App {
     this.interaction = new Interaction(this);
     this.slam = new Slam(this);
     this.controls = new Controls(this);
+    this.gaze = new GazeTracker(this);
+    this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     this.interaction.setTargets();
     this.debugYaw = 0; this.debugPitch = 0;
@@ -117,8 +95,8 @@ class App {
     scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3a4a, 1.1));
     const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(1, 2, 1.5); scene.add(d);
-    this.env = makeEnvironment();
-    scene.add(this.env);
+    this.envs = makeEnvironments();
+    Object.values(this.envs).forEach(g => scene.add(g));
   }
 
   // Small diagnostic log kept on the device so problems can be reported.
@@ -170,12 +148,19 @@ class App {
     this.toast({ mono: 'وضع الهاتف: عصا للتحرك وعصا للنظر، والمس النوافذ مباشرة', desktop: 'وضع اللابتوب: WASD للتحرك، الأسهم أو السحب للنظر، M للقائمة', sbs: 'وضع النظارة' }[m], 3500);
     this.log('وضع العرض: ' + m);
   }
+  toggleEyeTrack() {
+    saveSettings({ eyeTrack: !settings.eyeTrack });
+    if (!settings.eyeTrack) { this.gaze.stop(); this.toast('تتبع العين متوقف'); return; }
+    if (settings.viewMode !== 'desktop') { this.toast('تتبع العين يعمل في وضع اللابتوب'); return; }
+    this.gaze.start();
+  }
   openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay2.netlify.app/media', title: 'cplay2' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
-    const order = ['passthrough', 'dim', 'immersive'];
-    saveSettings({ environment: order[(order.indexOf(settings.environment) + 1) % order.length] });
-    this.toast({ passthrough: 'البيئة: الواقع الحقيقي', dim: 'البيئة: واقع خافت', immersive: 'البيئة: غامرة' }[settings.environment]);
+    const k = ENV_ORDER[(ENV_ORDER.indexOf(envKey(settings.environment)) + 1) % ENV_ORDER.length];
+    saveSettings({ environment: k });
+    this.toast('البيئة: ' + ENVS[k].label);
+    this.renderEnvChoices?.();
   }
   applySettings() { this.renderer.applySettings(); this.renderer.resize(); }
   persistLayout() { if (this.windows && this.active) saveLayout({ windows: this.windows.serialize() }); }
@@ -236,6 +221,18 @@ class App {
     document.querySelectorAll('input[type=checkbox][data-key]').forEach(inp => inp.addEventListener('change', () => { saveSettings({ [inp.dataset.key]: inp.checked }); }));
     $('#resetSettings').addEventListener('click', () => { resetSettings(); this.renderSettings(); this.applySettings(); });
     $('#resetLayout').addEventListener('click', () => { saveLayout({ windows: [] }); try { localStorage.removeItem(FIRST_RUN); } catch {} $('#resetLayout').textContent = 'سيظهر الترتيب الافتراضي عند الدخول'; });
+    this.renderEnvChoices = () => {
+      const box = $('#envs'), cur = envKey(settings.environment);
+      const sw = { passthrough: 'linear-gradient(135deg,#8a8f99,#c9ccd2)', dim: 'linear-gradient(135deg,#2a2d35,#4b4f5a)', night: 'radial-gradient(circle at 30% 30%,#2a3a70,#070b1a)', cinema: 'radial-gradient(circle at 50% 35%,#2a3550,#0b0910 70%)', sunset: 'linear-gradient(180deg,#3a2f6a,#ff8c52 75%,#5a3030)' };
+      box.innerHTML = '';
+      ENV_ORDER.forEach(k => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = k === cur ? 'on' : '';
+        b.innerHTML = `<i style="background:${sw[k]}"></i>${ENVS[k].label}`; b.title = ENVS[k].note;
+        b.addEventListener('click', () => { saveSettings({ environment: k }); this.renderEnvChoices(); });
+        box.appendChild(b);
+      });
+    };
+    this.renderEnvChoices();
     this.renderLibrary(); this.renderLinks(); this.renderSettings();
   }
 
@@ -317,6 +314,7 @@ class App {
     try { sessionStorage.setItem('madar.inMR', String(Date.now())); sessionStorage.removeItem('madar.last'); } catch {}
     this.log('دخول البيئة');
     this.controls.sync(); this.controls.reset();
+    if (settings.viewMode === 'desktop' && settings.eyeTrack) setTimeout(() => this.gaze.start(), 1200);
     if (settings.viewMode === 'desktop') { setTimeout(() => this.toast('WASD للتحرك · الأسهم أو السحب للنظر · M القائمة · F ملء الشاشة', 6000), 2500); }
     if (settings.walk) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
@@ -527,14 +525,16 @@ class App {
     const touching = this.controls.applyTouches(now);
     if (settings.handsEnabled && !touching) this.hands.update(this.camVideo, now, (x, y) => { const [sx, sy] = this.renderer.imageToStage(x, y); return this.renderer.stageToTan(sx, sy); });
     this.slam.update(this.camVideo, now, this.renderQ);
+    if (settings.viewMode === 'desktop' && settings.eyeTrack) this.gaze.update(this.camVideo, now);
     this.controls.update(dt);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
     this.toastUI.update(now, this.renderQ);
     if (this.launcher.group.visible) this.launcher.group.updateMatrixWorld();
-    this.env.visible = settings.environment === 'immersive';
+    const ek = envKey(settings.environment);
+    for (const k in this.envs) this.envs[k].visible = k === ek;
     this.renderer.updateHandMask(settings.handsEnabled && this.hands.state === 'ready' ? this.hands.slots : null, now);
-    this.renderer.render(this.renderQ, settings.environment);
+    this.renderer.render(this.renderQ, isImmersive(ek) ? 'immersive' : ek);
   }
 }
 

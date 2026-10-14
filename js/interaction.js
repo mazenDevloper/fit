@@ -239,7 +239,11 @@ export class Interaction {
     const g = this.pointers[2];
     g.active = !anyHand;
     if (g.active) {
-      g.dir.copy(FWD).applyQuaternion(Q);
+      const gp = this.app.gaze?.point;
+      if (gp && settings.viewMode === 'desktop' && settings.eyeTrack) {
+        const [tx, ty] = this.app.controls.screenDir(gp.x * this.app.orientation.width, gp.y * this.app.orientation.height);
+        g.dir.set(tx, ty, -1).normalize().applyQuaternion(Q);
+      } else g.dir.copy(FWD).applyQuaternion(Q);
       const hit = this.cast(g.dir);
       g.hit = hit;
       this.setHover(g, hit);

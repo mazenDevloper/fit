@@ -129,6 +129,7 @@ export class Controls {
       else if (k === 'm' || k === 'tab') { e.preventDefault(); this.app.toggleLauncher(); }
       else if (k === 'r') { this.reset(); this.app.recenter(); }
       else if (k === 'f') this.app.toggleFullscreen();
+      else if (k === 'c' && settings.viewMode === 'desktop') { if (!settings.eyeTrack) this.app.toggleEyeTrack(); else this.app.gaze.calibrate(); }
       else if (k === '+' || k === '=' || k === '-') {
         const hit = this.app.interaction.pointers.find(p => p.active && p.hit)?.hit;
         const w = hit && hit.object.userData.interact.window;
