@@ -102,7 +102,7 @@ export class Interaction {
     const a = this.app.hands.slots[0], b = this.app.hands.slots[1];
     if (!a.active || !b.active) return;
     const pa = this.hand3d(a), pb = this.hand3d(b);
-    this.scaleMode = { win, s0: win.group.scale.x, d0: Math.max(0.04, pa.distanceTo(pb)), a0: Math.atan2(pb.x - pa.x, pb.z - pa.z), r0: win.pivot ? win.pivot.rotation.y : 0 };
+    this.scaleMode = { win, s0: win.group.scale.x, d0: Math.max(0.04, pa.distanceTo(pb)), a0: Math.atan2(pb.x - pa.x, pb.z - pa.z), r0: win.rot || 0 };
   }
   updateDrag(p, slot) {
     const d = p.drag; if (!d) return;
@@ -242,7 +242,7 @@ export class Interaction {
       const f = pa.distanceTo(pb) / m.d0;
       const s = THREE.MathUtils.clamp(m.s0 * f, m.win.kind === 'model' ? 0.1 : 0.25, m.win.kind === 'model' ? 12 : 8);
       m.win.group.scale.setScalar(m.win.group.scale.x + (s - m.win.group.scale.x) * 0.5);
-      if (m.win.pivot) m.win.pivot.rotation.y = m.r0 - (Math.atan2(pb.x - pa.x, pb.z - pa.z) - m.a0);
+      if (m.win.pivot) m.win.rot = m.r0 - (Math.atan2(pb.x - pa.x, pb.z - pa.z) - m.a0);
     }
 
     // Head gaze pointer when no hands are visible.

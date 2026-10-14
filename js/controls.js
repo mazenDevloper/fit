@@ -35,6 +35,7 @@ export class Controls {
     this.el.hidden = !this.direct;
     this.el.dataset.mode = this.mode;
     this.app.stage.classList.toggle('direct', this.direct);
+    document.body.classList.toggle('direct', this.direct);
   }
   action(a) {
     const app = this.app;
@@ -44,6 +45,7 @@ export class Controls {
     else if (a === 'headset') app.setViewMode('sbs');
     else if (a === 'up' || a === 'down') this.nav.y += a === 'up' ? 0.15 : -0.15;
     else if (a === 'full') app.toggleFullscreen();
+    else if (a === 'screen') app.showLocalScreen();
   }
   reset() { this.nav.set(0, 0, 0); this.look.yaw = 0; this.look.pitch = 0; this.orbit = null; }
   // Orbit: inputs that would turn the view instead carry you around the chosen model.

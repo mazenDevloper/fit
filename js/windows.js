@@ -275,6 +275,9 @@ export class VideoWindow extends SpatialWindow {
   onContentClick() { this.togglePlay(); blip('tap', settings.sounds); this.toolbar.redraw(); return true; }
   update(dt, now) {
     const v = this.video;
+    // Live streams may report their size late or skip 'loadedmetadata': set up the texture once frames exist.
+    if (!this.tex && v.readyState >= 2 && v.videoWidth) { this.setAspect(v.videoWidth / v.videoHeight); this.setupTexture(); }
+    if (this.tex && v.videoWidth && Math.abs(v.videoWidth / v.videoHeight - this.aspect) > 0.01) this.setAspect(v.videoWidth / v.videoHeight);
     this.mat.uniforms.uHas.value = v.readyState >= 2 && this.tex ? 1 : 0;
     if (this.canvas && v.readyState >= 2 && v.currentTime !== this.lastFrameTime) {
       this.lastFrameTime = v.currentTime;
@@ -628,6 +631,7 @@ export class ModelVolume {
     this.group = new THREE.Group();
     this.group.userData.window = this;
     this.spin = false;
+    this.rot = 0;   // model yaw in the room
     this.pivot = new THREE.Group();
     this.group.add(this.pivot);
     if (!shadowTex) shadowTex = radialTexture('rgba(0,0,0,0.5)', 'rgba(0,0,0,0)');
@@ -649,7 +653,7 @@ export class ModelVolume {
       { icon: 'close', action: () => this.mgr.close(this), tint: COLORS.text },
       { icon: 'spin', action: () => { this.spin = !this.spin; }, active: () => this.spin },
       { icon: 'target', action: () => this.mgr.app.controls.toggleOrbit(this), active: () => this.mgr.app.controls.orbit?.win === this },
-      { icon: 'reset', action: () => { this.pivot.rotation.set(0, 0, 0); this.group.scale.setScalar(1); this.mgr.changed(); } },
+      { icon: 'reset', action: () => { this.rot = 0; this.group.scale.setScalar(1); this.mgr.changed(); } },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
     ]).install();
@@ -686,19 +690,23 @@ export class ModelVolume {
     this.group.remove(this.loader); this.loader.geometry.dispose();
   }
   scaleBy(f) { this.group.scale.setScalar(THREE.MathUtils.clamp(this.group.scale.x * f, 0.1, 12)); this.mgr.changed(); }
-  rotateBy(a) { this.pivot.rotation.y += a; }
+  rotateBy(a) { this.rot += a; }
   onDragEnd() {}
   update(dt) {
     if (this.loader.parent) this.loader.rotation.z -= dt * 5;
-    if (this.spin) this.pivot.rotation.y += dt * 0.6;
+    if (this.spin) this.rot += dt * 0.6;
     this.mixer?.update(dt);
     // Keep the toolbar facing the viewer.
+    // Only the toolbar turns to you; the model keeps its own orientation in the room, so walking
+    // or orbiting around it shows its other sides.
     const wp = this.group.getWorldPosition(new THREE.Vector3());
     this.group.rotation.y = Math.atan2(-wp.x, -wp.z);
+    this.pivot.rotation.y = this.rot - this.group.rotation.y;
+    this.shadow.rotation.z = 0;
   }
   serialize() {
     const g = this.group;
-    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.pivot.rotation.y.toFixed(3), spin: this.spin };
+    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin };
   }
   dispose() {
     this.toolbar.dispose();
@@ -820,7 +828,7 @@ export class WindowManager {
         win.group.position.fromArray(s.p);
         if (s.q) win.group.quaternion.fromArray(s.q);
         win.group.scale.setScalar(s.s || 1);
-        if (s.kind === 'model') { win.pivot.rotation.y = s.r || 0; win.spin = !!s.spin; }
+        if (s.kind === 'model') { win.rot = s.r || 0; win.spin = !!s.spin; }
         else if (s.c) { win.curved = true; win.updateRadius(); win.layout(); }
         this.root.add(win.group);
         this.windows.push(win);
