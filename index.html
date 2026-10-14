@@ -106,6 +106,12 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
 .webwin{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;-webkit-backface-visibility:hidden;width:1024px;height:640px;background:#0f121a;border-radius:30px;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.12)}
 .webwin iframe{width:100%;height:100%;border:0;display:block;background:#0f121a}
 
+#controls{position:absolute;inset:0;z-index:5;pointer-events:none;font-family:var(--font)}
+#controls .joy{pointer-events:auto;position:absolute;left:calc(24px + env(safe-area-inset-left,0px));bottom:22px;width:128px;height:128px;border-radius:50%;background:rgba(20,24,36,.45);border:2px solid rgba(255,255,255,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);touch-action:none}
+#controls .knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 4px 14px rgba(0,0,0,.4);transition:transform .08s}
+#controls .pad{pointer-events:auto;position:absolute;right:calc(18px + env(safe-area-inset-right,0px));bottom:18px;display:grid;grid-template-columns:repeat(2,auto);gap:8px}
+#controls .pad button{min-width:74px;padding:11px 12px;border-radius:16px;background:rgba(20,24,36,.55);color:#fff;font-weight:800;font-size:15px;border:1.5px solid rgba(255,255,255,.3);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#controls .pad button:active{background:rgba(255,255,255,.35)}
 #cam{position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:0}
 #mediaPool{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none}
 #mediaPool video{width:2px;height:2px}
@@ -177,6 +183,11 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
   <section class="card" aria-labelledby="viewerTitle">
     <h2 id="viewerTitle">النظارة والعرض</h2>
     <div id="presets" class="seg" role="group" aria-label="نوع النظارة"></div>
+    <div class="field" style="margin-top:16px"><label>وضع العرض</label></div>
+    <div class="seg" role="group" aria-label="وضع العرض" style="margin-top:8px">
+      <button type="button" data-view="sbs">نظارة (عينان)</button>
+      <button type="button" data-view="mono">هاتف (شاشة كاملة + عصا)</button>
+    </div>
     <div class="field" style="margin-top:16px"><label>الكاميرا</label></div>
     <div class="seg" role="group" aria-label="الكاميرا" style="margin-top:8px">
       <button type="button" data-camera="wide">عادية (أوضح)</button>
@@ -221,6 +232,17 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
   <canvas id="gl"></canvas>
   <div id="eyeL" class="eye"></div>
   <div id="eyeR" class="eye"></div>
+  <div id="controls" hidden>
+    <div class="joy" aria-label="عصا التحرك"><div class="knob"></div></div>
+    <div class="pad">
+      <button type="button" data-act="up" aria-label="أعلى">▲</button>
+      <button type="button" data-act="down" aria-label="أسفل">▼</button>
+      <button type="button" data-act="menu">القائمة</button>
+      <button type="button" data-act="recenter">تمركز</button>
+      <button type="button" data-act="headset">نظارة</button>
+      <button type="button" data-act="exit">خروج</button>
+    </div>
+  </div>
 </div>
 <video id="cam" playsinline webkit-playsinline muted autoplay></video>
 <div id="mediaPool"></div>

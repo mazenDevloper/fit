@@ -199,6 +199,12 @@ export class StereoRenderer {
     const px = pxPerMm();
     const size = 2 * TAN_MAX * settings.screenToLens * px;
     const halfW = width / 2;
+    if (settings.viewMode === 'mono') {
+      Object.assign(this.cssHolders[0].style, { left: '0px', width: width + 'px', height: height + 'px', display: '' });
+      this.cssHolders[1].style.display = 'none';
+      return;
+    }
+    this.cssHolders[1].style.display = '';
     [0, 1].forEach(i => {
       const holder = this.cssHolders[i];
       holder.style.left = (i ? halfW : 0) + 'px';
@@ -216,6 +222,13 @@ export class StereoRenderer {
 
   // Project a world point into eye i's CSS holder, in px (linear lens approximation). Null if behind.
   eyePx(i, v) {
+    if (settings.viewMode === 'mono') {
+      if (i === 1) return null;
+      const p = v.clone().applyMatrix4(this.center.matrixWorldInverse);
+      if (p.z > -0.05) return null;
+      const m = this.monoTan(), { width, height } = this.orientation;
+      return [width / 2 + (p.x / -p.z) / m.x * width / 2, height / 2 - (p.y / -p.z) / m.y * height / 2];
+    }
     const cam = this.eyes[i];
     const p = v.clone().applyMatrix4(cam.matrixWorldInverse);
     if (p.z > -0.05) return null;
@@ -323,6 +336,31 @@ export class StereoRenderer {
     this.maskOn = true;
   }
 
+  // Phone mode: one full-screen view (no headset), camera image fills the screen.
+  monoTan() {
+    const t = this.camTan(), A = this.orientation.width / this.orientation.height;
+    const Ty = Math.min(t.y, t.x / A);
+    return { x: Ty * A, y: Ty, t };
+  }
+  renderMono(t, envMode) {
+    const r = this.renderer, u = this.bgMat.uniforms, m = this.monoTan();
+    const cam = this.center;
+    const fov = 2 * Math.atan(m.y) * 180 / Math.PI, A = this.orientation.width / this.orientation.height;
+    if (cam.fov !== fov || cam.aspect !== A) { cam.fov = fov; cam.aspect = A; cam.updateProjectionMatrix(); }
+    u.uExtent.value.set(t.x / m.x, t.y / m.y);
+    this.eyes.forEach(e => { e.quaternion.copy(cam.quaternion); e.position.set(0, 0, 0); e.updateMatrixWorld(); });
+    r.setRenderTarget(null);
+    r.setClearColor(0x05060a, 1);
+    r.clear(true, true, true);
+    if (envMode !== 'immersive') r.render(this.bgScene, this.bgCam);
+    r.clearDepth();
+    r.render(this.scene, cam);
+    if (this.maskOn && u.uHas.value > 0) r.render(this.handScene, this.bgCam);
+    r.clearDepth();
+    r.render(this.overlay, cam);
+    this.afterRender?.();
+  }
+
   render(headQ, envMode) {
     const r = this.renderer;
     this.head.copy(headQ);
@@ -336,6 +374,7 @@ export class StereoRenderer {
     u.uHas.value = this.video && this.video.readyState >= 2 ? 1 : 0;
 
     this.center.quaternion.copy(headQ); this.center.position.set(0, 0, 0); this.center.updateMatrixWorld();
+    if (settings.viewMode === 'mono') { this.renderMono(t, envMode); return; }
     for (let i = 0; i < 2; i++) {
       const cam = this.eyes[i];
       cam.quaternion.copy(headQ);

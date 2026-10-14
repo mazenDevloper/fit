@@ -9,6 +9,7 @@ import { Interaction } from './interaction.js';
 import { WindowManager } from './windows.js';
 import { Launcher, Calibration, Toast } from './panels.js';
 import { Slam } from './slam.js';
+import { Controls } from './controls.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
@@ -90,6 +91,7 @@ class App {
     this.renderer.overlay.add(this.toastUI.mesh);
     this.interaction = new Interaction(this);
     this.slam = new Slam(this);
+    this.controls = new Controls(this);
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     this.interaction.setTargets();
     this.debugYaw = 0; this.debugPitch = 0;
@@ -152,6 +154,13 @@ class App {
     saveSettings({ walk: !settings.walk });
     if (settings.walk) this.slam.start(); else { this.slam.stop(); this.toast('المشي متوقف'); }
   }
+  setViewMode(m) {
+    saveSettings({ viewMode: m });
+    this.controls.sync();
+    this.renderer.resize();
+    this.toast(m === 'mono' ? 'وضع الهاتف: المس النوافذ مباشرة، والعصا للتحرك' : 'وضع النظارة', 2500);
+    this.log(m === 'mono' ? 'وضع الهاتف' : 'وضع النظارة');
+  }
   openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay2.netlify.app/media', title: 'cplay2' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
@@ -203,6 +212,7 @@ class App {
       b.addEventListener('click', () => { applyPreset(k); this.renderSettings(); this.applySettings(); });
       pre.appendChild(b);
     });
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => { saveSettings({ viewMode: b.dataset.view }); this.renderSettings(); }));
     document.querySelectorAll('[data-camera]').forEach(b => b.addEventListener('click', () => {
       const cam = b.dataset.camera;
       saveSettings({ camera: cam, camFov: cam === 'ultra' ? 104 : 69 });
@@ -249,6 +259,7 @@ class App {
   renderSettings() {
     document.querySelectorAll('#presets button').forEach(b => b.classList.toggle('on', b.dataset.preset === settings.preset));
     document.querySelectorAll('[data-camera]').forEach(b => b.classList.toggle('on', b.dataset.camera === settings.camera));
+    document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === settings.viewMode));
     document.querySelectorAll('input[type=range][data-key]').forEach(inp => {
       const k = inp.dataset.key; inp.value = settings[k];
       const out = document.querySelector(`output[for="${inp.id}"]`);
@@ -295,6 +306,7 @@ class App {
     this.active = true;
     try { sessionStorage.setItem('madar.inMR', String(Date.now())); sessionStorage.removeItem('madar.last'); } catch {}
     this.log('دخول البيئة');
+    this.controls.sync(); this.controls.nav.set(0, 0, 0);
     if (settings.walk) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
@@ -416,6 +428,7 @@ class App {
     const st = this.stage;
     st.addEventListener('touchstart', e => {
       e.preventDefault();
+      if (settings.viewMode === 'mono') { this.controls.touchDown(e.changedTouches); return; }
       const t = e.touches[0];
       t0 = performance.now(); sx = lastX = t.clientX; sy = lastY = t.clientY; moved = false;
       clearTimeout(timer);
@@ -424,6 +437,7 @@ class App {
     }, { passive: false });
     st.addEventListener('touchmove', e => {
       e.preventDefault();
+      if (settings.viewMode === 'mono') { this.controls.touchMove(e.changedTouches); return; }
       const t = e.touches[0];
       if (Math.hypot(t.clientX - sx, t.clientY - sy) > 12) { moved = true; clearTimeout(timer); }
       if (!this.head.hasData) {
@@ -432,7 +446,10 @@ class App {
       }
       lastX = t.clientX; lastY = t.clientY;
     }, { passive: false });
+    const touchUp = e => { if (settings.viewMode === 'mono') { e.preventDefault(); this.controls.touchUp(e.changedTouches); return true; } return false; };
+    st.addEventListener('touchcancel', touchUp, { passive: false });
     st.addEventListener('touchend', e => {
+      if (touchUp(e)) return;
       e.preventDefault();
       clearTimeout(timer);
       if (!moved && performance.now() - t0 < 450) this.onRealTap();
@@ -502,8 +519,10 @@ class App {
     if (this.head.hasData) this.head.pose(settings.poseDelay, this.renderQ);
     else this.renderQ.setFromEuler(new THREE.Euler(-this.debugPitch, -this.debugYaw, 0, 'YXZ'));
     this.headForward.set(0, 0, -1).applyQuaternion(this.renderQ);
-    if (settings.handsEnabled) this.hands.update(this.camVideo, now, (x, y) => { const [sx, sy] = this.renderer.imageToStage(x, y); return this.renderer.stageToTan(sx, sy); });
+    const touching = this.controls.applyTouches(now);
+    if (settings.handsEnabled && !touching) this.hands.update(this.camVideo, now, (x, y) => { const [sx, sy] = this.renderer.imageToStage(x, y); return this.renderer.stageToTan(sx, sy); });
     this.slam.update(this.camVideo, now, this.renderQ);
+    this.controls.update(dt);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
     this.toastUI.update(now, this.renderQ);

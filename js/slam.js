@@ -41,7 +41,6 @@ export class Slam {
     this.worker?.terminate(); this.worker = null;
     this.state = 'off'; this.busy = false; this.align = null;
     this.pos.set(0, 0, 0); this.target.set(0, 0, 0); this.base.set(0, 0, 0);
-    this.app.windows.root.position.set(0, 0, 0);
   }
   fail(err) {
     this.app.log('تعذّر المشي: ' + err);
@@ -77,7 +76,6 @@ export class Slam {
   update(video, now, headQ) {
     if (!this.on) return;
     this.pos.lerp(this.target, 0.3);
-    this.app.windows.root.position.copy(this.pos).negate();
     if (this.state === 'loading' || this.busy || !video || video.readyState < 2 || now - this.last < 45) return;
     this.last = now;
     // Draw the camera frame in stage orientation.

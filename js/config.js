@@ -32,6 +32,7 @@ export const DEFAULTS = {
   rxR: { sph: -0.75, cyl: -0.50, axis: 90 },   // from the user's glasses card
   rxL: { sph: 0.50, cyl: -3.00, axis: 65 },
   dwellMs: 3000,
+  viewMode: 'sbs',      // 'sbs' = headset (two eyes), 'mono' = phone full screen with on-screen controls
   walk: false,          // experimental 6DoF walking
   walkScale: 1.5,       // metres per SLAM unit (monocular SLAM has no absolute scale)
   v: 4,

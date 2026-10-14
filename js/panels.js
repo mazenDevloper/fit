@@ -26,7 +26,7 @@ export class Launcher {
   open() {
     this.refresh();
     const yaw = this.app.windows.forwardYaw();
-    const d = 1.25;
+    const d = settings.viewMode === 'mono' ? 1.75 : 1.25;
     this.group.position.set(-Math.sin(yaw) * d, -0.08, -Math.cos(yaw) * d);
     this.group.lookAt(0, 0, 0);
     this.group.visible = true;
@@ -46,7 +46,7 @@ export class Launcher {
     g.addColorStop(0, 'rgba(255,255,255,0.20)'); g.addColorStop(1, 'rgba(255,255,255,0.06)');
     ctx.fillStyle = g; ctx.fill();
     icon(ctx, ic, cx, cy, h * 0.2, tint);
-    text(ctx, label, cx, y + h * 0.75, h * 0.13, { weight: 800, maxWidth: w - 24 });
+    text(ctx, label, cx, y + h * 0.75, h * 0.117, { weight: 800, maxWidth: w - 20 });
     if (sub) text(ctx, sub, cx, y + h * 0.9, h * 0.095, { color: '#d5ddef', weight: 600, maxWidth: w - 24, dir: 'auto' });
     p.region(x, y, w, h, () => { blip('tap', settings.sounds); action(); }, id);
   }
@@ -131,13 +131,13 @@ export class Launcher {
         ['target', 'النقر بالنظر', settings.dwell ? 'مفعّل' : 'متوقف', () => { saveSettings({ dwell: !settings.dwell }); this.panel.redraw(); }],
         ['sound', 'أصوات الواجهة', settings.sounds ? 'مفعّلة' : 'متوقفة', () => { saveSettings({ sounds: !settings.sounds }); this.panel.redraw(); }],
         ['hand', 'تتبع اليد', settings.handsEnabled ? 'مفعّل' : 'متوقف', () => { saveSettings({ handsEnabled: !settings.handsEnabled }); this.panel.redraw(); }],
-        ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['trash', 'إغلاق كل النوافذ', a.windows.windows.length + ' مفتوحة', () => { a.windows.closeAll(); this.panel.redraw(); }],
+        ['grid', 'وضع العرض', settings.viewMode === 'mono' ? 'هاتف' : 'نظارة', () => { a.setViewMode(settings.viewMode === 'mono' ? 'sbs' : 'mono'); this.panel.redraw(); }],
         ['target', 'المشي (تجريبي)', settings.walk ? 'مفعّل' : 'متوقف', () => { a.toggleWalk(); this.panel.redraw(); }],
         ['exit', 'الخروج', 'للشاشة الرئيسية', () => { this.close(); a.exit(); }],
       ];
-      list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, i === 7 ? COLORS.danger : COLORS.accent); });
+      list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, l === 'الخروج' ? COLORS.danger : COLORS.accent); });
     }
   }
   pager(ctx, p, W, H, pages) {
