@@ -243,7 +243,11 @@ export class VideoWindow extends SpatialWindow {
     const v = this.video;
     v.loop = true; v.muted = false; v.playsInline = true;
     if (this.stream) { v.loop = false; v.srcObject = this.stream; } else v.src = src;
-    v.onerror = () => this.mgr.app.toast('تعذّر تشغيل هذا الفيديو');
+    v.onerror = () => { if (!this.stream) this.mgr.app.toast('تعذّر تشغيل هذا الفيديو'); };
+    // iOS pauses videos on its own (camera restarts, audio interruptions, live streams that hiccup):
+    // anything the user didn't pause is resumed right away.
+    v.onpause = () => { if (!this.userPaused && !this.disposed) setTimeout(() => this.resume(), 250); };
+    this.watchFrames();
     v.onloadedmetadata = () => { this.setAspect(v.videoWidth / v.videoHeight); this.setupTexture(); };
     this.mgr.app.log('فتح فيديو: ' + (this.name || this.url));
     try { await v.play(); } catch { v.muted = true; try { await v.play(); this.mgr.app.toast('الصوت مكتوم — اضغط زر الصوت'); } catch {} }
@@ -282,7 +286,29 @@ export class VideoWindow extends SpatialWindow {
     } catch {}
     this.mgr.app.toast('هذا المتصفح لا يدعم الإرسال للتلفاز', 3500);
   }
-  togglePlay() { const v = this.video; if (v.paused) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); else v.pause(); }
+  togglePlay() {
+    const v = this.video;
+    if (v.paused) { this.userPaused = false; v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); }
+    else { this.userPaused = true; v.pause(); }
+  }
+  resume() {
+    const v = this.video;
+    if (this.disposed || this.userPaused || !v.paused || (!v.srcObject && !v.currentSrc)) return;
+    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+  }
+  // Live screen: swap in a fresh stream after a reconnect, keeping the window where it is.
+  setStream(stream) {
+    this.stream = stream; this.userPaused = false;
+    const v = this.video; v.srcObject = stream; this.lastFrameAt = performance.now();
+    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+  }
+  // Remember when the last real frame arrived (for live screens).
+  watchFrames() {
+    const v = this.video; this.lastFrameAt = performance.now();
+    if (typeof v.requestVideoFrameCallback !== 'function') return;
+    const tick = () => { if (this.disposed) return; this.lastFrameAt = performance.now(); v.requestVideoFrameCallback(tick); };
+    v.requestVideoFrameCallback(tick);
+  }
   onContentClick() { this.togglePlay(); blip('tap', settings.sounds); this.toolbar.redraw(); return true; }
   update(dt, now) {
     const v = this.video;
@@ -295,10 +321,20 @@ export class VideoWindow extends SpatialWindow {
       try { this.cctx.drawImage(v, 0, 0, this.canvas.width, this.canvas.height); this.tex.needsUpdate = true; } catch {}
     }
     if (now - this.lastBar > 250) { this.lastBar = now; this.toolbar.redraw(); }
+    // Watchdog: a paused or stuck live screen is restarted.
+    if (now - (this.lastCheck || 0) > 1000) {
+      this.lastCheck = now;
+      if (v.paused) this.resume();
+      if (this.stream && !this.userPaused && this.onStall && now - this.lastFrameAt > 9000 && now - (this.stallAt || 0) > 15000) {
+        this.stallAt = now; this.onStall();
+      }
+    }
   }
   ref() { return this.stream ? null : this.itemId ? { item: this.itemId } : { url: this.url }; }
   dispose() {
+    this.disposed = true;
     super.dispose();
+    this.video.onpause = null;
     this.video.pause(); this.video.srcObject = null; this.video.removeAttribute('src'); this.video.load();
     this.mgr.app.media.release(this.video);
     this.tex?.dispose();
@@ -476,6 +512,7 @@ export class WebWindow extends SpatialWindow {
     this.layout();
     this.css = [0, 1].map(i => this.makeCss(i));
     mgr.app.renderer.cssCount++;
+    this.loadEyes();
     this.onMsg = e => this.handleMessage(e);
     window.addEventListener('message', this.onMsg);
     this.lastSync = 0;
@@ -539,7 +576,7 @@ export class WebWindow extends SpatialWindow {
   navTo(path) {
     this.path = path; this.tabPanel?.redraw();
     if (this.bridge) this.send({ type: 'nav', path });
-    else this.css.forEach(c => { c.f.src = this.base + path; });
+    else { this.url = this.base + path; this.reload(); }
   }
   onContentClick(hit) {
     if (!this.bridge) {
@@ -570,7 +607,8 @@ export class WebWindow extends SpatialWindow {
     const el = document.createElement('div');
     el.className = 'webwin';
     const f = document.createElement('iframe');
-    f.src = this.src(eye);
+    // The page can tell which copy it is (madar-bridge.js: the right-eye copy stays silent and light).
+    f.name = 'madar-eye-' + eye;
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
     // No allow-top-navigation: a site that tries to break out of frames can no longer replace Madar.
     f.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation');
@@ -597,8 +635,28 @@ export class WebWindow extends SpatialWindow {
       c.el.style.transform = homography(1024, 640, P);
     });
   }
+  // The two copies of the page load one after the other (not together), and a new site waits a moment
+  // after the previous one closed, so the iPhone never holds three heavy pages at once.
+  loadEyes() {
+    clearTimeout(this.eyeTimer);
+    this.css[1].pending = true;
+    const wait = Math.max(0, (this.mgr.webClosedAt || 0) + 900 - performance.now());
+    this.eyeTimer = setTimeout(() => {
+      if (this.disposed) return;
+      this.css[0].f.src = this.src(0);
+      this.eyeTimer = setTimeout(() => this.loadEye1(), 7000);
+    }, wait);
+  }
+  loadEye1() {
+    const c = this.css[1];
+    if (this.disposed || !c.pending) return;
+    c.pending = false; clearTimeout(this.eyeTimer);
+    c.f.src = this.src(1);
+  }
   onFrameLoad(eye, f) {
-    if (eye === 0) this.mgr.app.log('اكتمل تحميل الصفحة');
+    const at = f.getAttribute('src');
+    if (!at || at === 'about:blank' || this.disposed) return;
+    if (eye === 0) { this.mgr.app.log('اكتمل تحميل الصفحة'); if (this.css[1].pending) { clearTimeout(this.eyeTimer); this.eyeTimer = setTimeout(() => this.loadEye1(), 1200); } }
     if (this.base && !this.yt) { try { f.contentWindow.postMessage({ madar: 1, type: 'hello' }, this.base); } catch {} }
     if (!this.yt) return;
     const post = o => { try { f.contentWindow.postMessage(JSON.stringify(o), 'https://www.youtube.com'); } catch {} };
@@ -625,7 +683,7 @@ export class WebWindow extends SpatialWindow {
   }
   // Called from a genuine screen tap: the best chance iOS allows sound.
   userGesture() { if (this.yt && this.ytState.muted) this.ytMute(false); }
-  reload() { this.css.forEach((c, i) => { c.f.src = this.src(i); }); }
+  reload() { this.css.forEach(c => { c.f.src = 'about:blank'; }); this.loadEyes(); }
   update(dt, now) {
     this.content.updateMatrixWorld();
     // Momentum after a flick, like iOS scrolling.
@@ -643,6 +701,8 @@ export class WebWindow extends SpatialWindow {
   }
   ref() { return { url: this.url, title: this.title }; }
   dispose() {
+    this.disposed = true; clearTimeout(this.eyeTimer);
+    this.mgr.webClosedAt = performance.now();
     super.dispose();
     this.tabPanel?.dispose(); this.strip?.dispose();
     window.removeEventListener('message', this.onMsg);
@@ -804,6 +864,8 @@ export class WindowManager {
     blip('close', settings.sounds);
   }
   closeAll() { [...this.windows].forEach(w => this.close(w)); }
+  // After the camera restarts (iOS pauses other media when it does), start the videos again.
+  resumeMedia() { this.windows.forEach(w => w.resume?.()); }
   open(spec) {
     const k = spec.kind;
     if (k === 'video') return this.add(new VideoWindow(this, spec), { dist: 2.3, scale: 1.7, y: 0.05 });
@@ -850,6 +912,7 @@ export class WindowManager {
       try {
         const spec = Object.assign({ kind: s.kind }, s.ref);
         if (s.ref.item) spec.itemId = s.ref.item;
+        if (spec.url) spec.url = spec.url.replace(/cplay2\.(netlify|vercel)\.app/, 'cplay3.netlify.app');
         let win;
         if (s.kind === 'video') win = new VideoWindow(this, spec);
         else if (s.kind === 'image') win = new ImageWindow(this, spec);

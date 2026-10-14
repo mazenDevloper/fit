@@ -98,6 +98,8 @@ export class ScreenHost {
       try { this.peer = await this.open(code); this.code = code; } catch (e) { if (e.type !== 'unavailable-id') throw e; }
     }
     this.peer.on('connection', conn => this.accept(conn));
+    // Keep the code reachable: if the signalling link drops (Wi-Fi blip, laptop asleep), rejoin with the same code.
+    this.peer.on('disconnected', () => { setTimeout(() => { try { if (this.peer && !this.peer.destroyed) this.peer.reconnect(); } catch {} }, 1000); });
     this.status();
   }
   open(code) {
@@ -111,9 +113,24 @@ export class ScreenHost {
       this.viewers.add(conn); this.status();
       conn.send({ type: 'links', links: loadLinks() });
       const call = this.peer.call(conn.peer, this.stream);
+      this.tune(call);
       conn.on('close', () => { this.viewers.delete(conn); call?.close(); this.status(); });
     });
     conn.on('data', d => { if (d && d.type === 'links') { const n = mergeLinks(d.links); if (n) this.onStatus?.({ synced: n }); } });
+  }
+  // Prefer a steady picture over sharpness when the network is weak, so the screen never freezes.
+  tune(call) {
+    const pc = call && call.peerConnection; if (!pc) return;
+    const apply = () => pc.getSenders().forEach(snd => {
+      if (!snd.track || snd.track.kind !== 'video') return;
+      try {
+        const p = snd.getParameters(); p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
+        p.encodings[0].maxBitrate = 2500000; p.encodings[0].maxFramerate = 30;
+        p.degradationPreference = 'maintain-framerate';
+        snd.setParameters(p).catch(() => {});
+      } catch {}
+    });
+    pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') apply(); });
   }
   status() { this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live: !!this.stream }); }
   stop() {
@@ -127,11 +144,15 @@ export class ScreenHost {
 
 // ---------- Phone side ----------
 export class ScreenViewer {
-  constructor() { this.peer = null; }
+  constructor() { this.peer = null; this.gen = 0; }
   // Resolves with the remote MediaStream; onEnd is called when the laptop stops sharing.
   async connect(code, { onEnd, onLinks } = {}) {
     await lib();
     this.close();
+    const gen = this.gen;
+    let ended = false;
+    // Called once per connection, and never for a connection we replaced ourselves.
+    const end = why => { if (ended || gen !== this.gen) return; ended = true; onEnd?.(why); };
     const peer = this.peer = new window.peerjs.Peer(undefined, rtc);
     await new Promise((res, rej) => { peer.once('open', res); peer.once('error', rej); });
     return new Promise((res, rej) => {
@@ -140,13 +161,25 @@ export class ScreenViewer {
       const conn = peer.connect(PREFIX + code, { reliable: true });
       conn.on('open', () => conn.send({ type: 'links', links: loadLinks() }));
       conn.on('data', d => { if (d && d.type === 'links') onLinks?.(mergeLinks(d.links)); });
-      conn.on('close', () => onEnd?.());
+      conn.on('close', () => end('closed'));
       peer.on('call', call => {
         call.answer();
         call.on('stream', s => { clearTimeout(timer); res(s); });
-        call.on('close', () => onEnd?.());
+        call.on('close', () => end('closed'));
+        // Network trouble: 'disconnected' often heals by itself within seconds; 'failed' never does.
+        const pc = this.pc = call.peerConnection;
+        if (pc) {
+          let lost = 0;
+          pc.addEventListener('iceconnectionstatechange', () => {
+            const st = pc.iceConnectionState;
+            clearTimeout(lost);
+            if (st === 'failed') end('network');
+            else if (st === 'disconnected') lost = setTimeout(() => { if (pc.iceConnectionState === 'disconnected') end('network'); }, 5000);
+          });
+        }
       });
     });
   }
-  close() { try { this.peer?.destroy(); } catch {} this.peer = null; }
+  healthy() { const st = this.pc && this.pc.iceConnectionState; return st === 'connected' || st === 'completed'; }
+  close() { this.gen++; this.pc = null; try { this.peer?.destroy(); } catch {} this.peer = null; }
 }

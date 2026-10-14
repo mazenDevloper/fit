@@ -178,26 +178,53 @@ class App {
     saveSettings({ mirrorCode: code });
     if (!this.active) return;
     if (settings.viewMode === 'desktop' || this.host?.stream) { this.showLocalScreen(); return; }
-    this.toast('جاري الاتصال باللابتوب ' + code + '…', 4000);
-    this.log('شاشة اللابتوب: اتصال ' + code);
+    const again = !!this.mirrorWin;          // reconnecting: keep the window and its last picture
+    if (!again) this.toast('جاري الاتصال باللابتوب ' + code + '…', 4000);
+    this.log('شاشة اللابتوب: اتصال ' + code + (again ? ' (إعادة)' : ''));
     this.viewer = this.viewer || new ScreenViewer();
     try {
       const stream = await this.viewer.connect(code, {
-        onEnd: () => { this.toast('توقفت مشاركة شاشة اللابتوب', 3500); if (this.mirrorWin) this.windows.close(this.mirrorWin); this.mirrorWin = null; },
+        onEnd: why => this.mirrorLost(code, why),
         onLinks: n => { if (n) { this.toast('أُضيفت ' + n + ' روابط من اللابتوب'); this.renderLinks(); } },
       });
-      if (this.mirrorWin) this.windows.close(this.mirrorWin);
-      this.mirrorWin = this.windows.open({ kind: 'video', stream, name: 'شاشة اللابتوب' });
-      this.toast('ظهرت شاشة اللابتوب أمامك', 2500);
+      if (!this.active) { this.viewer.close(); return; }
+      if (this.mirrorWin && this.windows.windows.includes(this.mirrorWin)) {
+        this.mirrorWin.setStream(stream);
+        this.toast('عادت الشاشة', 1800);
+      } else {
+        this.mirrorWin = this.windows.open({ kind: 'video', stream, name: 'شاشة اللابتوب' });
+        this.toast('ظهرت شاشة اللابتوب أمامك', 2500);
+      }
+      // A picture that stops arriving (frozen) reconnects by itself.
+      // (A still screen also sends no new frames, so only reconnect when the link itself is unhealthy.)
+      this.mirrorWin.onStall = () => { if (!this.viewer.healthy()) { this.log('شاشة اللابتوب: الصورة متوقفة'); this.mirrorLost(code, 'stall'); } };
       this.log('شاشة اللابتوب: متصلة');
     } catch (e) {
       this.log('شاشة اللابتوب: ' + (e.message || e));
-      // The laptop may not be sharing yet: keep trying quietly for about a minute.
-      if (attempt < 5 && this.active) { this.toast('بانتظار مشاركة اللابتوب ' + code + '… (' + (attempt + 1) + '/6)', 3000); setTimeout(() => this.connectMirror(code, attempt + 1), 8000); }
-      else this.toast(e.message || 'تعذّر الاتصال', 5000);
+      // The laptop may not be sharing yet (or the network is back soon): keep trying for about a minute.
+      if (attempt < 7 && this.active) {
+        if (!again) this.toast('بانتظار مشاركة اللابتوب ' + code + '… (' + (attempt + 1) + '/8)', 3000);
+        clearTimeout(this.mirrorTimer);
+        this.mirrorTimer = setTimeout(() => this.connectMirror(code, attempt + 1), again ? 4000 : 8000);
+      } else {
+        this.toast(again ? 'توقفت مشاركة شاشة اللابتوب' : (e.message || 'تعذّر الاتصال'), 5000);
+        if (this.mirrorWin) this.windows.close(this.mirrorWin);
+        this.mirrorWin = null;
+      }
     }
   }
+  // The live screen dropped (laptop stopped, network blip or frozen picture): reconnect quietly with the same code.
+  mirrorLost(code, why) {
+    if (!this.active || !this.mirrorWin) return;
+    if (this.mirrorWin && !this.windows.windows.includes(this.mirrorWin)) { this.mirrorWin = null; return; }   // window was closed by the user
+    this.log('شاشة اللابتوب: انقطاع (' + why + ') — إعادة اتصال');
+    this.toast('انقطع البث — جاري إعادة الاتصال…', 2500);
+    clearTimeout(this.mirrorTimer);
+    this.mirrorTimer = setTimeout(() => this.connectMirror(code, 0), 800);
+  }
   bindMirror() {
+    // Coming back to Madar (or the screen waking): start paused videos again.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(() => this.windows?.resumeMedia(), 300); });
     const fromHash = (location.hash.match(/^#m(\d{6})$/) || [])[1];
     if (fromHash) { saveSettings({ mirrorCode: fromHash }); history.replaceState(null, '', location.pathname); }
     if (settings.mirrorCode) { $('#mirInput').value = settings.mirrorCode; $('#mirMsg').textContent = 'سيظهر اللابتوب ' + settings.mirrorCode + ' عند الدخول'; }
@@ -506,6 +533,7 @@ class App {
     try { const old = this.camVideo.srcObject; old && old.getTracks().forEach(t => t.stop()); } catch {}
     const ok = await this.startCamera();
     if (!ok) this.toast('توقفت الكاميرا — اخرج وادخل مجدداً', 5000);
+    setTimeout(() => this.windows?.resumeMedia(), 400);
     this.recovering = false;
   }
 
