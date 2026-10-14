@@ -222,7 +222,7 @@ class App {
     $('#mirCopy').addEventListener('click', () => { navigator.clipboard?.writeText(this.host.link).then(() => { $('#mirCopy').textContent = 'تم النسخ'; }).catch(() => {}); });
     const alertBox = m => { this.showError(m); };
   }
-  openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay3.netlify.app/media', title: 'cplay2' }); }
+  openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay3.netlify.app/media', title: 'cplay3' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
     const k = ENV_ORDER[(ENV_ORDER.indexOf(envKey(settings.environment)) + 1) % ENV_ORDER.length];

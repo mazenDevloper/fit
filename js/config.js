@@ -88,7 +88,7 @@ export function loadLayout() { try { return JSON.parse(safeGet(LAYOUT_KEY) || 'n
 export function saveLayout(l) { safeSet(LAYOUT_KEY, JSON.stringify(l)); }
 
 export const DEFAULT_LINKS = [
-  { id: 'cplay2', title: 'cplay2', url: 'https://cplay3.netlify.app/media' },
+  { id: 'cplay3', title: 'cplay3', url: 'https://cplay3.netlify.app/media' },
   { id: 'l1', title: 'فيديو تجريبي من يوتيوب', url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ' },
 ];
 export function loadLinks() {

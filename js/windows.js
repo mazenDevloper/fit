@@ -517,7 +517,7 @@ export class WebWindow extends SpatialWindow {
     this.group.add(this.strip.mesh);
   }
   scrollPage(f) {
-    if (!this.bridge) { this.mgr.app.toast('التمرير يحتاج نشر cplay2 على Netlify'); return; }
+    if (!this.bridge) { this.mgr.app.toast('التمرير يحتاج اتصال الصفحة — أعد تحميلها'); return; }
     this.send({ type: 'scroll', dx: 0, dy: f * 600, x: 512, y: 320 });
   }
   fling(v) { this.vel = v; }
@@ -537,7 +537,7 @@ export class WebWindow extends SpatialWindow {
       const now = performance.now();
       if (!this.warned || now - this.warned > 8000) {
         this.warned = now;
-        this.mgr.app.toast(this.cplay ? 'cplay2 لم يتصل بعد: انشره من Netlify ليقبل النقر بالعين واليد' : 'هذا الموقع لا يقبل النقر بالعين أو اليد — المسه مباشرة في وضع الهاتف/اللابتوب', 4500);
+        this.mgr.app.toast(this.cplay ? 'cplay3 لم يتصل بعد — أعد تحميل النافذة' : 'هذا الموقع لا يقبل النقر بالعين أو اليد — المسه مباشرة في وضع الهاتف/اللابتوب', 4500);
         this.mgr.app.log('نقر على موقع بلا جسر: ' + this.url);
       }
       return false;
@@ -600,7 +600,7 @@ export class WebWindow extends SpatialWindow {
   ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
   handleMessage(e) {
     if (e.origin === this.base && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
-      if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay2: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
+      if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay3: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
       if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }
       return;
     }
