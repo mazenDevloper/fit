@@ -532,7 +532,17 @@ export class WebWindow extends SpatialWindow {
     else this.css.forEach(c => { c.f.src = this.base + path; });
   }
   onContentClick(hit) {
-    if (!this.bridge || !hit || !hit.uv) return false;
+    if (!this.bridge) {
+      // Pages from other sites can't receive clicks from Madar's eye/hand pointer unless they include madar-bridge.js.
+      const now = performance.now();
+      if (!this.warned || now - this.warned > 8000) {
+        this.warned = now;
+        this.mgr.app.toast(this.cplay ? 'cplay2 لم يتصل بعد: انشره من Netlify ليقبل النقر بالعين واليد' : 'هذا الموقع لا يقبل النقر بالعين أو اليد — المسه مباشرة في وضع الهاتف/اللابتوب', 4500);
+        this.mgr.app.log('نقر على موقع بلا جسر: ' + this.url);
+      }
+      return false;
+    }
+    if (!hit || !hit.uv) return false;
     const [x, y] = this.content.userData.interact.toPx(hit.uv);
     this.send({ type: 'tap', x, y });
     blip('tap', settings.sounds);
