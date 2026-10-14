@@ -18,6 +18,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
+const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
 class MediaPool {
@@ -161,8 +162,11 @@ class App {
     try {
       let stream = this.host?.stream;
       if (!stream) {
+        if (window.MadarAndroid) { await this.host.start(); stream = this.host.stream; }
+        else {
         if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('هذا الجهاز لا يسمح بالتقاط الشاشة');
         stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30 } }, audio: false });
+        }
       }
       const w = this.windows.open({ kind: 'video', stream, name: 'شاشة' });
       w.video.muted = true;
@@ -205,11 +209,16 @@ class App {
     });
     // Decide by what the browser supports (not by device name): Chrome/Edge/Firefox on computers can share;
     // phone and tablet browsers (iPhone, Android incl. Galaxy Tab) can only receive.
-    const canShare = typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+    const app = !!window.MadarAndroid;
+    if (app && $('#androidApp')) $('#androidApp').hidden = true;
+    const canShare = app || typeof navigator.mediaDevices?.getDisplayMedia === 'function';
     if (!canShare) {
-      $('#mirHost').innerHTML = '<p class="hint" style="margin-top:0">متصفح هذا الجهاز لا يسمح بمشاركة شاشته (هذا قيد في متصفحات الهواتف والأجهزة اللوحية). يمكنه استقبال شاشة جهاز آخر بإدخال رمزه في الأسفل.</p>';
+      const android = /Android/i.test(navigator.userAgent);
+      $('#mirHost').innerHTML = '<p class="hint" style="margin-top:0">متصفح هذا الجهاز لا يسمح بمشاركة شاشته (هذا قيد في متصفحات الهواتف والأجهزة اللوحية). يمكنه استقبال شاشة جهاز آخر بإدخال رمزه في الأسفل.</p>'
+        + (android ? '<p class="hint">على أندرويد (مثل Galaxy Tab) ثبّت <b>تطبيق مدار</b> ليشارك شاشة هذا الجهاز فعلياً: <a href="' + ANDROID_APK + '" style="color:#7cc4ff">تنزيل Madar.apk</a></p>' : '');
       return;
     }
+    if (app) { const b = $('#mirStart'); if (b) b.textContent = 'شارك شاشة هذا الجهاز'; }
     this.host = new ScreenHost(s => {
       if (s.synced) { this.renderLinks(); return; }
       $('#mirLive').hidden = !s.live; $('#mirStart').hidden = !!s.live;

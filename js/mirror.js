@@ -31,15 +31,67 @@ export function qrSvg(text, size = 220) {
   return q.createSvgTag({ cellSize: Math.max(2, Math.floor(size / (q.getModuleCount() + 8))), margin: 4, scalable: true });
 }
 
+// ---------- Madar Android app: real screen capture of this device ----------
+// The app captures the whole screen (MediaProjection) and pushes JPEG frames into the page
+// with __madarFrame(); they become a video track. Frames are pushed by the app (not pulled by
+// timers) so sharing keeps flowing while you use other apps.
+export const isAndroidApp = () => !!window.MadarAndroid;
+function androidStream(onEnded) {
+  const A = window.MadarAndroid;
+  return new Promise((res, rej) => {
+    let track = null, writer = null, canvas = null, ctx = null, busy = false, t0 = performance.now(), started = false;
+    const useGen = typeof window.MediaStreamTrackGenerator === 'function' && typeof window.VideoFrame === 'function';
+    const draw = async b64 => {
+      if (busy) return; busy = true;
+      try {
+        const bin = atob(b64), u = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+        const bmp = await createImageBitmap(new Blob([u], { type: 'image/jpeg' }));
+        if (useGen) {
+          const f = new VideoFrame(bmp, { timestamp: Math.round((performance.now() - t0) * 1000) });
+          await writer.write(f); f.close?.();
+        } else {
+          if (canvas.width !== bmp.width || canvas.height !== bmp.height) { canvas.width = bmp.width; canvas.height = bmp.height; }
+          ctx.drawImage(bmp, 0, 0); track.requestFrame?.();
+        }
+        bmp.close?.();
+      } catch {}
+      busy = false;
+    };
+    window.__madarFrame = b64 => { if (started) draw(b64); };
+    window.__madarCapture = state => {
+      if (state === 'started' && !started) {
+        started = true;
+        let stream;
+        if (useGen) {
+          track = new MediaStreamTrackGenerator({ kind: 'video' });
+          writer = track.writable.getWriter();
+          stream = new MediaStream([track]);
+        } else {
+          canvas = document.createElement('canvas'); canvas.width = 1280; canvas.height = 720;
+          ctx = canvas.getContext('2d');
+          stream = canvas.captureStream(0); track = stream.getVideoTracks()[0];
+        }
+        res(stream);
+      } else if (state === 'denied') { rej(new Error('أُلغيت المشاركة أو لم يُسمح بها')); }
+      else if (state === 'stopped') { started = false; onEnded?.(); }
+    };
+    try { A.startCapture(); } catch (e) { rej(new Error('تعذّر بدء التقاط الشاشة')); }
+  });
+}
+
 // ---------- Laptop side ----------
 export class ScreenHost {
   constructor(onStatus) { this.onStatus = onStatus; this.code = ''; this.stream = null; this.peer = null; this.viewers = new Set(); }
   get link() { return location.origin + location.pathname + '#m' + this.code; }
   async start() {
+    if (window.MadarAndroid) { this.stream = await androidStream(() => this.stop()); }
+    else {
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('هذا المتصفح لا يدعم مشاركة الشاشة — استخدم Chrome أو Edge على الكمبيوتر');
     try { this.stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true }); }
     catch (e) { throw new Error(e.name === 'NotAllowedError' ? 'أُلغيت المشاركة أو لم يُسمح بها' : 'هذا الجهاز لا يسمح بمشاركة الشاشة من المتصفح'); }
     this.stream.getVideoTracks()[0].addEventListener('ended', () => this.stop());
+    }
     await lib();
     for (let tries = 0; tries < 4 && !this.peer; tries++) {
       const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -65,7 +117,9 @@ export class ScreenHost {
   }
   status() { this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live: !!this.stream }); }
   stop() {
+    if (!this.stream && !this.peer) return;
     this.stream?.getTracks().forEach(t => t.stop()); this.stream = null;
+    if (window.MadarAndroid) try { window.MadarAndroid.stopCapture(); } catch {}
     this.peer?.destroy(); this.peer = null; this.viewers.clear();
     this.onStatus?.({ live: false });
   }
