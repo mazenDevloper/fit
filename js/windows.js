@@ -9,13 +9,20 @@ import { CSS_K } from './render.js';
 
 const CONTENT_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const CONTENT_FRAG = /* glsl */`
-  uniform sampler2D map; uniform float uVideo; uniform float uHas; uniform vec2 uSize; uniform float uRadius; uniform float uDim;
+  uniform sampler2D map; uniform float uVideo; uniform float uHas; uniform vec2 uSize; uniform float uRadius; uniform float uDim; uniform float uHole;
   varying vec2 vUv;
   vec3 dec(vec3 s){ return mix(s * 0.0773993808, pow(s * 0.9478672986 + 0.0521327014, vec3(2.4)), step(0.04045, s)); }
   void main(){
     vec2 p = (vUv - 0.5) * uSize;
     vec2 q = abs(p) - (uSize * 0.5 - uRadius);
     if (length(max(q, 0.0)) - uRadius > 0.0) discard;
+    // Web windows: a transparent hole so the live page under the canvas shows, with a thin opaque rim
+    // that hides small misalignment between the lens-corrected scene and the page.
+    if (uHole > 0.5) {
+      vec2 e = abs(p) - uSize * 0.5 * 0.985;
+      if (max(e.x, e.y) < 0.0) { gl_FragColor = vec4(0.0); return; }
+      gl_FragColor = vec4(0.06, 0.07, 0.1, 1.0); return;
+    }
     vec3 s = texture2D(map, vUv).rgb;
     vec3 c = uVideo > 0.5 ? dec(s) : s;
     c = mix(vec3(0.035, 0.04, 0.055), c, uHas) * uDim;
@@ -24,7 +31,7 @@ const CONTENT_FRAG = /* glsl */`
 
 function contentMaterial() {
   return new THREE.ShaderMaterial({
-    uniforms: { map: { value: null }, uVideo: { value: 0 }, uHas: { value: 0 }, uSize: { value: new THREE.Vector2(1, 0.5625) }, uRadius: { value: 0.028 }, uDim: { value: 1 } },
+    uniforms: { map: { value: null }, uHole: { value: 0 }, uVideo: { value: 0 }, uHas: { value: 0 }, uSize: { value: new THREE.Vector2(1, 0.5625) }, uRadius: { value: 0.028 }, uDim: { value: 1 } },
     vertexShader: CONTENT_VERT, fragmentShader: CONTENT_FRAG, side: THREE.DoubleSide,
   });
 }
@@ -348,9 +355,9 @@ export class PanelWindow extends SpatialWindow {
       const rows = [
         ['hand', 'للنقر', 'ضع إصبعيك فوق الزر واقرص'],
         ['stack', 'لنقل نافذة', 'اقرص النافذة أو إطارها واسحب'],
-        ['plus', 'للتكبير', 'اقرص باليدين وباعد بينهما'],
+        ['plus', 'للتكبير', 'امسك النافذة باليدين وباعد بينهما'],
         ['grid', 'لفتح القائمة', 'اقرص مطوّلاً في الفراغ'],
-        ['target', 'لإعادة التمركز', 'اقرص باليدين مطوّلاً'],
+        ['target', 'لإعادة التمركز', 'ارفع يديك مفتوحتين ثانية ونصف'],
         ['sun', 'بدون يدين', 'انظر إلى الزر لحظة أو المس الشاشة'],
       ];
       const top = k === 'welcome' ? 225 : 165, rh = (H - top - 30) / rows.length;
@@ -399,6 +406,7 @@ export class WebWindow extends SpatialWindow {
     this.cv.texture.needsUpdate = true;
     this.mat.uniforms.map.value = this.cv.texture;
     this.ytState = { playing: true, muted: true, times: [0, 0] };
+    this.mat.uniforms.uHole.value = 1;
     let host = ''; try { host = new URL(url).hostname; } catch {}
     this.cplay = host === 'cplay2.netlify.app';
     this.base = (() => { try { return new URL(url).origin; } catch { return ''; } })();
@@ -407,7 +415,7 @@ export class WebWindow extends SpatialWindow {
     Object.assign(this.content.userData.interact, {
       scroll: () => this.bridge,
       toPx: uv => [uv.x * 1024, (1 - uv.y) * 640],
-      scrollBy: (dx, dy, at) => this.send({ type: 'scroll', dx, dy, x: at[0], y: at[1] }),
+      scrollBy: (dx, dy, at) => { this.lastAt = at; this.send({ type: 'scroll', dx, dy, x: at[0], y: at[1] }); },
     });
     const items = [];
     if (this.cplay) items.push({ icon: 'chevR', action: () => this.send({ type: 'back' }) });
@@ -420,6 +428,8 @@ export class WebWindow extends SpatialWindow {
     this.toolbar = new Toolbar(items).install();
     this.group.add(this.toolbar.mesh);
     if (this.cplay) this.makeTabs();
+    this.makeScrollStrip();
+    this.vel = 0;
     this.layout();
     this.css = [0, 1].map(i => this.makeCss(i));
     mgr.app.renderer.cssCount++;
@@ -444,7 +454,40 @@ export class WebWindow extends SpatialWindow {
   layout() {
     super.layout();
     if (this.tabPanel) this.tabPanel.mesh.position.set(0, this.h / 2 + 0.065, 0.004);
+    if (this.strip) this.strip.mesh.position.set(0.5 + 0.075, 0, 0.004);
   }
+  // Scroll strip beside the window: arrows, page jumps, and a pinch-drag track (touch-screen style).
+  makeScrollStrip() {
+    const H = 0.5;
+    this.strip = new CanvasPanel(0.1, H, (ctx, W, Hp, p) => {
+      glass(ctx, 2, 2, W - 4, Hp - 4, (W - 4) / 2);
+      const b = W * 0.9, cx = W / 2;
+      const btn = (id, y, ic, act) => {
+        if (p.isHover(id)) { ctx.beginPath(); ctx.arc(cx, y, b * 0.42, 0, 7); ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fill(); }
+        ctx.save(); ctx.translate(cx, y); ctx.rotate(ic === 'up' || ic === 'top' ? -Math.PI / 2 : Math.PI / 2); icon(ctx, ic === 'top' || ic === 'end' ? 'fwd' : 'chevR', 0, 0, b * 0.42); ctx.restore();
+        p.region(0, y - b / 2, W, b, () => { blip('tap', settings.sounds); act(); }, id);
+      };
+      btn('top', b * 0.6, 'top', () => this.scrollPage(-20));
+      btn('up', b * 1.55, 'up', () => this.scrollPage(-0.85));
+      btn('down', Hp - b * 1.55, 'down', () => this.scrollPage(0.85));
+      btn('end', Hp - b * 0.6, 'end', () => this.scrollPage(20));
+      const t0 = b * 2.2, t1 = Hp - b * 2.2, hov = p.isHover('track');
+      roundRect(ctx, cx - 8, t0, 16, t1 - t0, 8); ctx.fillStyle = hov ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.25)'; ctx.fill();
+      p.region(0, t0, W, t1 - t0, null, 'track');
+    }, { pxPerM: 1500 });
+    const it = this.strip.mesh.userData.interact;
+    // Pinch-drag on the strip scrolls the page (like dragging a scroll bar).
+    it.type = 'surface'; it.window = this;
+    it.scroll = () => this.bridge;
+    it.toPx = uv => [0, -(1 - uv.y) * 640 * 3];
+    it.scrollBy = (dx, dy) => this.send({ type: 'scroll', dx: 0, dy: -dy, x: 512, y: 320 });
+    this.group.add(this.strip.mesh);
+  }
+  scrollPage(f) {
+    if (!this.bridge) { this.mgr.app.toast('التمرير يحتاج نشر cplay2 على Netlify'); return; }
+    this.send({ type: 'scroll', dx: 0, dy: f * 600, x: 512, y: 320 });
+  }
+  fling(v) { this.vel = v; }
   send(msg) {
     if (!this.bridge || !this.css) return;
     msg.madar = 1;
@@ -528,6 +571,12 @@ export class WebWindow extends SpatialWindow {
   reload() { this.css.forEach((c, i) => { c.f.src = this.src(i); }); }
   update(dt, now) {
     this.content.updateMatrixWorld();
+    // Momentum after a flick, like iOS scrolling.
+    if (Math.abs(this.vel) > 20) {
+      const at = this.lastAt || [512, 320];
+      this.send({ type: 'scroll', dx: 0, dy: this.vel * dt, x: at[0], y: at[1] });
+      this.vel *= Math.pow(0.04, dt);
+    } else this.vel = 0;
     if (this.yt && now - this.lastSync > 2000) {
       this.lastSync = now;
       const [a, b] = this.ytState.times;
@@ -538,7 +587,7 @@ export class WebWindow extends SpatialWindow {
   ref() { return { url: this.url, title: this.title }; }
   dispose() {
     super.dispose();
-    this.tabPanel?.dispose();
+    this.tabPanel?.dispose(); this.strip?.dispose();
     window.removeEventListener('message', this.onMsg);
     this.css.forEach(c => { c.f.src = 'about:blank'; c.el.remove(); });
     this.mgr.app.renderer.cssCount--;

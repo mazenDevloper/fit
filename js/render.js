@@ -55,14 +55,16 @@ const DIST_FRAG = /* glsl */`
     vec2 e = min(uv, 1.0 - uv);
     float edge = smoothstep(0.0, 0.025, min(e.x, e.y));
     float seam = smoothstep(0.0, 2.0, abs(p.x - halfW));
-    gl_FragColor = vec4(col.rgb * edge * seam, 1.0);
+    float k = edge * seam;
+    // Alpha stays 0 where a web window shows through (its page sits under this canvas).
+    gl_FragColor = vec4(col.rgb * k, 1.0 - k * (1.0 - col.a));
     #include <colorspace_fragment>
   }`;
 
 export class StereoRenderer {
   constructor(stage, canvas, orientation) {
     this.stage = stage; this.orientation = orientation;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: false });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, premultipliedAlpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.autoClear = false;
     this.maxAniso = this.renderer.capabilities.getMaxAnisotropy();

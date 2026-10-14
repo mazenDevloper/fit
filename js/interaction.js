@@ -149,7 +149,13 @@ export class Interaction {
         p.downObj = hit ? hit.object : null; p.downHit = hit;
         p.surf = null; p.pendingDrag = null;
         const it = hit && hit.object.userData.interact;
-        if (it && it.type === 'drag') this.startDrag(p, hit, s);
+        const other = this.pointers[1 - i];
+        const otherWin = other.drag?.win || other.surf?.win || other.pendingDrag?.object.userData.interact.window;
+        if (it && it.window && otherWin === it.window) {
+          // Both hands on one window: grab it with two hands to scale (and move it with the first hand).
+          if (!other.drag) { const h = other.pendingDrag || this.cast(other.dir); other.surf = null; other.pendingDrag = null; if (h) this.startDrag(other, h, slots[1 - i]); }
+          if (other.drag) { this.beginScale(other.drag.win); p.scaleHelper = true; p.fired = true; other.fired = true; p.downObj = null; }
+        } else if (it && it.type === 'drag') this.startDrag(p, hit, s);
         else if (it && it.type === 'surface' && it.scroll && it.scroll()) {
           // Pinch-drag inside an interactive page scrolls it, like a finger on a touch screen.
           p.surf = { win: it.window, mesh: hit.object, last: it.toPx(hit.uv), total: 0 };
@@ -168,7 +174,10 @@ export class Interaction {
           if (h && h.uv) {
             const it = p.surf.mesh.userData.interact, cur = it.toPx(h.uv);
             const dx = p.surf.last[0] - cur[0], dy = p.surf.last[1] - cur[1];
-            if (Math.abs(dx) + Math.abs(dy) > 0.5) { it.scrollBy(dx * 1.6, dy * 1.6, cur); p.surf.total += Math.abs(dx) + Math.abs(dy); p.surf.last = cur; }
+            if (Math.abs(dx) + Math.abs(dy) > 0.5) {
+              it.scrollBy(dx * 1.6, dy * 1.6, cur); p.surf.total += Math.abs(dx) + Math.abs(dy); p.surf.last = cur;
+              const v = dy * 1.6 / Math.max(dt, 0.008); p.surf.vel = (p.surf.vel || 0) * 0.6 + v * 0.4;
+            }
             if (p.surf.total > 14) p.fired = true;   // it was a scroll, not a tap
           }
         }
@@ -182,6 +191,16 @@ export class Interaction {
       p.wasPinch = pinch;
       this.drawCursor(p, hit, s.strength, pinch);
     }
+
+    // Both open hands held up and still for 1.5 s → recenter (like visionOS's look-and-hold).
+    const [a0, a1] = this.pointers;
+    if (a0.active && a1.active && !slots[0].pinch && !slots[1].pinch && slots[0].strength < 0.3 && slots[1].strength < 0.3 && !a0.hit && !a1.hit && !this.app.launcher.group.visible) {
+      const c = [slots[0].tx + slots[1].tx, slots[0].ty + slots[1].ty];
+      if (!this.palms || Math.hypot(c[0] - this.palms.c[0], c[1] - this.palms.c[1]) > 0.12) this.palms = { t: now, c, fired: false };
+      const k = (now - this.palms.t) / 1500;
+      if (!this.palms.fired && k > 0.25) { this.drawCursor(a0, null, 0, false, Math.min(1, k)); this.drawCursor(a1, null, 0, false, Math.min(1, k)); }
+      if (!this.palms.fired && k >= 1) { this.palms.fired = true; this.app.recenter(); }
+    } else this.palms = null;
 
     // Two empty-space pinches held together → recenter.
     const [h0, h1] = this.pointers;
@@ -221,6 +240,7 @@ export class Interaction {
 
   release(p, now, hit) {
     if (p.scaleHelper) { p.scaleHelper = false; this.scaleMode = null; this.reanchor(); this.app.windows.changed(); p.downObj = null; return; }
+    if (p.surf && p.surf.total > 14 && Math.abs(p.surf.vel || 0) > 250 && p.surf.win.fling) p.surf.win.fling(Math.max(-4000, Math.min(4000, p.surf.vel)));
     p.surf = null; p.pendingDrag = null;
     if (p.drag) { this.endDrag(p); return; }
     if (!p.fired && p.downObj && p.moved < 0.07 && now - p.t0 < 1000) {
