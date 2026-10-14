@@ -32,6 +32,7 @@ export const DEFAULTS = {
   rxR: { sph: -0.75, cyl: -0.50, axis: 90 },   // from the user's glasses card
   rxL: { sph: 0.50, cyl: -3.00, axis: 65 },
   dwellMs: 3000,
+  moveEnabled: true,    // walk around the environment (sticks, keys, hand drag)
   eyeTrack: false,      // laptop mode: eye tracking with the front camera
   blinkClick: true,     // long blink = click
   gazeModel: null,      // eye calibration result

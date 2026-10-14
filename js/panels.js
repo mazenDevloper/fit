@@ -75,7 +75,7 @@ export class Launcher {
     icon(ctx, 'close', 95, 81, 34);
     p.region(50, 36, 90, 90, () => { blip('close', settings.sounds); this.close(); }, 'close');
 
-    const top = 150, pad = 60, cols = 4, rows = 2, g = 26;
+    const top = 150, pad = 50, cols = 5, rows = 2, g = 20;
     const tileW = (W - pad * 2 - g * (cols - 1)) / cols, tileH = (H - top - 60 - g * (rows - 1)) / rows;
     const cell = (i) => { const c = i % cols, r = Math.floor(i / cols); return [W - pad - (c + 1) * tileW - c * g, top + r * (tileH + g)]; };
     const a = this.app;
@@ -85,6 +85,8 @@ export class Launcher {
         ['video', 'فيديو تجريبي', 'شاشة سينمائية', () => { a.windows.open({ kind: 'video', url: 'assets/sample.mp4' }); this.close(); }],
         ['cube', 'مجسم تجريبي', 'خوذة GLB', () => { a.windows.open({ kind: 'model', url: 'assets/helmet.glb' }); this.close(); }],
         ['globe', 'cplay2', 'بالتابات واليد', () => { a.openCplay(); this.close(); }],
+        ['grid', 'لوحة المفاتيح', 'رابط أو نص أو رمز', () => { a.windows.open({ kind: 'keyboard' }); this.close(); }],
+        ['video', 'شاشة اللابتوب', settings.mirrorCode ? 'الرمز ' + settings.mirrorCode : 'أدخل الرمز', () => { this.close(); settings.mirrorCode ? a.connectMirror(settings.mirrorCode) : (a.windows.open({ kind: 'keyboard' }), a.toast('اكتب رمز اللابتوب (6 أرقام) واضغط فتح', 4000)); }],
         ['hand', 'دليل الإيماءات', 'كيف تتحكم', () => { a.windows.open({ kind: 'panel', panel: 'guide' }); this.close(); }],
         ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
         ['stack', 'ترتيب النوافذ', 'أمامك', () => { a.windows.arrange(); this.close(); }],
@@ -93,7 +95,7 @@ export class Launcher {
       ];
       list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'app' + i); });
     } else if (this.tab === 'library') {
-      const per = 8, items = this.items;
+      const per = 10, items = this.items;
       if (!items.length) {
         text(ctx, 'مكتبتك فارغة', W / 2, H * 0.48, 44, { weight: 700 });
         text(ctx, 'أضف الفيديوهات والصور والمجسمات من شاشة مدار الرئيسية قبل الدخول', W / 2, H * 0.58, 30, { color: COLORS.dim });
@@ -134,6 +136,8 @@ export class Launcher {
         ['target', 'النقر بالنظر', settings.dwell ? 'مفعّل' : 'متوقف', () => { saveSettings({ dwell: !settings.dwell }); this.panel.redraw(); }],
         ['sound', 'أصوات الواجهة', settings.sounds ? 'مفعّلة' : 'متوقفة', () => { saveSettings({ sounds: !settings.sounds }); this.panel.redraw(); }],
         ['hand', 'تتبع اليد', settings.handsEnabled ? 'مفعّل' : 'متوقف', () => { saveSettings({ handsEnabled: !settings.handsEnabled }); this.panel.redraw(); }],
+        ['stack', 'التحرك في البيئة', settings.moveEnabled ? 'مفعّل' : 'متوقف', () => { saveSettings({ moveEnabled: !settings.moveEnabled }); this.panel.redraw(); }],
+        ['reset', 'العودة لمكاني', 'إلغاء التحرك والدوران', () => { a.controls.reset(); a.toast('عدت إلى مكانك'); this.close(); }],
         ['target', 'تتبع العين', settings.eyeTrack ? 'مفعّل · لابتوب' : 'متوقف', () => { a.toggleEyeTrack(); this.panel.redraw(); }],
         ['trash', 'إغلاق كل النوافذ', a.windows.windows.length + ' مفتوحة', () => { a.windows.closeAll(); this.panel.redraw(); }],
         ['grid', 'وضع العرض', { sbs: 'نظارة', mono: 'هاتف', desktop: 'لابتوب' }[settings.viewMode], () => { const o = ['sbs', 'mono', 'desktop']; a.setViewMode(o[(o.indexOf(settings.viewMode) + 1) % 3]); this.panel.redraw(); }],

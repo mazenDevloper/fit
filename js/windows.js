@@ -4,7 +4,7 @@ import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, canvasTexture, blip } from './ui.js';
 import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem } from './db.js';
-import { settings } from './config.js';
+import { settings, loadLinks, saveLinks } from './config.js';
 import { CSS_K } from './render.js';
 
 const CONTENT_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -208,8 +208,9 @@ class SpatialWindow {
 }
 
 export class VideoWindow extends SpatialWindow {
-  constructor(mgr, { itemId = null, url = null, name = '' }) {
+  constructor(mgr, { itemId = null, url = null, name = '', stream = null }) {
     super(mgr, 'video');
+    this.stream = stream;
     this.itemId = itemId; this.url = url; this.name = name;
     this.video = mgr.app.media.acquire();
     this.mat.uniforms.uVideo.value = 1;
@@ -240,7 +241,7 @@ export class VideoWindow extends SpatialWindow {
     }
     const v = this.video;
     v.loop = true; v.muted = false; v.playsInline = true;
-    v.src = src;
+    if (this.stream) { v.loop = false; v.srcObject = this.stream; } else v.src = src;
     v.onerror = () => this.mgr.app.toast('تعذّر تشغيل هذا الفيديو');
     v.onloadedmetadata = () => { this.setAspect(v.videoWidth / v.videoHeight); this.setupTexture(); };
     this.mgr.app.log('فتح فيديو: ' + (this.name || this.url));
@@ -281,10 +282,10 @@ export class VideoWindow extends SpatialWindow {
     }
     if (now - this.lastBar > 250) { this.lastBar = now; this.toolbar.redraw(); }
   }
-  ref() { return this.itemId ? { item: this.itemId } : { url: this.url }; }
+  ref() { return this.stream ? null : this.itemId ? { item: this.itemId } : { url: this.url }; }
   dispose() {
     super.dispose();
-    this.video.pause(); this.video.removeAttribute('src'); this.video.load();
+    this.video.pause(); this.video.srcObject = null; this.video.removeAttribute('src'); this.video.load();
     this.mgr.app.media.release(this.video);
     this.tex?.dispose();
     if (this.objUrl) URL.revokeObjectURL(this.objUrl);
@@ -647,6 +648,7 @@ export class ModelVolume {
     this.toolbar = new Toolbar([
       { icon: 'close', action: () => this.mgr.close(this), tint: COLORS.text },
       { icon: 'spin', action: () => { this.spin = !this.spin; }, active: () => this.spin },
+      { icon: 'target', action: () => this.mgr.app.controls.toggleOrbit(this), active: () => this.mgr.app.controls.orbit?.win === this },
       { icon: 'reset', action: () => { this.pivot.rotation.set(0, 0, 0); this.group.scale.setScalar(1); this.mgr.changed(); } },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
@@ -774,6 +776,7 @@ export class WindowManager {
     }
     if (k === 'panel') return this.add(new PanelWindow(this, spec), { dist: 1.6, scale: spec.panel === 'clock' ? 0.55 : 0.95, y: spec.panel === 'clock' ? 0.45 : 0 });
     if (k === 'model') return this.add(new ModelVolume(this, spec), { dist: 1.25, y: -0.38 });
+    if (k === 'keyboard') { const old = this.windows.find(w => w.kind === 'keyboard'); if (old) this.close(old); return this.add(new KeyboardWindow(this), { dist: 0.9, y: -0.2, scale: 1 }); }
   }
   // Bring every window back into a fan in front of the viewer.
   arrange() {
@@ -826,4 +829,87 @@ export class WindowManager {
     this.refreshTargets();
   }
   update(dt, now) { for (const w of this.windows) w.update(dt, now); }
+}
+
+// ---------- Virtual keyboard with an address bar ----------
+const KB = {
+  en: ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'],
+  ar: ['1234567890', 'ضصثقفغعهخحج', 'شسيبلاتنمكط', 'ئءؤرىةوزظد'],
+};
+export class KeyboardWindow {
+  constructor(mgr) {
+    this.mgr = mgr; this.kind = 'keyboard'; this.id = ++winId;
+    this.text = ''; this.lang = 'en';
+    this.group = new THREE.Group(); this.group.userData.window = this;
+    this.panel = new CanvasPanel(0.62, 0.3, (ctx, W, H, p) => this.draw(ctx, W, H, p), { pxPerM: 2400 });
+    this.panel.mesh.userData.interact.window = this;
+    this.group.add(this.panel.mesh);
+    const { mesh: bar, hit } = makeBar(0.14, 0.016);
+    hit.userData.interact = { type: 'drag', window: this, hover: on => { bar.userData.drawHover(on); return true; } };
+    bar.position.set(0, -0.172, 0.002); this.group.add(bar); this.bar = bar;
+    this.closeBtn = new IconButton('close', 0.034, () => this.mgr.close(this));
+    this.closeBtn.mesh.position.set(-0.1, -0.172, 0.004); this.group.add(this.closeBtn.mesh);
+  }
+  key(ch) { this.text += ch; this.panel.redraw(); }
+  url() {
+    let t = this.text.trim(); if (!t) return '';
+    if (!/^https?:\/\//i.test(t)) t = 'https://' + t.replace(/^\/+/, '');
+    return t;
+  }
+  draw(ctx, W, H, p) {
+    glass(ctx, 0, 0, W, H, 46);
+    // Text field
+    const fh = H * 0.15;
+    roundRect(ctx, 24, 18, W - 48, fh, fh / 2); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
+    const shown = this.text || 'اكتب رابطاً أو نصاً…';
+    text(ctx, shown + (this.text ? '|' : ''), W - 50, 18 + fh / 2 + 2, fh * 0.48, { align: 'right', dir: 'auto', weight: 700, color: this.text ? COLORS.text : COLORS.dim, maxWidth: W - 100 });
+    const rows = KB[this.lang], top = 18 + fh + 16, rh = (H - top - 18) / 5.2;
+    const keyBtn = (x, y, w, h, label, action, id, accent) => {
+      const hov = p.isHover(id);
+      roundRect(ctx, x + 3, y + 3, w - 6, h - 6, 14);
+      ctx.fillStyle = hov ? 'rgba(255,255,255,0.4)' : accent ? 'rgba(124,196,255,0.28)' : 'rgba(255,255,255,0.1)'; ctx.fill();
+      text(ctx, label, x + w / 2, y + h / 2 + 2, Math.min(h * 0.45, 44), { weight: 800, dir: 'auto' });
+      p.region(x, y, w, h, () => { blip('tap', settings.sounds); action(); }, id);
+    };
+    rows.forEach((r, ri) => {
+      const n = r.length, kw = (W - 48) / Math.max(n, 10), x0 = (W - kw * n) / 2;
+      [...r].forEach((ch, i) => {
+        const x = this.lang === 'ar' ? x0 + (n - 1 - i) * kw : x0 + i * kw;
+        keyBtn(x, top + ri * rh, kw, rh, ch, () => this.key(ch), 'k' + ri + '-' + i);
+      });
+    });
+    // Bottom row
+    const y = top + 4 * rh, bh = rh * 1.15;
+    const items = [
+      [this.lang === 'en' ? 'ع' : 'EN', 0.8, () => { this.lang = this.lang === 'en' ? 'ar' : 'en'; this.panel.redraw(); }],
+      ['.', 0.6, () => this.key('.')], ['/', 0.6, () => this.key('/')], ['.com', 1, () => this.key('.com')],
+      ['مسافة', 2, () => this.key(' ')], ['⌫', 0.9, () => { this.text = this.text.slice(0, -1); this.panel.redraw(); }],
+      ['حفظ', 1, () => this.save(), true], ['إرسال', 1.1, () => this.sendToPage(), true], ['فتح', 1.1, () => this.open(), true],
+    ];
+    const total = items.reduce((s, it) => s + it[1], 0), unit = (W - 48) / total;
+    let x = 24;
+    items.forEach(([l, w, a, acc], i) => { keyBtn(x, y, unit * w, bh, l, a, 'b' + i, acc); x += unit * w; });
+  }
+  open() {
+    if (/^\d{6}$/.test(this.text.trim())) { this.mgr.app.connectMirror(this.text.trim()); return; }   // laptop screen code
+    const u = this.url(); if (!u) return;
+    this.mgr.open({ kind: 'web', url: u, title: u.replace(/^https?:\/\//, '').slice(0, 40) });
+  }
+  save() {
+    const u = this.url(); if (!u) return;
+    const l = loadLinks(); if (!l.some(x => x.url === u)) { l.unshift({ id: 'l' + Date.now(), title: u.replace(/^https?:\/\/(www\.)?/, '').slice(0, 40), url: u }); saveLinks(l); }
+    this.mgr.app.toast('حُفظ الرابط في مواقعك');
+  }
+  // Types the text into the focused field of the open page (cplay2 with the bridge).
+  sendToPage() {
+    const w = [...this.mgr.windows].reverse().find(x => x.kind === 'web' && x.bridge);
+    if (!w) { this.mgr.app.toast('لا توجد صفحة متصلة تقبل الكتابة'); return; }
+    w.send({ type: 'text', value: this.text });
+    this.mgr.app.toast('أُرسل النص إلى الصفحة');
+  }
+  scaleBy(f) { this.group.scale.setScalar(THREE.MathUtils.clamp(this.group.scale.x * f, 0.4, 3)); }
+  onDragEnd() {}
+  update() {}
+  serialize() { return { ref: null }; }
+  dispose() { this.panel.dispose(); this.closeBtn.dispose(); this.bar.material.map?.dispose(); }
 }

@@ -11,6 +11,7 @@ import { Launcher, Calibration, Toast } from './panels.js';
 import { Slam } from './slam.js';
 import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
+import { ScreenHost, ScreenViewer, qrSvg } from './mirror.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
@@ -154,6 +155,52 @@ class App {
     if (settings.viewMode !== 'desktop') { this.toast('تتبع العين يعمل في وضع اللابتوب'); return; }
     this.gaze.start();
   }
+  // ---------- Laptop screen in the environment ----------
+  async connectMirror(code) {
+    saveSettings({ mirrorCode: code });
+    if (!this.active) return;
+    this.toast('جاري الاتصال باللابتوب ' + code + '…', 4000);
+    this.log('شاشة اللابتوب: اتصال ' + code);
+    this.viewer = this.viewer || new ScreenViewer();
+    try {
+      const stream = await this.viewer.connect(code, {
+        onEnd: () => { this.toast('توقفت مشاركة شاشة اللابتوب', 3500); if (this.mirrorWin) this.windows.close(this.mirrorWin); this.mirrorWin = null; },
+        onLinks: n => { if (n) { this.toast('أُضيفت ' + n + ' روابط من اللابتوب'); this.renderLinks(); } },
+      });
+      if (this.mirrorWin) this.windows.close(this.mirrorWin);
+      this.mirrorWin = this.windows.open({ kind: 'video', stream, name: 'شاشة اللابتوب' });
+      this.log('شاشة اللابتوب: متصلة');
+    } catch (e) { this.toast(e.message || 'تعذّر الاتصال', 4500); this.log('شاشة اللابتوب: ' + (e.message || e)); }
+  }
+  bindMirror() {
+    const fromHash = (location.hash.match(/^#m(\d{6})$/) || [])[1];
+    if (fromHash) { saveSettings({ mirrorCode: fromHash }); history.replaceState(null, '', location.pathname); }
+    if (settings.mirrorCode) { $('#mirInput').value = settings.mirrorCode; $('#mirMsg').textContent = 'سيظهر اللابتوب ' + settings.mirrorCode + ' عند الدخول'; }
+    $('#mirJoin').addEventListener('submit', e => {
+      e.preventDefault();
+      const c = $('#mirInput').value.replace(/\D/g, '');
+      if (c.length !== 6) { $('#mirMsg').textContent = 'الرمز 6 أرقام'; return; }
+      saveSettings({ mirrorCode: c }); $('#mirMsg').textContent = 'حُفظ. ستظهر شاشة اللابتوب عند الدخول'; $('#mirInput').blur();
+    });
+    const canShare = !!navigator.mediaDevices?.getDisplayMedia && !/iPhone|iPad|Android/i.test(navigator.userAgent);
+    $('#mirHost').hidden = !canShare;
+    if (!canShare) return;
+    this.host = new ScreenHost(s => {
+      if (s.synced) { this.renderLinks(); return; }
+      $('#mirLive').hidden = !s.live; $('#mirStart').hidden = !!s.live;
+      if (!s.live) return;
+      $('#mirCode').textContent = s.code; $('#mirLink').textContent = s.link;
+      $('#mirQr').innerHTML = qrSvg(s.link);
+      $('#mirStatus').textContent = s.viewers ? 'متصل: ' + s.viewers + ' جهاز' : 'بانتظار الهاتف…';
+    });
+    $('#mirStart').addEventListener('click', async () => {
+      try { await this.host.start(); this.log('مشاركة الشاشة: ' + this.host.code); }
+      catch (e) { $('#mirStatus').textContent = ''; alertBox(e.message || 'لم تبدأ المشاركة'); }
+    });
+    $('#mirStop').addEventListener('click', () => this.host.stop());
+    $('#mirCopy').addEventListener('click', () => { navigator.clipboard?.writeText(this.host.link).then(() => { $('#mirCopy').textContent = 'تم النسخ'; }).catch(() => {}); });
+    const alertBox = m => { this.showError(m); };
+  }
   openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay2.netlify.app/media', title: 'cplay2' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
@@ -233,6 +280,7 @@ class App {
       });
     };
     this.renderEnvChoices();
+    this.bindMirror();
     this.renderLibrary(); this.renderLinks(); this.renderSettings();
   }
 
@@ -315,6 +363,7 @@ class App {
     this.log('دخول البيئة');
     this.controls.sync(); this.controls.reset();
     if (settings.viewMode === 'desktop' && settings.eyeTrack) setTimeout(() => this.gaze.start(), 1200);
+    if (settings.mirrorCode && settings.viewMode !== 'desktop') setTimeout(() => this.connectMirror(settings.mirrorCode), 2000);
     if (settings.viewMode === 'desktop') { setTimeout(() => this.toast('WASD للتحرك · الأسهم أو السحب للنظر · M القائمة · F ملء الشاشة', 6000), 2500); }
     if (settings.walk) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();

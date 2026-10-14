@@ -150,7 +150,7 @@ export class Interaction {
       if (pinch && !p.wasPinch) {
         p.t0 = now; p.start = [s.tx, s.ty]; p.moved = 0; p.fired = false;
         p.downObj = hit ? hit.object : null; p.downHit = hit;
-        p.surf = null; p.pendingDrag = null;
+        p.surf = null; p.pendingDrag = null; p.world = null;
         const it = hit && hit.object.userData.interact;
         const other = this.pointers[1 - i];
         const otherWin = other.drag?.win || other.surf?.win || other.pendingDrag?.object.userData.interact.window;
@@ -185,6 +185,16 @@ export class Interaction {
           const target = THREE.MathUtils.clamp(z.s0 * Math.exp((s.ty - z.y0) * 3.2), lim[0], lim[1]);
           z.win.group.scale.setScalar(z.win.group.scale.x + (target - z.win.group.scale.x) * 0.35);
           this.drawCursor(p, null, 1, true);
+        }
+        // Pinch in empty space and move: grab the world (move through it, or orbit the chosen model).
+        if (!p.downObj && !p.drag && !p.surf && !p.pendingDrag && !p.zoom && !p.scaleHelper && !this.pointers[1 - i].wasPinch && p.moved > 0.05) {
+          const c = this.app.controls;
+          if (p.world) {
+            const dx = s.tx - p.world.tx, dd = s.depth - p.world.depth;
+            if (c.orbit) c.orbitBy(-dx * 2.6);
+            else c.moveBy(-dx * 2.2, -dd * 5);
+          } else { p.fired = true; if (c.orbit || settings.moveEnabled) blip('grab', settings.sounds); }
+          p.world = { tx: s.tx, depth: s.depth };
         }
         if (p.pendingDrag && !p.drag && p.moved > 0.035) { this.startDrag(p, p.pendingDrag, s); p.pendingDrag = null; p.fired = true; }
         if (p.surf) {
@@ -265,7 +275,7 @@ export class Interaction {
     if (p.zoom) { const w = p.zoom.win; p.zoom = null; w.onDragEnd?.(); w.updateRadius?.(); this.app.windows.changed(); p.downObj = null; p.surf = null; p.pendingDrag = null; return; }
     if (p.scaleHelper) { p.scaleHelper = false; this.scaleMode = null; this.reanchor(); this.app.windows.changed(); p.downObj = null; return; }
     if (p.surf && p.surf.total > 14 && Math.abs(p.surf.vel || 0) > 250 && p.surf.win.fling) p.surf.win.fling(Math.max(-4000, Math.min(4000, p.surf.vel)));
-    p.surf = null; p.pendingDrag = null;
+    p.surf = null; p.pendingDrag = null; p.world = null;
     if (p.drag) { this.endDrag(p); return; }
     if (!p.fired && p.downObj && p.moved < 0.07 && now - p.t0 < 1000) {
       // Click whatever is under the pointer now if it is the same object, else the original target.

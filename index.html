@@ -131,6 +131,10 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
 #gazeCal .dot.go{animation:shrink 1.35s linear}
 @keyframes shrink{0%{transform:scale(1.6)}40%{transform:scale(1)}100%{transform:scale(.55)}}
 #gazeCal .msg{position:absolute;left:0;right:0;top:44%;text-align:center;color:#fff;font-size:18px;font-weight:700;pointer-events:none}
+.mircode{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
+.mircode span{font-size:40px;font-weight:800;letter-spacing:6px;direction:ltr;font-variant-numeric:tabular-nums}
+#mirQr{width:150px;height:150px;background:#fff;border-radius:12px;padding:6px;flex:none}
+#mirQr svg{width:100%;height:100%;display:block}
 #cam{position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:0}
 #mediaPool{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none}
 #mediaPool video{width:2px;height:2px}
@@ -176,6 +180,26 @@ footer{color:var(--dim);font-size:12px;text-align:center;line-height:1.7}
       <li><div><b>انظر حولك</b> <span>النوافذ معلّقة في غرفتك. ارفع يديك أمام الكاميرا للتحكم</span></div></li>
       <li><div><b>القرص للنقر، والقرص المطوّل في الفراغ للقائمة</b> <span>زر النظارة أو لمس الشاشة يعمل كنقرة أيضاً</span></div></li>
     </ol>
+  </section>
+
+  <section class="card" aria-labelledby="mirTitle">
+    <h2 id="mirTitle">شاشة اللابتوب داخل مدار</h2>
+    <div id="mirHost">
+      <p class="hint" style="margin-top:0">على اللابتوب: شارك الشاشة ثم افتح الرابط أو امسح الرمز بالهاتف. أبقِ هذه الصفحة مفتوحة على اللابتوب أثناء المشاركة.</p>
+      <button id="mirStart" class="add" type="button">شارك شاشة هذا الجهاز</button>
+      <div id="mirLive" hidden>
+        <div class="mircode"><span id="mirCode"></span><div id="mirQr"></div></div>
+        <p class="hint" dir="ltr" id="mirLink" style="word-break:break-all"></p>
+        <div class="row2"><button id="mirCopy" class="ghost" type="button">نسخ الرابط</button><button id="mirStop" class="ghost" type="button">إيقاف المشاركة</button></div>
+        <p class="hint" id="mirStatus" aria-live="polite"></p>
+      </div>
+    </div>
+    <form id="mirJoin" class="row" novalidate style="margin-top:14px">
+      <label class="hint" for="mirInput" style="margin:0">على الهاتف: أدخل رمز اللابتوب (6 أرقام)، وستظهر شاشته عند الدخول</label>
+      <input id="mirInput" type="text" inputmode="numeric" maxlength="6" dir="ltr" placeholder="123456" autocomplete="off">
+      <button class="add" type="submit" style="justify-content:center">حفظ الرمز</button>
+      <p id="mirMsg" class="hint" aria-live="polite" style="margin:0"></p>
+    </form>
   </section>
 
   <section class="card" aria-labelledby="libTitle">

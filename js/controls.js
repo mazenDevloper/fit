@@ -45,7 +45,24 @@ export class Controls {
     else if (a === 'up' || a === 'down') this.nav.y += a === 'up' ? 0.15 : -0.15;
     else if (a === 'full') app.toggleFullscreen();
   }
-  reset() { this.nav.set(0, 0, 0); this.look.yaw = 0; this.look.pitch = 0; }
+  reset() { this.nav.set(0, 0, 0); this.look.yaw = 0; this.look.pitch = 0; this.orbit = null; }
+  // Orbit: inputs that would turn the view instead carry you around the chosen model.
+  toggleOrbit(win) {
+    if (this.orbit && this.orbit.win === win) { this.orbit = null; this.app.toast('أُلغي الدوران حول المجسم'); return; }
+    this.orbit = { win };
+    this.app.toast(settings.viewMode === 'sbs' ? 'دوران: اقرص في الفراغ واسحب يميناً ويساراً' : 'دوران: عصا النظر أو الأسهم أو السحب', 3500);
+  }
+  yawVectors() {
+    const yaw = Math.atan2(-this.app.headForward.x, -this.app.headForward.z);
+    return [new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw))];
+  }
+  // Move the viewer: right / forward in metres (used by hand "grab the world" dragging).
+  moveBy(r, f) {
+    if (!settings.moveEnabled) return;
+    const [right, fwd] = this.yawVectors();
+    this.nav.addScaledVector(right, r).addScaledVector(fwd, f);
+  }
+  orbitBy(a) { this.orbitDelta = (this.orbitDelta || 0) + a; }
 
   bindStick(base, st) {
     const knob = base.querySelector('.knob');
@@ -108,7 +125,8 @@ export class Controls {
     window.addEventListener('mousemove', e => {
       if (!drag) return;
       if (drag === 'touch') { this.touches.set('mouse', this.app.orientation.toStage(e.clientX, e.clientY)); return; }
-      this.look.yaw -= (e.clientX - drag.x) * 0.0035;
+      if (this.orbit) this.orbitBy(-(e.clientX - drag.x) * 0.006);
+      else this.look.yaw -= (e.clientX - drag.x) * 0.0035;
       this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - (e.clientY - drag.y) * 0.0035, -1.3, 1.3);
       drag.x = e.clientX; drag.y = e.clientY;
     });
@@ -152,13 +170,28 @@ export class Controls {
     this.pollPad(dt, (m, l) => { if (m) { mx = m[0]; my = m[1]; } if (l) { lx = l[0]; ly = l[1]; } });
     const dz = v => Math.abs(v) < 0.12 ? 0 : v;
     mx = dz(mx); my = dz(my); lx = dz(lx); ly = dz(ly);
+    if (this.orbit && !this.orbit.win.group.parent) this.orbit = null;
+    if (this.orbit) { this.orbitBy(-lx * 1.3 * dt); lx = 0; }
     this.look.yaw -= lx * 1.9 * dt;
+    if (this.orbitDelta) {
+      // Carry the viewer around the model and turn with it, so it stays in front.
+      const a = this.orbitDelta; this.orbitDelta = 0;
+      const c = this.orbit ? this.orbit.win.group.position : null;
+      if (c) {
+        const v = this.app.slam.pos.clone().add(this.nav).sub(c);
+        v.applyAxisAngle(new THREE.Vector3(0, 1, 0), a);
+        this.nav.copy(c).add(v).sub(this.app.slam.pos);
+        this.look.yaw += a;
+      }
+    }
     this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - ly * 1.4 * dt, -1.3, 1.3);
     const yaw = Math.atan2(-app.headForward.x, -app.headForward.z);
     const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const speed = 1.4;
-    this.nav.addScaledVector(right, mx * speed * dt).addScaledVector(fwd, -my * speed * dt);
-    this.nav.y += up * speed * 0.6 * dt;
+    if (settings.moveEnabled) {
+      this.nav.addScaledVector(right, mx * speed * dt).addScaledVector(fwd, -my * speed * dt);
+      this.nav.y += up * speed * 0.6 * dt;
+    }
     // The world moves opposite to the viewer (sticks/keys + walking).
     app.windows.root.position.copy(app.slam.pos).add(this.nav).negate();
   }
