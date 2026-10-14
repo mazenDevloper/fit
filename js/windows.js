@@ -221,10 +221,11 @@ export class VideoWindow extends SpatialWindow {
       { icon: 'fwd', action: () => { this.video.currentTime = Math.min(this.video.duration || 0, this.video.currentTime + 10); } },
       'progress',
       { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
+      { icon: 'cast', action: () => this.cast() },
       { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
-    ], { width: 1.0, progress: { get: () => [this.video.currentTime || 0, this.video.duration || 0], seek: f => { if (this.video.duration) this.video.currentTime = f * this.video.duration; } } }).install();
+    ], { width: 1.1, progress: { get: () => [this.video.currentTime || 0, this.video.duration || 0], seek: f => { if (this.video.duration) this.video.currentTime = f * this.video.duration; } } }).install();
     this.group.add(this.toolbar.mesh);
     this.layout();
     this.lastBar = 0;
@@ -270,6 +271,16 @@ export class VideoWindow extends SpatialWindow {
       this.mat.uniforms.uVideo.value = 1;
     }
     this.mat.uniforms.map.value = this.tex;
+  }
+  // Send this video to a TV: AirPlay (Safari) or Chromecast (Chrome) through the browser's own picker.
+  cast() {
+    const v = this.video;
+    if (this.stream) { this.mgr.app.toast('البث المباشر لا يُرسل للتلفاز — استخدم انعكاس الشاشة من مركز التحكم', 4000); return; }
+    try {
+      if (v.webkitShowPlaybackTargetPicker) { v.webkitShowPlaybackTargetPicker(); return; }
+      if (v.remote && v.remote.prompt) { v.remote.prompt().catch(e => this.mgr.app.toast('لم يُعثر على جهاز عرض: ' + (e.message || ''), 3500)); return; }
+    } catch {}
+    this.mgr.app.toast('هذا المتصفح لا يدعم الإرسال للتلفاز', 3500);
   }
   togglePlay() { const v = this.video; if (v.paused) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); else v.pause(); }
   onContentClick() { this.togglePlay(); blip('tap', settings.sounds); this.toolbar.redraw(); return true; }
@@ -379,7 +390,7 @@ export class PanelWindow extends SpatialWindow {
         ['stack', 'لنقل نافذة', 'اقرص النافذة أو إطارها واسحب'],
         ['plus', 'للتكبير', 'باليدين وباعد، أو اقرص مطوّلاً وارفع يدك'],
         ['grid', 'لفتح القائمة', 'اقرص مطوّلاً في الفراغ'],
-        ['target', 'لإعادة التمركز', 'ارفع يديك مفتوحتين ثانية ونصف'],
+        ['target', 'لإعادة التمركز', 'اقرص باليدين معاً في الفراغ ثانية'],
         ['sun', 'بدون يدين', 'انظر إلى الزر 3 ثوانٍ أو المس الشاشة'],
       ];
       const top = k === 'welcome' ? 225 : 165, rh = (H - top - 30) / rows.length;
@@ -737,14 +748,15 @@ export class WindowManager {
   forwardYaw() { const f = this.app.headForward; return Math.atan2(-f.x, -f.z); }
   // Place a group in front of the viewer, avoiding overlap with existing windows.
   place(group, dist, y = 0, avoid = true) {
-    let yaw = this.forwardYaw();
-    const tries = [0, 0.42, -0.42, 0.84, -0.84, 1.26, -1.26];
-    for (const dy of tries) {
-      const a = yaw + dy;
-      const ok = !avoid || this.windows.every(w => { const p = w.group.position; const wa = Math.atan2(-p.x, -p.z); return Math.abs(Math.atan2(Math.sin(wa - a), Math.cos(wa - a))) > 0.35 || Math.abs(p.y - y) > 0.6; });
-      if (ok) { yaw = a; break; }
-    }
+    // New windows open exactly where you are looking (also up/down), a little closer than any window already there.
+    const yaw = this.forwardYaw(), f = this.app.headForward;
+    const pitchY = THREE.MathUtils.clamp(f.y / Math.max(0.2, Math.hypot(f.x, f.z)), -1, 1) * dist;
     const h = this.headLocal();
+    if (avoid) for (const w of this.windows) {
+      const p = w.group.position.clone().sub(h), wa = Math.atan2(-p.x, -p.z);
+      if (Math.abs(Math.atan2(Math.sin(wa - yaw), Math.cos(wa - yaw))) < 0.3 && Math.hypot(p.x, p.z) <= dist + 0.1) dist = Math.max(0.6, Math.hypot(p.x, p.z) - 0.3);
+    }
+    y += pitchY;
     group.position.set(h.x - Math.sin(yaw) * dist, h.y + y, h.z - Math.cos(yaw) * dist);
     if (group.parent) group.lookAt(0, 0, 0); else { group.lookAt(h.x, h.y + y, h.z); }
   }

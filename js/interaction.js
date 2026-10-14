@@ -220,16 +220,6 @@ export class Interaction {
       this.drawCursor(p, hit, s.strength, pinch);
     }
 
-    // Both open hands held up and still for 1.5 s → recenter (like visionOS's look-and-hold).
-    const [a0, a1] = this.pointers;
-    if (a0.active && a1.active && !slots[0].pinch && !slots[1].pinch && slots[0].strength < 0.3 && slots[1].strength < 0.3 && !a0.hit && !a1.hit && !this.app.launcher.group.visible) {
-      const c = [slots[0].tx + slots[1].tx, slots[0].ty + slots[1].ty];
-      if (!this.palms || Math.hypot(c[0] - this.palms.c[0], c[1] - this.palms.c[1]) > 0.12) this.palms = { t: now, c, fired: false };
-      const k = (now - this.palms.t) / 1500;
-      if (!this.palms.fired && k > 0.25) { this.drawCursor(a0, null, 0, false, Math.min(1, k)); this.drawCursor(a1, null, 0, false, Math.min(1, k)); }
-      if (!this.palms.fired && k >= 1) { this.palms.fired = true; this.app.recenter(); }
-    } else this.palms = null;
-
     // Two empty-space pinches held together → recenter.
     const [h0, h1] = this.pointers;
     if (h0.active && h1.active && h0.wasPinch && h1.wasPinch && !h0.downObj && !h1.downObj && !h0.drag && !h1.drag) {

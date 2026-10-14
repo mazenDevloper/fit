@@ -121,6 +121,7 @@ export function icon(ctx, name, cx, cy, s, color = COLORS.text) {
     case 'stack': for (let i = 0; i < 3; i++) { roundRect(ctx, (-0.6 + i * 0.15) * h, (-0.6 + i * 0.2) * h, 1.0 * h, 0.7 * h, 0.12 * h); i === 2 ? ctx.fill() : ctx.stroke(); } break;
     case 'exit': ctx.beginPath(); ctx.moveTo(0.1 * h, -0.7 * h); ctx.lineTo(-0.6 * h, -0.7 * h); ctx.lineTo(-0.6 * h, 0.7 * h); ctx.lineTo(0.1 * h, 0.7 * h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-0.15 * h, 0); ctx.lineTo(0.75 * h, 0); ctx.stroke(); P([[0.45, -0.3], [0.85, 0], [0.45, 0.3]]); break;
     case 'trash': ctx.beginPath(); ctx.moveTo(-0.6 * h, -0.45 * h); ctx.lineTo(0.6 * h, -0.45 * h); ctx.moveTo(-0.2 * h, -0.65 * h); ctx.lineTo(0.2 * h, -0.65 * h); ctx.stroke(); P([[-0.45, -0.3], [0.45, -0.3], [0.35, 0.7], [-0.35, 0.7]], false); break;
+    case 'cast': roundRect(ctx, -0.75 * h, -0.6 * h, 1.5 * h, 1.05 * h, 0.12 * h); ctx.stroke(); P([[-0.35, 0.75], [0.35, 0.75], [0, 0.3]]); break;
     case 'chevL': ctx.beginPath(); ctx.moveTo(0.25 * h, -0.55 * h); ctx.lineTo(-0.3 * h, 0); ctx.lineTo(0.25 * h, 0.55 * h); ctx.stroke(); break;
     case 'chevR': ctx.beginPath(); ctx.moveTo(-0.25 * h, -0.55 * h); ctx.lineTo(0.3 * h, 0); ctx.lineTo(-0.25 * h, 0.55 * h); ctx.stroke(); break;
     case 'mic': roundRect(ctx, -0.25 * h, -0.75 * h, 0.5 * h, 0.95 * h, 0.25 * h); ctx.fill(); ctx.beginPath(); ctx.arc(0, -0.05 * h, 0.5 * h, 0.15, Math.PI - 0.15); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, 0.45 * h); ctx.lineTo(0, 0.75 * h); ctx.stroke(); break;
