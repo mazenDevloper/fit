@@ -1,0 +1,52 @@
+name: Build Madar APK
+
+on:
+  push:
+    branches: [android]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: madar-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build release APK
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Collect APK
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk Madar.apk
+          ls -la Madar.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Madar-apk
+          path: Madar.apk
+
+      - name: Publish release (android-latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=android-latest
+          gh release delete "$TAG" --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+          git push origin ":refs/tags/$TAG" || true
+          gh release create "$TAG" Madar.apk --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Madar for Android (build $GITHUB_RUN_NUMBER)" --prerelease \
+            --notes "تطبيق مدار لأندرويد — ثبّته على التابلت أو الهاتف. التنزيل المباشر: https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Madar.apk"
