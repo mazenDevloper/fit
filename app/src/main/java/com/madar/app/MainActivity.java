@@ -341,6 +341,15 @@ public class MainActivity extends Activity implements CaptureService.Listener {
             runOnUiThread(() -> { if (CaptureService.running) stopService(new Intent(MainActivity.this, CaptureService.class)); });
         }
         @JavascriptInterface public boolean isCapturing() { return CaptureService.running; }
+        // Remote control of this tablet (see ControlService).
+        @JavascriptInterface public String controlState() { return ControlService.on() ? "on" : "off"; }
+        @JavascriptInterface public void input(String json) { ControlService.handle(json); }
+        @JavascriptInterface public void openControlSettings() {
+            runOnUiThread(() -> {
+                try { startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)); } catch (Exception ignored) { }
+                Toast.makeText(MainActivity.this, "اختر «تحكم مدار» وفعّله", Toast.LENGTH_LONG).show();
+            });
+        }
         @JavascriptInterface public String version() { return BuildConfigVersion.name(MainActivity.this); }
         @JavascriptInterface public void toast(String m) { runOnUiThread(() -> Toast.makeText(MainActivity.this, m, Toast.LENGTH_SHORT).show()); }
     }

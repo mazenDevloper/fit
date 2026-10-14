@@ -1,0 +1,58 @@
+name: Build Madar Agent
+
+on:
+  push:
+    branches: [android]
+    paths: ['agent/**', '.github/workflows/agent.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            out: MadarAgent.exe
+          - os: macos-latest
+            out: MadarAgent-mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build
+        shell: bash
+        run: |
+          pip install -r agent/requirements.txt pyinstaller
+          pyinstaller --onefile --console --name MadarAgent agent/madar_agent.py
+          if [ -f dist/MadarAgent.exe ]; then cp dist/MadarAgent.exe "${{ matrix.out }}"; else cp dist/MadarAgent "${{ matrix.out }}"; chmod +x "${{ matrix.out }}"; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: ${{ matrix.out }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - name: Publish release (agent-latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=agent-latest
+          cp agent/madar_agent.py out/
+          (cd out && zip -j MadarAgent-mac.zip MadarAgent-mac/MadarAgent-mac)
+          gh release delete "$TAG" --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+          git push origin ":refs/tags/$TAG" || true
+          gh release create "$TAG" out/MadarAgent.exe/MadarAgent.exe out/MadarAgent-mac.zip out/madar_agent.py \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Madar Agent — التحكم بالكمبيوتر من مدار" \
+            --notes "شغّل MadarAgent.exe على ويندوز (أو MadarAgent-mac على ماك) واتركه مفتوحاً، ثم شارك «الشاشة كاملة» من مدار في Chrome/Edge. سيستطيع الهاتف في النظارة النقر والتمرير والكتابة على الكمبيوتر. يعمل فقط على هذا الجهاز ولا يقبل إلا صفحة مدار."

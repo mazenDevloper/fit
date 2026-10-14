@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_label">تحكم مدار</string>
+    <string name="control_desc">يسمح لمدار على الهاتف (داخل النظارة) بالنقر والتمرير والكتابة على هذا الجهاز أثناء مشاركة شاشته فقط. لا يعمل إلا عندما تبدأ «شارك شاشة هذا الجهاز» في مدار.</string>
+</resources>
