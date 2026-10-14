@@ -441,7 +441,7 @@ export class WebWindow extends SpatialWindow {
     this.ytState = { playing: true, muted: true, times: [0, 0] };
     this.mat.uniforms.uHole.value = 1;
     let host = ''; try { host = new URL(url).hostname; } catch {}
-    this.cplay = host === 'cplay2.netlify.app';
+    this.cplay = (host === 'cplay3.netlify.app' || host === 'cplay2.netlify.app');
     this.base = (() => { try { return new URL(url).origin; } catch { return ''; } })();
     this.bridge = false; this.path = '';
     // Pages that include madar-bridge.js (cplay2) accept taps and scrolls from the hands.
