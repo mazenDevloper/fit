@@ -156,9 +156,24 @@ class App {
     this.gaze.start();
   }
   // ---------- Laptop screen in the environment ----------
-  async connectMirror(code) {
+  // On a computer: show this computer's screen or any window (e.g. an iPhone mirrored with AirPlay/QuickTime) as a window.
+  async showLocalScreen() {
+    try {
+      let stream = this.host?.stream;
+      if (!stream) {
+        if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('هذا الجهاز لا يسمح بالتقاط الشاشة');
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30 } }, audio: false });
+      }
+      const w = this.windows.open({ kind: 'video', stream, name: 'شاشة' });
+      w.video.muted = true;
+      stream.getVideoTracks()[0].addEventListener('ended', () => this.windows.close(w));
+      this.log('عرض شاشة/نافذة محلية');
+    } catch (e) { this.toast(e.message || 'لم يتم اختيار شاشة', 3500); }
+  }
+  async connectMirror(code, attempt = 0) {
     saveSettings({ mirrorCode: code });
     if (!this.active) return;
+    if (settings.viewMode === 'desktop' || this.host?.stream) { this.showLocalScreen(); return; }
     this.toast('جاري الاتصال باللابتوب ' + code + '…', 4000);
     this.log('شاشة اللابتوب: اتصال ' + code);
     this.viewer = this.viewer || new ScreenViewer();
@@ -169,8 +184,14 @@ class App {
       });
       if (this.mirrorWin) this.windows.close(this.mirrorWin);
       this.mirrorWin = this.windows.open({ kind: 'video', stream, name: 'شاشة اللابتوب' });
+      this.toast('ظهرت شاشة اللابتوب أمامك', 2500);
       this.log('شاشة اللابتوب: متصلة');
-    } catch (e) { this.toast(e.message || 'تعذّر الاتصال', 4500); this.log('شاشة اللابتوب: ' + (e.message || e)); }
+    } catch (e) {
+      this.log('شاشة اللابتوب: ' + (e.message || e));
+      // The laptop may not be sharing yet: keep trying quietly for about a minute.
+      if (attempt < 5 && this.active) { this.toast('بانتظار مشاركة اللابتوب ' + code + '… (' + (attempt + 1) + '/6)', 3000); setTimeout(() => this.connectMirror(code, attempt + 1), 8000); }
+      else this.toast(e.message || 'تعذّر الاتصال', 5000);
+    }
   }
   bindMirror() {
     const fromHash = (location.hash.match(/^#m(\d{6})$/) || [])[1];
