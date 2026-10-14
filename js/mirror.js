@@ -2,7 +2,7 @@
 // Laptop: shares its screen and shows a 6-digit code / QR / link.
 // Phone: joins with the code (or opens the link) and gets the screen as a window.
 // The same connection also syncs saved links both ways.
-import { loadLinks, saveLinks } from './config.js';
+import { loadLinks, saveLinks, settings } from './config.js';
 
 const PREFIX = 'madar-scr-';
 let libP = null;
@@ -80,12 +80,71 @@ function androidStream(onEnded) {
   });
 }
 
+// ---------- Remote control of the sharing device ----------
+// The phone sends clicks/scrolls/text (positions as 0..1 of the shared picture).
+// Computer: delivered to Madar Agent (a small helper on the computer) on ws://127.0.0.1:8788.
+// Madar Android app: delivered to its accessibility service (real taps and swipes on the tablet).
+export const AGENT_URL = 'ws://127.0.0.1:8788';
+export const AGENT_DOWNLOAD = 'https://github.com/mazenDevloper/fit/releases/tag/agent-latest';
+class AgentLink {
+  constructor(onChange) { this.onChange = onChange; this.ws = null; this.ok = false; this.on = false; }
+  start() { this.on = true; this.connect(); }
+  connect() {
+    if (!this.on || this.ws) return;
+    let ws; try { ws = new WebSocket(AGENT_URL); } catch { this.retry(); return; }
+    this.ws = ws;
+    ws.onopen = () => { this.ok = true; this.onChange(); };
+    ws.onclose = () => { const was = this.ok; this.ws = null; this.ok = false; if (was) this.onChange(); this.retry(); };
+    ws.onerror = () => {};
+  }
+  retry() { clearTimeout(this.t); if (this.on) this.t = setTimeout(() => this.connect(), 4000); }
+  send(m) { if (this.ok) try { this.ws.send(JSON.stringify(m)); } catch {} }
+  stop() { this.on = false; clearTimeout(this.t); try { this.ws?.close(); } catch {} this.ws = null; this.ok = false; }
+}
+
 // ---------- Laptop side ----------
 export class ScreenHost {
-  constructor(onStatus) { this.onStatus = onStatus; this.code = ''; this.stream = null; this.peer = null; this.viewers = new Set(); }
+  constructor(onStatus) {
+    this.onStatus = onStatus; this.code = ''; this.stream = null; this.peer = null; this.viewers = new Set();
+    this.agent = new AgentLink(() => { this.sendCaps(); this.status(); });
+    this.scrollAcc = null;
+  }
+  // What the viewer may do with this screen.
+  caps() {
+    if (settings.mirrorControl === false) return { control: false, why: 'التحكم عن بُعد متوقف من الجهاز المشارِك' };
+    const A = window.MadarAndroid;
+    if (A) {
+      let on = false; try { on = A.controlState && A.controlState() === 'on'; } catch {}
+      return on ? { control: true, kind: 'android' } : { control: false, kind: 'android', why: 'فعّل «تحكم مدار» في التابلت: الإعدادات ← سهولة الاستخدام' };
+    }
+    const surf = this.stream?.getVideoTracks()[0]?.getSettings?.().displaySurface;
+    if (surf && surf !== 'monitor') return { control: false, why: 'للتحكم شارك «الشاشة كاملة» وليس نافذة أو تبويباً' };
+    if (!this.agent.ok) return { control: false, kind: 'agent', why: 'للتحكم بالماوس شغّل برنامج Madar Agent على الكمبيوتر' };
+    return { control: true, kind: 'agent' };
+  }
+  sendCaps() { const c = this.caps(); this.viewers.forEach(v => { try { v.send({ type: 'caps', ...c }); } catch {} }); }
+  // Input from a viewer.
+  input(m) {
+    if (!this.caps().control) return;
+    const A = window.MadarAndroid;
+    if (A) {
+      // Many small scroll steps become one smooth swipe on the tablet.
+      if (m.a === 'scroll') {
+        const acc = this.scrollAcc || (this.scrollAcc = { x: m.x, y: m.y, dx: 0, dy: 0 });
+        acc.dx += m.dx; acc.dy += m.dy;
+        if (!this.scrollT) this.scrollT = setTimeout(() => { this.scrollT = 0; const a = this.scrollAcc; this.scrollAcc = null; try { A.input(JSON.stringify({ a: 'scroll', x: a.x, y: a.y, dx: a.dx, dy: a.dy })); } catch {} }, 110);
+        return;
+      }
+      if (m.a === 'move') return;          // a touch screen has no hover
+      try { A.input(JSON.stringify(m)); } catch {}
+      return;
+    }
+    const t = this.stream?.getVideoTracks()[0]?.getSettings?.() || {};
+    this.agent.send({ ...m, fw: t.width || 0, fh: t.height || 0 });
+  }
   get link() { return location.origin + location.pathname + '#m' + this.code; }
   async start() {
-    if (window.MadarAndroid) { this.stream = await androidStream(() => this.stop()); }
+    if (window.MadarAndroid) { this.stream = await androidStream(() => this.stop()); clearInterval(this.capT); this.capT = setInterval(() => { const k = JSON.stringify(this.caps()); if (k !== this.lastCaps) { this.lastCaps = k; this.sendCaps(); this.status(); } }, 2000); }
     else {
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('هذا المتصفح لا يدعم مشاركة الشاشة — استخدم Chrome أو Edge على الكمبيوتر');
     try { this.stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true }); }
@@ -98,6 +157,7 @@ export class ScreenHost {
       try { this.peer = await this.open(code); this.code = code; } catch (e) { if (e.type !== 'unavailable-id') throw e; }
     }
     this.peer.on('connection', conn => this.accept(conn));
+    if (!window.MadarAndroid) this.agent.start();
     // Keep the code reachable: if the signalling link drops (Wi-Fi blip, laptop asleep), rejoin with the same code.
     this.peer.on('disconnected', () => { setTimeout(() => { try { if (this.peer && !this.peer.destroyed) this.peer.reconnect(); } catch {} }, 1000); });
     this.status();
@@ -112,11 +172,16 @@ export class ScreenHost {
     conn.on('open', () => {
       this.viewers.add(conn); this.status();
       conn.send({ type: 'links', links: loadLinks() });
+      conn.send({ type: 'caps', ...this.caps() });
       const call = this.peer.call(conn.peer, this.stream);
       this.tune(call);
       conn.on('close', () => { this.viewers.delete(conn); call?.close(); this.status(); });
     });
-    conn.on('data', d => { if (d && d.type === 'links') { const n = mergeLinks(d.links); if (n) this.onStatus?.({ synced: n }); } });
+    conn.on('data', d => {
+      if (!d) return;
+      if (d.type === 'links') { const n = mergeLinks(d.links); if (n) this.onStatus?.({ synced: n }); }
+      else if (d.type === 'input') this.input(d);
+    });
   }
   // Prefer a steady picture over sharpness when the network is weak, so the screen never freezes.
   tune(call) {
@@ -132,9 +197,10 @@ export class ScreenHost {
     });
     pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') apply(); });
   }
-  status() { this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live: !!this.stream }); }
+  status() { this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live: !!this.stream, caps: this.stream ? this.caps() : null }); }
   stop() {
     if (!this.stream && !this.peer) return;
+    this.agent.stop(); clearInterval(this.capT);
     this.stream?.getTracks().forEach(t => t.stop()); this.stream = null;
     if (window.MadarAndroid) try { window.MadarAndroid.stopCapture(); } catch {}
     this.peer?.destroy(); this.peer = null; this.viewers.clear();
@@ -146,7 +212,8 @@ export class ScreenHost {
 export class ScreenViewer {
   constructor() { this.peer = null; this.gen = 0; }
   // Resolves with the remote MediaStream; onEnd is called when the laptop stops sharing.
-  async connect(code, { onEnd, onLinks } = {}) {
+  send(m) { try { if (this.conn && this.conn.open) this.conn.send(m); } catch {} }
+  async connect(code, { onEnd, onLinks, onCaps } = {}) {
     await lib();
     this.close();
     const gen = this.gen;
@@ -158,9 +225,13 @@ export class ScreenViewer {
     return new Promise((res, rej) => {
       const timer = setTimeout(() => rej(new Error('لم يتم العثور على اللابتوب — تأكد من الرمز وأن مدار مفتوح عليه')), 15000);
       peer.on('error', e => { clearTimeout(timer); rej(new Error(e.type === 'peer-unavailable' ? 'الرمز غير صحيح أو انتهت المشاركة' : (e.message || e.type))); });
-      const conn = peer.connect(PREFIX + code, { reliable: true });
+      const conn = this.conn = peer.connect(PREFIX + code, { reliable: true });
       conn.on('open', () => conn.send({ type: 'links', links: loadLinks() }));
-      conn.on('data', d => { if (d && d.type === 'links') onLinks?.(mergeLinks(d.links)); });
+      conn.on('data', d => {
+        if (!d || gen !== this.gen) return;
+        if (d.type === 'links') onLinks?.(mergeLinks(d.links));
+        else if (d.type === 'caps') { this.caps = d; onCaps?.(d); }
+      });
       conn.on('close', () => end('closed'));
       peer.on('call', call => {
         call.answer();
@@ -181,5 +252,5 @@ export class ScreenViewer {
     });
   }
   healthy() { const st = this.pc && this.pc.iceConnectionState; return st === 'connected' || st === 'completed'; }
-  close() { this.gen++; this.pc = null; try { this.peer?.destroy(); } catch {} this.peer = null; }
+  close() { this.gen++; this.pc = null; this.conn = null; this.caps = null; try { this.peer?.destroy(); } catch {} this.peer = null; }
 }

@@ -280,7 +280,7 @@ export class Controls {
     // ✕ acts as a pinch at the pointer: tap = click, hold = drag / scroll / resize-hold.
     this.padPtr.down = !!b[0];
     if (edge(0)) this.rumble(gp, 0.25, 25);
-    if (edge(1)) { const a = this.app; if (a.launcher.group.visible) a.launcher.close(); else if (a.calibration.group.visible) a.calibration.close(); else { const kb = a.windows.windows.find(w => w.kind === 'keyboard'); if (kb) a.windows.close(kb); } }
+    if (edge(1)) { const a = this.app; if (a.launcher.group.visible) a.launcher.close(); else if (a.calibration.group.visible) a.calibration.close(); else { const kb = a.windows.windows.find(w => w.kind === 'keyboard'); if (kb) a.windows.close(kb); else this.pointedWindow()?.goBack?.(); } }
     if (edge(3)) this.app.windows.open({ kind: 'keyboard' });
     if (edge(2) || edge(10)) { this.reset(); this.app.recenter(); this.rumble(gp, 0.3, 60); }
     if (edge(9) || edge(16)) this.app.toggleLauncher();
@@ -295,8 +295,12 @@ export class Controls {
     const p = this.app.interaction.pointers.find(x => x.active && x.hit);
     return p ? p.hit.object.userData.interact.window : null;
   }
+  // Scroll whatever page or shared screen the pointer is on, at the pointer's position.
   scrollPointed(dy) {
-    const w = this.pointedWindow();
+    const p = this.app.interaction.pointers.find(x => x.active && x.hit);
+    const it = p && p.hit.object.userData.interact;
+    if (it && it.scroll && it.scroll() && it.scrollBy && it.toPx && p.hit.uv) { it.scrollBy(0, dy, it.toPx(p.hit.uv)); return; }
+    const w = it && it.window;
     if (w && w.send && w.bridge) w.send({ type: 'scroll', dx: 0, dy, x: 512, y: 320 });
   }
   rumble(gp, strength, ms) {

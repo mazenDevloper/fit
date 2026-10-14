@@ -208,14 +208,31 @@ class SpatialWindow {
 }
 
 export class VideoWindow extends SpatialWindow {
-  constructor(mgr, { itemId = null, url = null, name = '', stream = null }) {
+  constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null }) {
     super(mgr, 'video');
-    this.stream = stream;
+    this.stream = stream; this.remote = remote; this.control = false;
     this.itemId = itemId; this.url = url; this.name = name;
     this.video = mgr.app.media.acquire();
     this.mat.uniforms.uVideo.value = 1;
     this.tex = null;
-    this.toolbar = new Toolbar([
+    if (remote) {
+      // A shared screen you can operate: click = mouse click / tap, pinch-drag or triggers = scroll.
+      this.toolbar = new Toolbar([
+        { icon: 'chevR', action: () => this.key('back') },
+        { icon: 'home', action: () => this.key('home') },
+        { icon: 'keyboard', action: () => this.mgr.openKeyboard() },
+        { icon: 'enter', action: () => this.key('enter') },
+        { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
+        { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
+        { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
+        { icon: 'plus', action: () => this.scaleBy(1.15) },
+      ]).install();
+      Object.assign(this.content.userData.interact, {
+        scroll: () => this.control,
+        toPx: uv => [uv.x * (this.video.videoWidth || 1280), (1 - uv.y) * (this.video.videoHeight || 720)],
+        scrollBy: (dx, dy, at) => this.scrollAt(dx, dy, at),
+      });
+    } else this.toolbar = new Toolbar([
       { icon: 'back', action: () => { this.video.currentTime = Math.max(0, this.video.currentTime - 10); } },
       { icon: () => this.video.paused ? 'play' : 'pause', action: () => this.togglePlay() },
       { icon: 'fwd', action: () => { this.video.currentTime = Math.min(this.video.duration || 0, this.video.currentTime + 10); } },
@@ -309,7 +326,37 @@ export class VideoWindow extends SpatialWindow {
     const tick = () => { if (this.disposed) return; this.lastFrameAt = performance.now(); v.requestVideoFrameCallback(tick); };
     v.requestVideoFrameCallback(tick);
   }
-  onContentClick() { this.togglePlay(); blip('tap', settings.sounds); this.toolbar.redraw(); return true; }
+  onContentClick(hit) {
+    if (this.remote) {
+      if (!this.control) { this.mgr.app.toast(this.remote.caps?.why || 'التحكم غير متاح لهذه الشاشة', 4000); return true; }
+      if (hit && hit.uv) { this.remote.send({ type: 'input', a: 'tap', x: hit.uv.x, y: 1 - hit.uv.y }); blip('tap', settings.sounds); }
+      return true;
+    }
+    this.togglePlay(); blip('tap', settings.sounds); this.toolbar.redraw(); return true;
+  }
+  // ---- Remote control (shared screens) ----
+  setControl(c) { this.control = !!(c && c.control); this.ctlKind = c && c.kind; }
+  key(k) {
+    if (!this.control) { this.mgr.app.toast(this.remote?.caps?.why || 'التحكم غير متاح', 3500); return; }
+    this.remote.send({ type: 'input', a: 'key', key: k }); blip('tap', settings.sounds);
+  }
+  typeText(t) { if (this.control) this.remote.send({ type: 'input', a: 'text', value: t }); }
+  scrollAt(dx, dy, at) {
+    if (!this.control) return;
+    const W = this.video.videoWidth || 1280, H = this.video.videoHeight || 720;
+    this.remote.send({ type: 'input', a: 'scroll', x: at[0] / W, y: at[1] / H, dx: dx / W, dy: dy / H });
+  }
+  goBack() { if (this.remote) this.key('back'); }
+  // The pointer over the screen moves the computer's mouse (so hover menus and the cursor follow you).
+  trackPointer(now) {
+    if (!this.control || this.ctlKind !== 'agent' || now - (this.lastMove || 0) < 45) return;
+    const p = this.mgr.app.interaction?.pointers.find(x => x.active && x.hit && x.hit.object === this.content && x.hit.uv);
+    if (!p) return;
+    const x = p.hit.uv.x, y = 1 - p.hit.uv.y;
+    if (this.lastPt && Math.abs(x - this.lastPt[0]) + Math.abs(y - this.lastPt[1]) < 0.0015) return;
+    this.lastPt = [x, y]; this.lastMove = now;
+    this.remote.send({ type: 'input', a: 'move', x, y });
+  }
   update(dt, now) {
     const v = this.video;
     // Live streams may report their size late or skip 'loadedmetadata': set up the texture once frames exist.
@@ -321,6 +368,7 @@ export class VideoWindow extends SpatialWindow {
       try { this.cctx.drawImage(v, 0, 0, this.canvas.width, this.canvas.height); this.tex.needsUpdate = true; } catch {}
     }
     if (now - this.lastBar > 250) { this.lastBar = now; this.toolbar.redraw(); }
+    if (this.remote) this.trackPointer(now);
     // Watchdog: a paused or stuck live screen is restarted.
     if (now - (this.lastCheck || 0) > 1000) {
       this.lastCheck = now;
@@ -506,7 +554,7 @@ export class WebWindow extends SpatialWindow {
     items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) });
     this.toolbar = new Toolbar(items).install();
     this.group.add(this.toolbar.mesh);
-    if (this.cplay) this.makeTabs();
+    if (this.cplay) this.makeTabs(); else this.makeAddress();
     this.makeScrollStrip();
     this.vel = 0;
     this.layout();
@@ -528,6 +576,19 @@ export class WebWindow extends SpatialWindow {
         text(ctx, label, x + tw / 2, H / 2 + 2, H * 0.36, { weight: 800, color: on ? '#141824' : COLORS.text, maxWidth: tw - 16, dir: 'auto' });
         p.region(x, 0, tw, H, () => { blip('tap', settings.sounds); this.navTo(path); }, i);
       });
+    }, { pxPerM: 1500 });
+    this.group.add(this.tabPanel.mesh);
+  }
+  // Address bar like a browser: shows the site; pointing + click opens the keyboard to type another address.
+  makeAddress() {
+    this.tabPanel = new CanvasPanel(0.96, 0.075, (ctx, W, H, p) => {
+      glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
+      const hov = p.isHover('url');
+      if (hov) { roundRect(ctx, 8, 8, W - 16, H - 16, (H - 16) / 2); ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fill(); }
+      icon(ctx, 'globe', W - H * 0.6, H / 2, H * 0.5);
+      text(ctx, this.url.replace(/^https?:\/\/(www\.)?/, ''), W / 2, H / 2 + 2, H * 0.36, { weight: 700, dir: 'ltr', maxWidth: W - H * 2.6, color: COLORS.text });
+      icon(ctx, 'keyboard', H * 0.6, H / 2, H * 0.5, COLORS.dim);
+      p.region(0, 0, W, H, () => { blip('tap', settings.sounds); this.mgr.openKeyboard(this.url); }, 'url');
     }, { pxPerM: 1500 });
     this.group.add(this.tabPanel.mesh);
   }
@@ -568,6 +629,7 @@ export class WebWindow extends SpatialWindow {
     this.send({ type: 'scroll', dx: 0, dy: f * 600, x: 512, y: 320 });
   }
   fling(v) { this.vel = v; }
+  goBack() { if (this.bridge) this.send({ type: 'back' }); }
   send(msg) {
     if (!this.bridge || !this.css) return;
     msg.madar = 1;
@@ -864,6 +926,12 @@ export class WindowManager {
     blip('close', settings.sounds);
   }
   closeAll() { [...this.windows].forEach(w => this.close(w)); }
+  openKeyboard(text = '') {
+    let kb = this.windows.find(w => w.kind === 'keyboard');
+    if (!kb) kb = this.open({ kind: 'keyboard' });
+    if (text) { kb.text = text; kb.panel.redraw(); }
+    return kb;
+  }
   // After the camera restarts (iOS pauses other media when it does), start the videos again.
   resumeMedia() { this.windows.forEach(w => w.resume?.()); }
   open(spec) {
@@ -1005,6 +1073,8 @@ export class KeyboardWindow {
   }
   // Types the text into the focused field of the open page (cplay2 with the bridge).
   sendToPage() {
+    const m = [...this.mgr.windows].reverse().find(x => x.remote && x.control);
+    if (m) { m.typeText(this.text); this.mgr.app.toast('أُرسل النص إلى الجهاز'); this.text = ''; this.panel.redraw(); return; }
     const w = [...this.mgr.windows].reverse().find(x => x.kind === 'web' && x.bridge);
     if (!w) { this.mgr.app.toast('لا توجد صفحة متصلة تقبل الكتابة'); return; }
     w.send({ type: 'text', value: this.text });

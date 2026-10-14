@@ -11,7 +11,7 @@ import { Launcher, Calibration, Toast } from './panels.js';
 import { Slam } from './slam.js';
 import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
-import { ScreenHost, ScreenViewer, qrSvg } from './mirror.js';
+import { ScreenHost, ScreenViewer, qrSvg, AGENT_DOWNLOAD } from './mirror.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
@@ -186,15 +186,22 @@ class App {
       const stream = await this.viewer.connect(code, {
         onEnd: why => this.mirrorLost(code, why),
         onLinks: n => { if (n) { this.toast('أُضيفت ' + n + ' روابط من اللابتوب'); this.renderLinks(); } },
+        onCaps: c => {
+          const was = this.mirrorWin?.control;
+          this.mirrorWin?.setControl(c);
+          if (c.control && !was) this.toast('يمكنك التحكم بالجهاز: انقر واسحب للتمرير · ○ رجوع', 3500);
+          else if (!c.control && c.why) this.log('التحكم: ' + c.why);
+        },
       });
       if (!this.active) { this.viewer.close(); return; }
       if (this.mirrorWin && this.windows.windows.includes(this.mirrorWin)) {
         this.mirrorWin.setStream(stream);
         this.toast('عادت الشاشة', 1800);
       } else {
-        this.mirrorWin = this.windows.open({ kind: 'video', stream, name: 'شاشة اللابتوب' });
+        this.mirrorWin = this.windows.open({ kind: 'video', stream, name: 'شاشة اللابتوب', remote: this.viewer });
         this.toast('ظهرت شاشة اللابتوب أمامك', 2500);
       }
+      if (this.viewer.caps) this.mirrorWin.setControl(this.viewer.caps);
       // A picture that stops arriving (frozen) reconnects by itself.
       // (A still screen also sends no new frames, so only reconnect when the link itself is unhealthy.)
       this.mirrorWin.onStall = () => { if (!this.viewer.healthy()) { this.log('شاشة اللابتوب: الصورة متوقفة'); this.mirrorLost(code, 'stall'); } };
@@ -253,7 +260,17 @@ class App {
       $('#mirCode').textContent = s.code; $('#mirLink').textContent = s.link;
       $('#mirQr').innerHTML = qrSvg(s.link);
       $('#mirStatus').textContent = s.viewers ? 'متصل: ' + s.viewers + ' جهاز' : 'بانتظار الهاتف…';
+      const c = s.caps, el = $('#mirCtl');
+      if (c && el) {
+        if (c.control) el.textContent = 'التحكم عن بُعد جاهز ✓';
+        else if (c.kind === 'agent') el.innerHTML = c.why + ' — <a href="' + AGENT_DOWNLOAD + '" target="_blank" rel="noopener" style="color:#7cc4ff">تنزيل Madar Agent</a>';
+        else if (c.kind === 'android') el.innerHTML = c.why + ' <button type="button" class="ghost" id="mirCtlOpen" style="margin-top:6px">فتح الإعدادات</button>';
+        else el.textContent = c.why || '';
+        $('#mirCtlOpen')?.addEventListener('click', () => { try { window.MadarAndroid.openControlSettings(); } catch {} });
+      }
     });
+    const mc = $('#mirControl');
+    if (mc) { mc.checked = settings.mirrorControl !== false; mc.addEventListener('change', () => { saveSettings({ mirrorControl: mc.checked }); this.host.sendCaps(); this.host.status(); }); }
     $('#mirStart').addEventListener('click', async () => {
       try { await this.host.start(); this.log('مشاركة الشاشة: ' + this.host.code); }
       catch (e) { $('#mirStatus').textContent = ''; alertBox(e.message || 'لم تبدأ المشاركة'); }
