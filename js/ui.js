@@ -55,8 +55,10 @@ export function glass(ctx, x, y, w, h, r, hi = false) {
   ctx.restore();
 }
 
+export const TEXT_SCALE = 1.12;   // all spatial UI text slightly larger
 export function text(ctx, str, x, y, size, opts = {}) {
   ctx.save();
+  size *= TEXT_SCALE;
   ctx.font = `${opts.weight || 500} ${size}px ${FONT}`;
   ctx.fillStyle = opts.color || COLORS.text;
   ctx.textAlign = opts.align || 'center';

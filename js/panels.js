@@ -163,6 +163,24 @@ const ROWS = [
   ['poseDelay', 'مزامنة الحركة مع الكاميرا', 10, 0, 200, v => v + ' ms'],
   ['walkScale', 'مقياس المشي', 0.1, 0.3, 5, v => v.toFixed(1) + '×'],
 ];
+const D = v => (v > 0 ? '+' : '') + v.toFixed(2);
+const EYE_ROWS = [
+  ['sharpen', 'حدة الصورة (للعينين)', 0.05, 0, 1.5, v => v.toFixed(2)],
+  ['rxStrength', 'قوة التصحيح حسب الوصفة', 0.1, 0, 2, v => v.toFixed(1) + '×'],
+  ['rxR.sph', 'اليمنى: قصر/بعد النظر SPH', 0.25, -8, 8, D],
+  ['rxR.cyl', 'اليمنى: الانحراف CYL', 0.25, -6, 0, D],
+  ['rxR.axis', 'اليمنى: محور الانحراف', 5, 0, 180, v => v + '°'],
+  ['rxL.sph', 'اليسرى: قصر/بعد النظر SPH', 0.25, -8, 8, D],
+  ['rxL.cyl', 'اليسرى: الانحراف CYL', 0.25, -6, 0, D],
+  ['rxL.axis', 'اليسرى: محور الانحراف', 5, 0, 180, v => v + '°'],
+  ['dwellMs', 'مدة النقر بالنظر', 250, 1000, 5000, v => (v / 1000).toFixed(2) + ' s'],
+];
+const getK = k => k.split('.').reduce((o, x) => o[x], settings);
+function setK(k, v) {
+  const [a, b] = k.split('.');
+  if (!b) return { [a]: v };
+  return { [a]: Object.assign({}, settings[a], { [b]: v }) };
+}
 
 export class Calibration {
   constructor(app) {
@@ -204,19 +222,27 @@ export class Calibration {
       const keys = Object.keys(VIEWER_PRESETS); const i = (keys.indexOf(settings.preset) + 1) % keys.length;
       applyPreset(keys[i]); this.app.applySettings(); blip('tap', settings.sounds); this.panel.redraw();
     }, 'preset');
-    const top = 160, rh = (H - top - 120) / ROWS.length;
-    ROWS.forEach(([key, label, step, min, max, fmt], i) => {
+    // Page switch: lenses / eyes
+    [['lens', 'العدسات', W / 2 + 10], ['eyes', 'العينان والوصفة', W / 2 - 250]].forEach(([k, l, x]) => {
+      const on = (this.page || 'lens') === k, hov = p.isHover('pg-' + k);
+      roundRect(ctx, x, 44, 240, 64, 32); ctx.fillStyle = on ? 'rgba(255,255,255,0.9)' : hov ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
+      text(ctx, l, x + 120, 77, 27, { weight: 800, color: on ? '#151821' : COLORS.text });
+      p.region(x, 44, 240, 64, () => { this.page = k; blip('tap', settings.sounds); this.panel.redraw(); }, 'pg-' + k);
+    });
+    const rows = (this.page || 'lens') === 'eyes' ? EYE_ROWS : ROWS;
+    const top = 160, rh = (H - top - 120) / rows.length;
+    rows.forEach(([key, label, step, min, max, fmt], i) => {
       const y = top + i * rh + rh / 2;
       if (i % 2 === 0) { roundRect(ctx, 40, y - rh / 2 + 3, W - 80, rh - 6, 20); ctx.fillStyle = 'rgba(255,255,255,0.035)'; ctx.fill(); }
-      text(ctx, label, W - 70, y, 29, { align: 'right', weight: 600 });
-      text(ctx, fmt(settings[key]), 330, y, 29, { dir: 'ltr', weight: 700, color: COLORS.accent });
+      text(ctx, label, W - 70, y, 31, { align: 'right', weight: 700 });
+      text(ctx, fmt(getK(key)), 330, y, 30, { dir: 'ltr', weight: 800, color: COLORS.accent });
       [['minus', 120, -1], ['plus', 220, 1]].forEach(([ic, x, d]) => {
         const id = key + d, hov = p.isHover(id);
         ctx.beginPath(); ctx.arc(x, y, rh * 0.36, 0, 7); ctx.fillStyle = hov ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.1)'; ctx.fill();
         icon(ctx, ic, x, y, rh * 0.32);
         p.region(x - rh * 0.45, y - rh / 2, rh * 0.9, rh, () => {
-          const v = Math.round((settings[key] + d * step) * 1000) / 1000;
-          saveSettings({ [key]: Math.min(max, Math.max(min, v)), preset: ['k1', 'k2', 'lensSep', 'screenToLens'].includes(key) ? 'custom' : settings.preset });
+          const v = Math.round((getK(key) + d * step) * 1000) / 1000;
+          saveSettings({ ...setK(key, Math.min(max, Math.max(min, v))), preset: ['k1', 'k2', 'lensSep', 'screenToLens'].includes(key) ? 'custom' : settings.preset });
           this.app.applySettings(); blip('tap', settings.sounds); this.panel.redraw();
         }, id);
       });

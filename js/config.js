@@ -27,9 +27,14 @@ export const DEFAULTS = {
   sounds: true,
   environment: 'passthrough', // 'passthrough' | 'dim' | 'immersive'
   handsEnabled: true,
+  sharpen: 0.55,        // global sharpening
+  rxStrength: 1,        // how strongly the prescription shapes per-eye sharpening
+  rxR: { sph: -0.75, cyl: -0.50, axis: 90 },   // from the user's glasses card
+  rxL: { sph: 0.50, cyl: -3.00, axis: 65 },
+  dwellMs: 3000,
   walk: false,          // experimental 6DoF walking
   walkScale: 1.5,       // metres per SLAM unit (monocular SLAM has no absolute scale)
-  v: 3,
+  v: 4,
 };
 
 function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -50,6 +55,8 @@ if (settings.v < 3) {
   settings.v = 3;
   safeSet(KEY, JSON.stringify(settings));
 }
+// v4: per-eye prescription, sharpening, 3 s gaze click.
+if (settings.v < 4) { Object.assign(settings, { sharpen: 0.55, rxStrength: 1, rxR: { sph: -0.75, cyl: -0.5, axis: 90 }, rxL: { sph: 0.5, cyl: -3, axis: 65 }, dwellMs: 3000, v: 4 }); safeSet(KEY, JSON.stringify(settings)); }
 
 const listeners = new Set();
 export function onSettings(fn) { listeners.add(fn); return () => listeners.delete(fn); }

@@ -41,7 +41,19 @@ const DIST_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Positio
 const DIST_FRAG = /* glsl */`
   uniform sampler2D tL; uniform sampler2D tR;
   uniform vec2 uRes; uniform float uPx; uniform float uSep; uniform float uVOff; uniform float uS2L;
-  uniform vec2 uK; uniform float uTanMax; varying vec2 vUv;
+  uniform vec2 uK; uniform float uTanMax; uniform float uTex; uniform vec3 uSL; uniform vec3 uSR; varying vec2 vUv;
+  // Per-eye sharpening: isotropic unsharp mask plus a directional term along the eye's
+  // astigmatic blur meridian (x = amount, y = directional amount, z = angle).
+  vec4 sharp(sampler2D t, vec2 uv, vec3 S){
+    vec4 c = texture2D(t, uv);
+    if (S.x + S.y < 0.01) return c;
+    vec2 dx = vec2(uTex, 0.0), dy = vec2(0.0, uTex);
+    vec4 n = texture2D(t, uv + dx) + texture2D(t, uv - dx) + texture2D(t, uv + dy) + texture2D(t, uv - dy);
+    vec2 dir = vec2(cos(S.z), sin(S.z)) * uTex * 1.5;
+    vec4 a = texture2D(t, uv + dir) + texture2D(t, uv - dir);
+    vec3 rgb = c.rgb + S.x * (c.rgb - n.rgb * 0.25) + S.y * (c.rgb - a.rgb * 0.5);
+    return vec4(clamp(rgb, 0.0, 1.0), c.a);
+  }
   void main(){
     vec2 p = vUv * uRes;
     float halfW = uRes.x * 0.5;
@@ -51,7 +63,7 @@ const DIST_FRAG = /* glsl */`
     float r2 = dot(o, o);
     vec2 d = o * (1.0 + uK.x * r2 + uK.y * r2 * r2);
     vec2 uv = 0.5 + d / (2.0 * uTanMax);
-    vec4 col = right ? texture2D(tR, uv) : texture2D(tL, uv);
+    vec4 col = right ? sharp(tR, uv, uSR) : sharp(tL, uv, uSL);
     vec2 e = min(uv, 1.0 - uv);
     float edge = smoothstep(0.0, 0.025, min(e.x, e.y));
     float seam = smoothstep(0.0, 2.0, abs(p.x - halfW));
@@ -109,7 +121,7 @@ export class StereoRenderer {
     this.distMat = new THREE.ShaderMaterial({
       uniforms: {
         tL: { value: null }, tR: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uPx: { value: pxPerMm() },
-        uSep: { value: 63 }, uVOff: { value: 0 }, uS2L: { value: 42 }, uK: { value: new THREE.Vector2() }, uTanMax: { value: TAN_MAX },
+        uSep: { value: 63 }, uVOff: { value: 0 }, uS2L: { value: 42 }, uK: { value: new THREE.Vector2() }, uTanMax: { value: TAN_MAX }, uTex: { value: 1 / 1024 }, uSL: { value: new THREE.Vector3() }, uSR: { value: new THREE.Vector3() },
       },
       vertexShader: DIST_VERT, fragmentShader: DIST_FRAG, depthTest: false, depthWrite: false,
     });
@@ -142,6 +154,7 @@ export class StereoRenderer {
       return rt;
     });
     this.rtSize = size;
+    this.distMat.uniforms.uTex.value = 1 / size;
   }
 
   resize() {
@@ -156,7 +169,8 @@ export class StereoRenderer {
     const cssSize = 2 * TAN_MAX * settings.screenToLens * px;
     // Match the screen's pixel density at the lens centre (1:1), within memory limits.
     const cap = this.cssCount > 0 ? 1280 : 1664;   // leave memory for web pages when one is open
-    const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr / 64) * 64, 1024, cap);
+    this.quality = this.quality || 1;
+    const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr * this.quality / 64) * 64, 896, cap);
     if (want !== this.rtSize) this.makeTargets(want);
     this.layoutCss();
   }
@@ -168,6 +182,14 @@ export class StereoRenderer {
     u.uVOff.value = settings.vOffset;
     u.uS2L.value = settings.screenToLens;
     u.uK.value.set(settings.k1, settings.k2);
+    // Prescription → sharpening per eye. Axis is TABO (examiner's view); converted to the wearer's screen view.
+    const eye = (sph, cyl, axis) => {
+      const se = Math.abs(sph + cyl / 2);
+      const ang = (180 - ((axis + 90) % 180)) * Math.PI / 180;
+      return [settings.sharpen + Math.min(0.6, 0.15 * se), Math.min(1.2, 0.35 * Math.abs(cyl)) * settings.rxStrength, ang];
+    };
+    u.uSL.value.set(...eye(settings.rxL.sph, settings.rxL.cyl, settings.rxL.axis));
+    u.uSR.value.set(...eye(settings.rxR.sph, settings.rxR.cyl, settings.rxR.axis));
     this.layoutCss();
   }
 
@@ -197,7 +219,14 @@ export class StereoRenderer {
     const cam = this.eyes[i];
     const p = v.clone().applyMatrix4(cam.matrixWorldInverse);
     if (p.z > -0.05) return null;
-    const tx = p.x / -p.z, ty = p.y / -p.z;
+    let tx = p.x / -p.z, ty = p.y / -p.z;
+    // Undo the lens pre-distortion so the page lands where the scene draws the window.
+    const dl = Math.hypot(tx, ty);
+    if (dl > 1e-5 && (settings.k1 || settings.k2)) {
+      let r = dl;
+      for (let n = 0; n < 6; n++) { const r2 = r * r, f = r * (1 + settings.k1 * r2 + settings.k2 * r2 * r2) - dl, df = 1 + 3 * settings.k1 * r2 + 5 * settings.k2 * r2 * r2; r -= f / df; }
+      tx *= r / dl; ty *= r / dl;
+    }
     const { width, height } = this.orientation;
     const px = pxPerMm(), k = settings.screenToLens * px, halfW = width / 2;
     const cx = (i ? 1 : -1) * settings.lensSep * 0.5 * px + halfW - (i ? halfW : 0);
@@ -248,9 +277,23 @@ export class StereoRenderer {
     return [(sx - 0.5) * 2 * t.x, (0.5 - sy) * 2 * t.y];
   }
 
+  // Dynamic resolution: drop render size a little only while frames run slow, restore when smooth.
+  adapt(dt) {
+    this.ft = this.ft ? this.ft * 0.95 + dt * 0.05 : dt;
+    const now = performance.now();
+    if (now - (this.lastAdapt || 0) < 2500) return;
+    this.lastAdapt = now;
+    const q = this.quality || 1;
+    if (this.ft > 0.024 && q > 0.7) { this.quality = q - 0.1; this.resize(); }
+    else if (this.ft < 0.0178 && q < 1) { this.quality = Math.min(1, q + 0.1); this.resize(); }
+  }
+
   updateHandMask(slots, now) {
     const ctx = this.maskCtx, W = this.maskCanvas.width, H = this.maskCanvas.height;
     const live = (slots || []).filter(s => s.active && s.pts && now - s.ptsTime < 220);
+    const stamp = live.map(s => s.ptsTime).join();
+    if (live.length && stamp === this.maskStamp) return;   // redraw only on a new detection
+    this.maskStamp = stamp;
     if (!live.length) { if (this.maskOn) { ctx.clearRect(0, 0, W, H); this.maskTex.needsUpdate = true; this.maskOn = false; } return; }
     const t = this.camTan();
     const P = p => [(0.5 + p[0] / (2 * t.x)) * W, (0.5 - p[1] / (2 * t.y)) * H];

@@ -51,7 +51,7 @@ export class Slam {
   onMessage(d) {
     if (d.type === 'ready') {
       this.state = 'init';
-      this.app.toast('حرّك رأسك ببطء يميناً ويساراً لتثبيت العالم', 5000);
+      this.app.toast('تحرّك خطوة يميناً ثم يساراً ببطء لتثبيت العالم', 6000); this.app.log('المشي: بانتظار التثبيت');
     } else if (d.type === 'pose') {
       this.busy = false;
       this.onPose(d.pose);
@@ -64,12 +64,12 @@ export class Slam {
       if (this.state === 'lost' && now - this.lostSince > 1500) {
         // SLAM restarts its map: continue from where we are.
         this.base.copy(this.pos); this.align = null; this.state = 'init';
-        this.app.toast('فُقد التتبع — حرّك رأسك ببطء', 2500);
+        this.app.toast('فُقد التتبع — تحرّك ببطء أمام أشياء واضحة', 2500); this.app.log('المشي: فُقد التتبع');
       }
       return;
     }
     if (!this.align) { this.align = this.pendingQ.clone(); this.origin = new THREE.Vector3(pose[12], -pose[13], -pose[14]); }
-    if (this.state !== 'tracking') { if (this.state === 'init') this.app.toast('تم تثبيت العالم — يمكنك المشي حول المجسمات', 3000); this.state = 'tracking'; }
+    if (this.state !== 'tracking') { if (this.state === 'init') { this.app.toast('تم تثبيت العالم — يمكنك المشي حول المجسمات', 3000); this.app.log('المشي: يعمل'); } this.state = 'tracking'; }
     const t = new THREE.Vector3(pose[12], -pose[13], -pose[14]).sub(this.origin);
     this.target.copy(t.applyQuaternion(this.align).multiplyScalar(settings.walkScale)).add(this.base);
   }

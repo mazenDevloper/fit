@@ -498,6 +498,7 @@ class App {
   // ---------- Frame loop ----------
   frame(now) {
     const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
+    this.renderer.adapt(dt);
     if (this.head.hasData) this.head.pose(settings.poseDelay, this.renderQ);
     else this.renderQ.setFromEuler(new THREE.Euler(-this.debugPitch, -this.debugYaw, 0, 'YXZ'));
     this.headForward.set(0, 0, -1).applyQuaternion(this.renderQ);

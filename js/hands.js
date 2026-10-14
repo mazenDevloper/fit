@@ -91,7 +91,7 @@ export class HandTracker {
     for (const s of this.slots) if (s.active && now - s.seen > 260) { s.active = false; s.pinch = false; s.fx.reset(); s.fy.reset(); s.fd.reset(); }
     if (this.state !== 'ready' || !video || video.readyState < 2) return;
     if (video.currentTime === this.lastVideoTime) return;
-    const interval = this.delegate === 'GPU' ? 30 : 45;
+    const interval = this.delegate === 'GPU' ? 38 : 50;   // ~25 Hz is enough for gestures and saves GPU
     if (now - this.lastDetect < interval) return;
     this.lastVideoTime = video.currentTime;
     this.lastDetect = now;

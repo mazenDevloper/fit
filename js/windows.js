@@ -19,7 +19,7 @@ const CONTENT_FRAG = /* glsl */`
     // Web windows: a transparent hole so the live page under the canvas shows, with a thin opaque rim
     // that hides small misalignment between the lens-corrected scene and the page.
     if (uHole > 0.5) {
-      vec2 e = abs(p) - uSize * 0.5 * 0.985;
+      vec2 e = abs(p) - uSize * 0.5 * 0.975;
       if (max(e.x, e.y) < 0.0) { gl_FragColor = vec4(0.0); return; }
       gl_FragColor = vec4(0.06, 0.07, 0.1, 1.0); return;
     }
@@ -116,6 +116,24 @@ export class Toolbar {
 }
 
 let winId = 0;
+
+// The page is drawn a little larger than its window; the window's opaque rim hides the overflow,
+// so small differences between the lens-corrected scene and the flat page never show a gap.
+const WEB_INFLATE = 1.04;
+
+// CSS matrix3d mapping a w×h box onto four screen points (tl, tr, bl, br).
+function homography(w, h, [p0, p1, p2, p3]) {
+  const [x0, y0] = p0, [x1, y1] = p1, [x2, y2] = p2, [x3, y3] = p3;
+  const dx1 = x1 - x3, dx2 = x2 - x3, dy1 = y1 - y3, dy2 = y2 - y3;
+  const sx = x0 - x1 + x3 - x2, sy = y0 - y1 + y3 - y2;
+  const det = dx1 * dy2 - dx2 * dy1 || 1e-9;
+  const g = (sx * dy2 - dx2 * sy) / det, hh = (dx1 * sy - sx * dy1) / det;
+  const a = x1 - x0 + g * x1, b = x2 - x0 + hh * x2, c = x0;
+  const d = y1 - y0 + g * y1, e = y2 - y0 + hh * y2, f = y0;
+  // Unit square → quad, then scale from the box size.
+  const A = [a / w, d / w, 0, g / w, b / h, e / h, 0, hh / h, 0, 0, 1, 0, c, f, 0, 1];
+  return 'matrix3d(' + A.map(v => +v.toFixed(8)).join(',') + ')';
+}
 
 class SpatialWindow {
   constructor(mgr, kind) {
@@ -355,10 +373,10 @@ export class PanelWindow extends SpatialWindow {
       const rows = [
         ['hand', 'للنقر', 'ضع إصبعيك فوق الزر واقرص'],
         ['stack', 'لنقل نافذة', 'اقرص النافذة أو إطارها واسحب'],
-        ['plus', 'للتكبير', 'امسك النافذة باليدين وباعد بينهما'],
+        ['plus', 'للتكبير', 'باليدين وباعد، أو اقرص مطوّلاً وارفع يدك'],
         ['grid', 'لفتح القائمة', 'اقرص مطوّلاً في الفراغ'],
         ['target', 'لإعادة التمركز', 'ارفع يديك مفتوحتين ثانية ونصف'],
-        ['sun', 'بدون يدين', 'انظر إلى الزر لحظة أو المس الشاشة'],
+        ['sun', 'بدون يدين', 'انظر إلى الزر 3 ثوانٍ أو المس الشاشة'],
       ];
       const top = k === 'welcome' ? 225 : 165, rh = (H - top - 30) / rows.length;
       rows.forEach(([ic, a, b], i) => {
@@ -414,7 +432,7 @@ export class WebWindow extends SpatialWindow {
     // Pages that include madar-bridge.js (cplay2) accept taps and scrolls from the hands.
     Object.assign(this.content.userData.interact, {
       scroll: () => this.bridge,
-      toPx: uv => [uv.x * 1024, (1 - uv.y) * 640],
+      toPx: uv => [512 + (uv.x - 0.5) * 1024 / WEB_INFLATE, 320 + (0.5 - uv.y) * 640 / WEB_INFLATE],
       scrollBy: (dx, dy, at) => { this.lastAt = at; this.send({ type: 'scroll', dx, dy, x: at[0], y: at[1] }); },
     });
     const items = [];
@@ -529,19 +547,23 @@ export class WebWindow extends SpatialWindow {
   }
   // Called after each render with the current eye cameras: place both iframes over the window.
   placeCss() {
-    const r = this.mgr.app.renderer, m = this.content.matrixWorld, h = this.h;
-    const corners = [[-0.5, h / 2], [0.5, h / 2], [-0.5, -h / 2]].map(([x, y]) => new THREE.Vector3(x, y, 0).applyMatrix4(m));
+    const r = this.mgr.app.renderer, m = this.content.matrixWorld, h = this.h, k = WEB_INFLATE;
+    const head = this.mgr.app.headForward, toWin = this.group.getWorldPosition(new THREE.Vector3()).normalize();
+    const vis = head.dot(toWin) > 0.2;
+    const corners = vis ? [[-0.5, h / 2], [0.5, h / 2], [-0.5, -h / 2], [0.5, -h / 2]].map(([x, y]) => new THREE.Vector3(x * k, y * k, 0).applyMatrix4(m)) : null;
     this.css.forEach((c, i) => {
-      const P = corners.map(v => r.eyePx(i, v));
-      const head = this.mgr.app.headForward, toWin = this.group.getWorldPosition(new THREE.Vector3()).normalize();
-      if (P.some(q => !q) || head.dot(toWin) < 0.2) { if (c.el.style.display !== 'none') c.el.style.display = 'none'; return; }
+      const P = corners && corners.map(v => r.eyePx(i, v));
+      if (!P || P.some(q => !q)) { if (c.el.style.display !== 'none') c.el.style.display = 'none'; c.key = ''; return; }
       if (c.el.style.display) c.el.style.display = '';
-      const [tl, tr, bl] = P;
-      const a = (tr[0] - tl[0]) / 1024, b = (tr[1] - tl[1]) / 1024, cc = (bl[0] - tl[0]) / 640, d = (bl[1] - tl[1]) / 640;
-      c.el.style.transform = `matrix(${a.toFixed(5)},${b.toFixed(5)},${cc.toFixed(5)},${d.toFixed(5)},${tl[0].toFixed(1)},${tl[1].toFixed(1)})`;
+      // Skip sub-pixel changes: re-applying transforms makes Safari repaint the page.
+      const key = P.map(q => q[0].toFixed(0) + ',' + q[1].toFixed(0)).join(';');
+      if (key === c.key) return;
+      c.key = key;
+      c.el.style.transform = homography(1024, 640, P);
     });
   }
   onFrameLoad(eye, f) {
+    if (eye === 0) this.mgr.app.log('اكتمل تحميل الصفحة');
     if (this.base && !this.yt) { try { f.contentWindow.postMessage({ madar: 1, type: 'hello' }, this.base); } catch {} }
     if (!this.yt) return;
     const post = o => { try { f.contentWindow.postMessage(JSON.stringify(o), 'https://www.youtube.com'); } catch {} };
@@ -553,7 +575,7 @@ export class WebWindow extends SpatialWindow {
   ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
   handleMessage(e) {
     if (e.origin === this.base && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
-      if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
+      if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay2: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
       if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }
       return;
     }

@@ -5,7 +5,7 @@ import { settings } from './config.js';
 import { blip } from './ui.js';
 
 const FWD = new THREE.Vector3(0, 0, -1);
-const LONG_PRESS = 650, RECENTER_PRESS = 900, DWELL = 1100;
+const LONG_PRESS = 650, RECENTER_PRESS = 900, ZOOM_HOLD = 550;
 
 function makeCursor(color) {
   const g = new THREE.Group();
@@ -70,6 +70,7 @@ export class Interaction {
     const it = hit.object.userData.interact;
     if (it.type === 'button') return true;
     if (it.type === 'panel') return it.panel.isButtonAt(hit);
+    if (it.type === 'surface') return true;   // video, web page: gaze can tap them too
     return false;
   }
   click(hit) {
@@ -168,6 +169,21 @@ export class Interaction {
       }
       if (pinch) {
         p.moved = Math.max(p.moved, Math.hypot(s.tx - p.start[0], s.ty - p.start[1]));
+        // One-hand resize: pinch a window and hold still briefly, then move the hand up (bigger) or down (smaller).
+        const zwin = (p.drag?.win?.kind === 'model' ? p.drag.win : null) || p.surf?.win || p.pendingDrag?.object.userData.interact.window;
+        if (!p.zoom && zwin && !p.scaleHelper && !this.scaleMode && p.moved < 0.02 && now - p.t0 > ZOOM_HOLD) {
+          if (p.drag) this.endDrag(p);
+          p.surf = null; p.pendingDrag = null; p.fired = true;
+          p.zoom = { win: zwin, s0: zwin.group.scale.x, y0: s.ty };
+          blip('grab', settings.sounds);
+          this.app.toast('تكبير: ارفع يدك للتكبير وأنزلها للتصغير', 1800);
+        }
+        if (p.zoom) {
+          const z = p.zoom, lim = z.win.kind === 'model' ? [0.1, 12] : [0.25, 8];
+          const target = THREE.MathUtils.clamp(z.s0 * Math.exp((s.ty - z.y0) * 3.2), lim[0], lim[1]);
+          z.win.group.scale.setScalar(z.win.group.scale.x + (target - z.win.group.scale.x) * 0.35);
+          this.drawCursor(p, null, 1, true);
+        }
         if (p.pendingDrag && !p.drag && p.moved > 0.035) { this.startDrag(p, p.pendingDrag, s); p.pendingDrag = null; p.fired = true; }
         if (p.surf) {
           const h = this.castOn(p.surf.mesh, p.dir);
@@ -227,10 +243,11 @@ export class Interaction {
       this.setHover(g, hit);
       let prog = 0;
       if (settings.dwell && this.clickable(hit)) {
-        const region = hit.object.userData.interact.type === 'panel' ? hit.object.userData.interact.panel.hitRegion(hit)?.id : 'b';
+        const itg = hit.object.userData.interact;
+        const region = itg.type === 'panel' ? itg.panel.hitRegion(hit)?.id : itg.type === 'surface' && hit.uv ? Math.round(hit.uv.x * 20) + ':' + Math.round(hit.uv.y * 14) : 'b';
         if (g.dwellObj !== hit.object || g.dwellRegion !== region) { g.dwellObj = hit.object; g.dwellRegion = region; g.dwellT = now; g.dwellDone = false; }
         if (!g.dwellDone) {
-          prog = (now - g.dwellT) / DWELL;
+          prog = (now - g.dwellT) / (settings.dwellMs || 3000);
           if (prog >= 1) { g.dwellDone = true; prog = 0; this.click(hit); blip('tap', settings.sounds); }
         }
       } else { g.dwellObj = null; g.dwellRegion = null; }
@@ -239,6 +256,7 @@ export class Interaction {
   }
 
   release(p, now, hit) {
+    if (p.zoom) { const w = p.zoom.win; p.zoom = null; w.onDragEnd?.(); w.updateRadius?.(); this.app.windows.changed(); p.downObj = null; p.surf = null; p.pendingDrag = null; return; }
     if (p.scaleHelper) { p.scaleHelper = false; this.scaleMode = null; this.reanchor(); this.app.windows.changed(); p.downObj = null; return; }
     if (p.surf && p.surf.total > 14 && Math.abs(p.surf.vel || 0) > 250 && p.surf.win.fling) p.surf.win.fling(Math.max(-4000, Math.min(4000, p.surf.vel)));
     p.surf = null; p.pendingDrag = null;
