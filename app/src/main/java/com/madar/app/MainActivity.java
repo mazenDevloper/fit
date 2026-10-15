@@ -121,11 +121,39 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         immersive();
     }
 
+    private boolean sharing() { return CaptureService.running || (browser != null && browser.running); }
+
+    // Leaving the app while sharing: Madar shrinks into a small floating window instead of going to the
+    // background. A page in the background is slowed down by Android after a few minutes (the stream
+    // freezes); a page that is still on screen, even tiny, keeps streaming without pause.
+    private android.app.PictureInPictureParams pipParams(boolean auto) {
+        android.app.PictureInPictureParams.Builder b = new android.app.PictureInPictureParams.Builder()
+                .setAspectRatio(new android.util.Rational(16, 9));
+        if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(auto).setSeamlessResizeEnabled(false);
+        return b.build();
+    }
+    void updatePip() {
+        if (Build.VERSION.SDK_INT < 26) return;
+        try { setPictureInPictureParams(pipParams(sharing())); } catch (Exception ignored) { }
+    }
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (Build.VERSION.SDK_INT >= 26 && Build.VERSION.SDK_INT < 31 && sharing()) {
+            try { enterPictureInPictureMode(pipParams(false)); } catch (Exception ignored) { }
+        }
+    }
+    @Override
+    public void onPictureInPictureModeChanged(boolean inPip, android.content.res.Configuration c) {
+        super.onPictureInPictureModeChanged(inPip, c);
+        web.onResume(); web.resumeTimers();
+    }
+
     @Override
     protected void onPause() {
         super.onPause();
         // While sharing, the page must keep sending this screen even when another app is in front.
-        if (!CaptureService.running && (browser == null || !browser.running)) web.onPause();
+        if (!sharing()) web.onPause(); else { web.onResume(); web.resumeTimers(); }
     }
 
     @Override
@@ -270,7 +298,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
 
     @Override
     public void onState(String state) {
-        main.post(() -> js("window.__madarCapture&&__madarCapture('" + state + "')"));
+        main.post(() -> { js("window.__madarCapture&&__madarCapture('" + state + "')"); updatePip(); });
     }
 
     private void js(String code) { web.evaluateJavascript(code, null); }
@@ -409,12 +437,12 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         // Built-in browser: runs on an invisible screen inside Madar, streamed to the headset.
         @JavascriptInterface public boolean hasBrowser() { return true; }
         @JavascriptInterface public void browserStart(String url, int w, int h) {
-            runOnUiThread(() -> { if (browser == null) browser = new OffscreenBrowser(MainActivity.this, MainActivity.this); browser.start(url, w, h); });
+            runOnUiThread(() -> { if (browser == null) browser = new OffscreenBrowser(MainActivity.this, MainActivity.this); browser.start(url, w, h); updatePip(); });
         }
         @JavascriptInterface public void browserInput(String json) { OffscreenBrowser b = browser; if (b != null) b.input(json); }
         @JavascriptInterface public void browserQuality(int q, int fps) { runOnUiThread(() -> { if (browser != null) browser.setQuality(q, fps); }); }
         @JavascriptInterface public boolean browserRunning() { OffscreenBrowser b = browser; return b != null && b.running; }
-        @JavascriptInterface public void browserStop() { runOnUiThread(() -> { if (browser != null) browser.stop(); }); }
+        @JavascriptInterface public void browserStop() { runOnUiThread(() -> { if (browser != null) browser.stop(); updatePip(); }); }
         @JavascriptInterface public void setQuality(int edge, int jpeg) { CaptureService.setQuality(edge, jpeg); }
         @JavascriptInterface public void setFps(int fps) { CaptureService.setFps(fps); }
         // Remote control of this tablet (see ControlService).
