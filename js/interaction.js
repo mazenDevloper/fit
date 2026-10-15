@@ -204,7 +204,7 @@ export class Interaction {
         if (p.zoom) {
           const z = p.zoom, lim = z.win.kind === 'model' ? [0.1, 12] : [0.25, 8];
           // Corner of a reshapeable window (web pages): sideways = width, up/down = height. Others scale evenly.
-          const reshape = z.corner && z.win.canReshape;
+          const reshape = false;
           const f = reshape ? (s.tx - z.x0) * 2.6 : z.corner ? ((s.tx - z.x0) - (s.ty - z.y0)) * 2.6 : (s.ty - z.y0) * 3.2;
           if (reshape) z.win.setAspect(THREE.MathUtils.clamp(z.a0 * Math.exp((s.ty - z.y0) * 2.6), 0.55, 3.2));
           const target = THREE.MathUtils.clamp(z.s0 * Math.exp(f), lim[0], lim[1]);

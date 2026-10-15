@@ -184,8 +184,8 @@ class SpatialWindow {
     this.group.add(this.pinBtn.mesh);
     // Corner handle: pinch it and pull outward/inward to resize (separate from scrolling and moving).
     const rm = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.38, depthWrite: false });
-    this.resizer = new THREE.Mesh(new THREE.CircleGeometry(0.036, 24), rm);
-    const arrow = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.008), new THREE.MeshBasicMaterial({ color: 0x141824 }));
+    this.resizer = new THREE.Mesh(new THREE.CircleGeometry(0.05, 28), rm);
+    const arrow = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.011), new THREE.MeshBasicMaterial({ color: 0x141824 }));
     arrow.rotation.z = -Math.PI / 4; arrow.position.z = 0.001; this.resizer.add(arrow);
     this.resizer.userData.interact = { type: 'resize', window: this, hover: on => { rm.opacity = on ? 0.9 : 0.38; return true; } };
     this.group.add(this.resizer);
@@ -204,7 +204,7 @@ class SpatialWindow {
     this.bar.position.set(0, y, 0.002);
     this.closeBtn.mesh.position.set(-0.155, y, 0.004);
     this.pinBtn.mesh.position.set(0.155, y, 0.004);
-    this.resizer.position.set(0.5 + 0.03, -h / 2 - 0.03, 0.006);
+    this.resizer.position.set(0.5 + 0.035, -h / 2 - 0.035, 0.006);
     if (this.toolbar) this.toolbar.mesh.position.set(0, y - 0.075, 0.004);
   }
   setAspect(a) { if (a && isFinite(a) && Math.abs(a - this.aspect) > 0.001) { this.aspect = a; this.layout(); } }
@@ -756,6 +756,7 @@ export class WebWindow extends SpatialWindow {
       { icon: () => this.ytState.playing ? 'pause' : 'play', action: () => this.ytToggle() },
       { icon: () => this.ytState.muted ? 'mute' : 'sound', action: () => this.ytMute(!this.ytState.muted) },
     );
+    items.push({ icon: 'grid', action: () => this.cycleShape() });
     items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) });
     this.toolbar = new Toolbar(items).install();
     this.group.add(this.toolbar.mesh);
@@ -811,6 +812,14 @@ export class WebWindow extends SpatialWindow {
       p.region(W - H * 3, 0, H * 3, H, () => { blip('tap', settings.sounds); this.setDirect(this.proxied); }, 'mode');
     }, { pxPerM: 1500 });
     this.group.add(this.tabPanel.mesh);
+  }
+  // Page shape presets: wide (21:9) for a wrap-around feel, normal, tall like a phone.
+  cycleShape() {
+    const S = [[16 / 10, '16:10'], [16 / 9, '16:9'], [21 / 9, 'عريضة 21:9'], [4 / 3, '4:3'], [1, 'مربعة'], [9 / 16, 'طولية كالهاتف']];
+    const i = S.findIndex(x => Math.abs(x[0] - this.aspect) < 0.02);
+    const [a, l] = S[(i + 1) % S.length];
+    this.setAspect(a); this.mgr.changed();
+    this.mgr.app.toast('شكل الصفحة: ' + l, 1800);
   }
   // Corner handle on a web page changes its shape too (like resizing a browser window): the page gets taller or wider.
   setAspect(a) {
