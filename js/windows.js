@@ -822,6 +822,7 @@ export class WebWindow extends SpatialWindow {
       { icon: () => this.ytState.playing ? 'pause' : 'play', action: () => this.ytToggle() },
       { icon: () => this.ytState.muted ? 'mute' : 'sound', action: () => this.ytMute(!this.ytState.muted) },
     );
+    items.push({ icon: 'globe', action: () => this.toBuiltin('360') }, { icon: 'curve', action: () => this.toBuiltin('curve') });
     items.push({ icon: 'grid', action: () => this.cycleShape() });
     items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) });
     this.toolbar = new Toolbar(items).install();
@@ -880,6 +881,21 @@ export class WebWindow extends SpatialWindow {
     this.group.add(this.tabPanel.mesh);
   }
   // Page shape presets: wide (21:9) for a wrap-around feel, normal, tall like a phone.
+  // A page in an ordinary window can't be bent or wrapped around you (the site draws itself);
+  // Madar's built-in browser can — move the page there and apply the choice.
+  async toBuiltin(mode) {
+    const app = this.mgr.app, url = this.url || this.src;
+    if (!app.browserDevice?.()) {
+      app.toast('التقويس و360° يعملان في «متصفح مدار»: ثبّت تطبيق مدار الجديد على التابلت واقرنه من «أجهزتي»', 5000);
+      return;
+    }
+    app.toast('جارٍ نقل الصفحة إلى متصفح مدار…', 2000);
+    await app.openBrowser(url, 0, w => {
+      if (mode === '360') w.setProjection?.('360'); else w.setCurved?.(true);
+      if (this.mgr.windows.includes(this)) this.mgr.close(this);
+    });
+  }
+
   cycleShape() {
     const S = [[16 / 10, '16:10'], [16 / 9, '16:9'], [21 / 9, 'عريضة 21:9'], [4 / 3, '4:3'], [1, 'مربعة'], [9 / 16, 'طولية كالهاتف']];
     const i = S.findIndex(x => Math.abs(x[0] - this.aspect) < 0.02);

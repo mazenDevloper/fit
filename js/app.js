@@ -22,7 +22,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '37';
+export const APP_VERSION = '38';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -490,11 +490,11 @@ class App {
     if (settings.builtinBrowser === false || settings.viewMode !== 'sbs' || !this.browserDevice()) return false;
     try { return /^https?:/i.test(url) && !new URL(url).hostname.endsWith('mazendevloper.github.io'); } catch { return false; }
   }
-  async openBrowser(url = '', attempt = 0) {
+  async openBrowser(url = '', attempt = 0, onReady = null) {
     const dev = this.browserDevice();
     if (!dev) { this.toast('المتصفح المدمج يحتاج تطبيق مدار مفتوحاً على التابلت ومضافاً في «أجهزتي»', 5000); return null; }
     const existing = [...this.windows.windows].reverse().find(w => w.browser && w.remote);
-    if (existing && attempt === 0) { if (url) existing.navigate(url); return existing; }
+    if (existing && attempt === 0) { if (url) existing.navigate(url); onReady?.(existing); return existing; }
     if (attempt === 0) { this.toast('فتح متصفح مدار على ' + dev.name + '…', 2500); this.log('المتصفح المدمج: ' + dev.code + ' ' + url); }
     try { await this.devices.requestBrowser(dev.code, url, 1280, 800); }
     catch (e) { this.toast((e.message || 'تعذّر الاتصال') + ' — افتح تطبيق مدار على ' + dev.name, 5000); return null; }
@@ -511,6 +511,7 @@ class App {
         win = this.windows.open({ kind: 'video', stream, name: 'متصفح مدار', remote: viewer, browser: true, url });
         win.setControl(viewer.caps || { control: true, kind: 'browser' });
         if (viewer.page) win.onPage(viewer.page);
+        onReady?.(win); onReady = null;
         this.log('المتصفح المدمج: متصل');
       } catch (e) {
         if (n < 6) setTimeout(() => connect(n + 1), 1500);
