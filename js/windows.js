@@ -276,7 +276,22 @@ class SpatialWindow {
       ['فوق رأسك', this.overhead ? 'مفعّل' : 'إيقاف', () => this.setOverhead(!this.overhead)],
       ['أمام عينيك', this.headLock ? 'يتبعك' : 'ثابتة', () => { this.headLock = !this.headLock; if (this.headLock) this.pin = null; }],
       ['لقطة', 'حفظ', () => this.snapshot()],
+      ['على التلفاز', app.room?.tv() ? 'ضع هنا' : 'امسح الغرفة', () => this.onTv()],
     ];
+  }
+  // Put this window exactly over your real TV (found by «مسح الغرفة»).
+  onTv() {
+    const app = this.mgr.app, tv = app.room?.tv();
+    if (!tv) { app.room?.scan(); return; }
+    const g = this.group, root = this.mgr.root;
+    root.updateMatrixWorld();
+    const world = root.localToWorld(tv.pos.clone());
+    world.multiplyScalar(Math.max(0.3, (world.length() - 0.06)) / world.length());   // just in front of the screen
+    g.position.copy(root.worldToLocal(world.clone()));
+    g.lookAt(new THREE.Vector3(0, world.y, 0));
+    g.scale.setScalar(Math.max(0.4, tv.width));
+    this.headLock = false; this.pin = null; this.updateRadius?.(); this.layout(); this.mgr.changed();
+    app.toast('📺 النافذة الآن فوق تلفازك', 2200);
   }
   toggleMore() {
     if (!this.more) {
@@ -1620,7 +1635,7 @@ export class WindowManager {
     if (this.cinema && !this.windows.includes(this.cinema)) this.cinema = null;
     for (const w of this.windows) {
       // Cinema: only the chosen window stays visible.
-      w.group.visible = !this.cinema || w === this.cinema;
+      w.group.visible = !this.guard && (!this.cinema || w === this.cinema);
       w.update(dt, now);
       if (w.glow) w.updateGlow(now);
       // Pinned to the view: the window glides to stay straight ahead at the same distance.

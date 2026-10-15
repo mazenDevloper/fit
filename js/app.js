@@ -16,13 +16,14 @@ import { LensAdjust } from './lens.js';
 import { DeviceHub } from './devices.js';
 import { Sports } from './sports.js';
 import { ScreenHost, ScreenViewer, WebHost, qrSvg, AGENT_DOWNLOAD, lib } from './mirror.js';
+import { Room } from './room.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '43';
+export const APP_VERSION = '44';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -71,6 +72,7 @@ class App {
     this.calibration = new Calibration(this);
     this.lensAdjust = new LensAdjust(this);
     this.sports = new Sports(this);
+    this.room = new Room(this);
     this.webHost = window.MadarAndroid?.hasBrowser ? new WebHost(this) : null;   // this device can serve the built-in browser
     this.toastUI = new Toast();
     this.renderer.scene.add(this.launcher.group, this.calibration.group);
@@ -960,6 +962,9 @@ class App {
     const has = (...w) => w.some(x => t.includes(x));
     const after = (...w) => { for (const x of w) { const i = t.indexOf(x); if (i >= 0) return t.slice(i + x.length).trim(); } return ''; };
     const pointed = () => this.controls.pointedWindow() || [...this.windows.windows].reverse().find(w => w.kind !== 'keyboard');
+    if (has('امسح الغرفة', 'مسح الغرفة', 'تعرف على الغرفة')) { this.room.scan(); return; }
+    if (has('على التلفاز', 'فوق التلفاز')) { const w = pointed(); if (w?.onTv) w.onTv(); return; }
+    if (has('السينما')) { const w = pointed(); if (w) { this.windows.cinema = this.windows.cinema === w ? null : w; } return; }
     const devices = pairedDevices();
     const dev = devices.find(d => t.includes(d.name)) || devices.find(d => (has('تابلت', 'التابلت') && d.kind === 'tablet') || (has('لابتوب', 'كمبيوتر') && d.kind === 'computer') || (has('تلفاز', 'التلفزيون', 'التلفاز') && d.kind === 'tv'));
     if (has('اكتب', 'أكتب')) { const x = after('اكتب', 'أكتب'); if (x) this.dictate(x); else this.listen('dictate'); return; }
@@ -1016,6 +1021,7 @@ class App {
     this.windows.update(dt, now);
     this.toastUI.update(now, this.renderQ);
     this.sports?.update(now, this.renderQ);
+    if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }
     if (this.launcher.group.visible) this.launcher.group.updateMatrixWorld();
     const ek = envKey(settings.environment);
     // A 360° picture surrounds you completely: hide the room/sky so nothing cuts into it.
