@@ -35,7 +35,7 @@ import java.nio.ByteBuffer;
  * Runs as a foreground service so sharing continues while other apps are open.
  */
 public class CaptureService extends Service {
-    interface Listener { void onFrame(String b64); void onState(String state); void onAudio(String b64); }
+    interface Listener { void onFrame(byte[] jpeg); void onState(String state); void onAudio(byte[] pcm, int len); }
 
     static final String EXTRA_CODE = "code", EXTRA_DATA = "data", ACTION_STOP = "com.madar.app.STOP";
     static volatile Listener listener;
@@ -47,7 +47,7 @@ public class CaptureService extends Service {
     static volatile int maxEdge = 1600;                 // long edge of the shared picture
     static volatile int jpegQuality = 80;
     static volatile CaptureService self;
-    private static final long FRAME_MS = 66;            // ~15 fps
+    static volatile long frameMs = 33;                  // ~30 fps (games), settable from the headset
     private static final long KEEPALIVE_MS = 1000;      // resend the last frame when the screen is still
 
     private MediaProjection projection;
@@ -58,7 +58,7 @@ public class CaptureService extends Service {
     private Handler handler;
     private int width, height, dpi;
     private long lastFrame;
-    private String lastB64;
+    private byte[] lastJpeg;
     private Bitmap bitmap;
     private final ByteArrayOutputStream jpeg = new ByteArrayOutputStream(256 * 1024);
 
@@ -123,7 +123,7 @@ public class CaptureService extends Service {
     private final Runnable keepAlive = new Runnable() {
         @Override public void run() {
             if (!running) return;
-            if (lastB64 != null && SystemClock.uptimeMillis() - lastFrame >= KEEPALIVE_MS) send(lastB64);
+            if (lastJpeg != null && SystemClock.uptimeMillis() - lastFrame >= KEEPALIVE_MS) send(lastJpeg);
             handler.postDelayed(this, KEEPALIVE_MS);
         }
     };
@@ -219,7 +219,7 @@ public class CaptureService extends Service {
                     while (n < chunk && running) { int r = audio.read(buf, n, chunk - n); if (r <= 0) break; n += r; }
                     if (n <= 0) continue;
                     Listener l = listener;
-                    if (l != null) l.onAudio(Base64.encodeToString(buf, 0, n, Base64.NO_WRAP));
+                    if (l != null) l.onAudio(java.util.Arrays.copyOf(buf, n), n);
                 }
             }, "madar-audio");
             audioThread.start();
@@ -236,7 +236,7 @@ public class CaptureService extends Service {
             img = r.acquireLatestImage();
             if (img == null) return;
             long now = SystemClock.uptimeMillis();
-            if (now - lastFrame < FRAME_MS) return;
+            if (now - lastFrame < frameMs) return;
             Image.Plane p = img.getPlanes()[0];
             ByteBuffer buf = p.getBuffer();
             int pixelStride = p.getPixelStride(), rowStride = p.getRowStride();
@@ -251,15 +251,16 @@ public class CaptureService extends Service {
             out.compress(Bitmap.CompressFormat.JPEG, jpegQuality, jpeg);
             if (out != bitmap) out.recycle();
             lastFrame = now;
-            lastB64 = Base64.encodeToString(jpeg.toByteArray(), Base64.NO_WRAP);
-            send(lastB64);
+            lastJpeg = jpeg.toByteArray();
+            send(lastJpeg);
         } catch (Exception ignored) {
         } finally {
             if (img != null) img.close();
         }
     }
 
-    private void send(String b64) {
+    static void setFps(int fps) { frameMs = Math.max(16, 1000 / Math.max(5, Math.min(60, fps))); }
+    private void send(byte[] b64) {
         Listener l = listener;
         if (l != null) l.onFrame(b64);
     }

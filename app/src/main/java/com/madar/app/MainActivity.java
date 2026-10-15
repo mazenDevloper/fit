@@ -201,16 +201,42 @@ public class MainActivity extends Activity implements CaptureService.Listener {
         }
     }
 
+    // Pictures and sound go to the page as raw bytes when this WebView supports it (fast), else as text.
+    private Boolean binary;
+    private boolean binary() {
+        if (binary == null) {
+            try {
+                binary = androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.POST_WEB_MESSAGE)
+                        && androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.WEB_MESSAGE_ARRAY_BUFFER);
+            } catch (Throwable t) { binary = false; }
+        }
+        return binary;
+    }
+    private static final android.net.Uri ORIGIN = android.net.Uri.parse("https://mazendevloper.github.io");
+    private void postBytes(int kind, byte[] data, int len) {
+        byte[] msg = new byte[len + 4];
+        msg[0] = 'M'; msg[1] = 'D'; msg[2] = 'R'; msg[3] = (byte) kind;
+        System.arraycopy(data, 0, msg, 4, len);
+        main.post(() -> {
+            try { androidx.webkit.WebViewCompat.postWebMessage(web, new androidx.webkit.WebMessageCompat(msg), ORIGIN); }
+            catch (Throwable t) { binary = false; }
+        });
+    }
+
     @Override
-    public void onFrame(String b64) {
+    public void onFrame(byte[] jpeg) {
+        if (binary()) { if (!framePending.compareAndSet(false, true)) return; postBytes(1, jpeg, jpeg.length); main.post(() -> framePending.set(false)); return; }
         if (!framePending.compareAndSet(false, true)) return;   // drop frames while the page is busy
+        String b64 = android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP);
         main.post(() -> web.evaluateJavascript("window.__madarFrame&&__madarFrame('" + b64 + "')", v -> framePending.set(false)));
     }
 
     private final AtomicBoolean audioPending = new AtomicBoolean(false);
     private final StringBuilder audioQueue = new StringBuilder();
     @Override
-    public void onAudio(String b64) {
+    public void onAudio(byte[] pcm, int len) {
+        if (binary()) { postBytes(2, pcm, len); return; }
+        String b64 = android.util.Base64.encodeToString(pcm, 0, len, android.util.Base64.NO_WRAP);
         // Audio chunks are never dropped; if the page is busy they are sent together next time.
         synchronized (audioQueue) { if (audioQueue.length() > 0) audioQueue.append(','); audioQueue.append('\'').append(b64).append('\''); }
         if (!audioPending.compareAndSet(false, true)) return;
@@ -361,6 +387,7 @@ public class MainActivity extends Activity implements CaptureService.Listener {
         }
         @JavascriptInterface public boolean isCapturing() { return CaptureService.running; }
         @JavascriptInterface public void setQuality(int edge, int jpeg) { CaptureService.setQuality(edge, jpeg); }
+        @JavascriptInterface public void setFps(int fps) { CaptureService.setFps(fps); }
         // Remote control of this tablet (see ControlService).
         @JavascriptInterface public String controlState() { return ControlService.on() ? "on" : "off"; }
         @JavascriptInterface public void input(String json) { ControlService.handle(json); }
