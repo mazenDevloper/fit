@@ -117,6 +117,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     @Override
     protected void onResume() {
         super.onResume();
+        hideDot();
         web.onResume();
         immersive();
     }
@@ -134,11 +135,74 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     }
     void updatePip() {
         if (Build.VERSION.SDK_INT < 26) return;
-        try { setPictureInPictureParams(pipParams(sharing())); } catch (Exception ignored) { }
+        // With «display over other apps» allowed Madar becomes a small dot instead of a picture-in-picture window.
+        try { setPictureInPictureParams(pipParams(sharing() && !canDot())); } catch (Exception ignored) { }
+        if (sharing() && !canDot() && !askedDot) {
+            askedDot = true;
+            js("window.__madarToast&&__madarToast('لتصغير مدار إلى نقطة صغيرة أثناء المشاركة: فعّل «الظهور فوق التطبيقات» لمدار')");
+            try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) { }
+        }
+    }
+    private boolean askedDot;
+    private boolean canDot() { return android.provider.Settings.canDrawOverlays(this); }
+
+    // ---- The dot: while sharing in the background the page lives in a tiny floating circle. It stays
+    // "on screen" so Android never slows it down; drag it anywhere, tap it to come back to Madar. ----
+    private FrameLayout dot;
+    private ViewGroup.LayoutParams webLp;
+    private void showDot() {
+        if (dot != null || !canDot() || !sharing()) return;
+        final android.view.WindowManager wm = getWindowManager();
+        int px = Math.round(34 * getResources().getDisplayMetrics().density);
+        dot = new FrameLayout(this);
+        ViewGroup parent = (ViewGroup) web.getParent();
+        webLp = web.getLayoutParams();
+        if (parent != null) parent.removeView(web);
+        dot.addView(web, new FrameLayout.LayoutParams(px, px));
+        View face = new View(this);
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL); g.setColor(0xFF2BB673); g.setStroke(Math.max(2, px / 10), 0xFFFFFFFF);
+        face.setBackground(g);
+        dot.addView(face, new FrameLayout.LayoutParams(px, px));
+        dot.setClipToOutline(true);
+        final android.view.WindowManager.LayoutParams lp = new android.view.WindowManager.LayoutParams(px, px,
+                android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                android.graphics.PixelFormat.TRANSLUCENT);
+        lp.gravity = android.view.Gravity.TOP | android.view.Gravity.START;
+        lp.x = getResources().getDisplayMetrics().widthPixels - px - 12; lp.y = getResources().getDisplayMetrics().heightPixels / 3;
+        face.setOnTouchListener(new View.OnTouchListener() {
+            float sx, sy; int ox, oy; boolean moved;
+            @Override public boolean onTouch(View v, android.view.MotionEvent e) {
+                switch (e.getActionMasked()) {
+                    case android.view.MotionEvent.ACTION_DOWN: sx = e.getRawX(); sy = e.getRawY(); ox = lp.x; oy = lp.y; moved = false; return true;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        float dx = e.getRawX() - sx, dy = e.getRawY() - sy;
+                        if (Math.abs(dx) + Math.abs(dy) > 12) moved = true;
+                        lp.x = ox + Math.round(dx); lp.y = oy + Math.round(dy);
+                        try { wm.updateViewLayout(dot, lp); } catch (Exception ignored) { }
+                        return true;
+                    case android.view.MotionEvent.ACTION_UP:
+                        if (!moved) startActivity(new Intent(MainActivity.this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_NEW_TASK));
+                        return true;
+                }
+                return false;
+            }
+        });
+        try { wm.addView(dot, lp); } catch (Exception e) { hideDot(); return; }
+        web.onResume(); web.resumeTimers();
+    }
+    private void hideDot() {
+        if (dot == null) return;
+        try { getWindowManager().removeView(dot); } catch (Exception ignored) { }
+        dot.removeView(web);
+        dot = null;
+        if (web.getParent() == null) root.addView(web, 0, webLp != null ? webLp : new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     }
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
+        if (sharing() && canDot()) { showDot(); return; }
         if (Build.VERSION.SDK_INT >= 26 && Build.VERSION.SDK_INT < 31 && sharing()) {
             try { enterPictureInPictureMode(pipParams(false)); } catch (Exception ignored) { }
         }
@@ -153,11 +217,12 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     protected void onPause() {
         super.onPause();
         // While sharing, the page must keep sending this screen even when another app is in front.
-        if (!sharing()) web.onPause(); else { web.onResume(); web.resumeTimers(); }
+        if (!sharing()) web.onPause(); else { web.onResume(); web.resumeTimers(); if (canDot() && !isInPictureInPictureMode()) main.postDelayed(() -> { if (!hasWindowFocus() && sharing()) showDot(); }, 400); }
     }
 
     @Override
     protected void onDestroy() {
+        hideDot();
         if (CaptureService.listener == this) CaptureService.listener = null;
         if (CaptureService.running) stopService(new Intent(this, CaptureService.class));
         if (browser != null) browser.stop();
