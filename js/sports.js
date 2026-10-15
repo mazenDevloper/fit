@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { CanvasPanel, glass, text, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
+import { drawIsland, islandWidth, drawWidget, drawGoal, goalDuration, drawClock, setLogoListener } from './matchart.js';
 
 export const SPORTS_ORIGIN = 'https://cplay3.netlify.app';
 const MADAR = location.origin;
@@ -13,6 +14,9 @@ export class Sports {
     this.scores = new Map();
     this.island = new Island(this);
     app.renderer.overlay.add(this.island.mesh);
+    this.goal = new GoalCard(app); app.renderer.overlay.add(this.goal.mesh);
+    this.clock = new Clock(app); app.renderer.overlay.add(this.clock.mesh);
+    setLogoListener(() => { this.version++; this.island.redraw(); });
   }
   teams() { return settings.myTeams || []; }
   // Your favourite teams from cplay3 (same list as the APK) — read once from cplay3's own storage via a tiny page.
@@ -53,12 +57,15 @@ export class Sports {
     for (const m of list) {
       const k = m.id, s = (m.score.home ?? 0) + (m.score.away ?? 0), prev = this.scores.get(k);
       if (prev != null && s > prev && m.status === 'live' && (this.mine(m) || settings.allGoals)) {
-        this.app.toast('⚽ هدف! ' + m.home.name + ' ' + m.score.home + ' - ' + m.score.away + ' ' + m.away.name, 7000);
+        const prevM = this.prevById?.get(k);
+        const side = prevM && (m.score.away ?? 0) > (prevM.score.away ?? 0) ? 'away' : 'home';
+        this.goal.show({ home: m.home.name, away: m.away.name, homeLogo: m.home.logo, awayLogo: m.away.logo, sh: m.score.home ?? 0, sa: m.score.away ?? 0, side, league: m.league?.name || '', minute: m.elapsed ? "د" + m.elapsed : '' });
         blip('open', true); this.app.controls?.rumbleAll?.(0.6, 300);
         this.app.log('هدف: ' + m.home.name + ' ' + m.score.home + '-' + m.score.away + ' ' + m.away.name);
       }
       this.scores.set(k, s);
     }
+    this.prevById = new Map(list.map(m => [m.id, m]));
   }
   // Called every frame: poll faster while your team plays.
   update(now, Q) {
@@ -67,6 +74,8 @@ export class Sports {
     const every = live ? 30000 : (this.app.windows.windows.some(w => w.panelKind === 'matches') || settings.island !== false) ? 90000 : 0;
     if (every && now - this.timer > every) { this.timer = now; this.refresh(true); }
     this.island.update(now, Q);
+    this.goal.update(now, Q);
+    this.clock.update(now, Q);
   }
 }
 
@@ -85,69 +94,63 @@ class Island {
   draw(ctx, W, H) {
     const live = this.sports.liveMine(); if (!live.length) return;
     const m = live[this.idx % live.length];
-    glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2, true);
-    ctx.beginPath(); ctx.arc(W - H * 0.5, H / 2, H * 0.12, 0, 7); ctx.fillStyle = '#ff4d5e'; ctx.fill();
-    const score = (m.score.away ?? 0) + ' - ' + (m.score.home ?? 0);   // home on the right
-    logoSports = this.sports;
-    drawLogo(ctx, m.home.logo, W * 0.86, H / 2, H * 0.6);
-    drawLogo(ctx, m.away.logo, W * 0.06 + H * 0.9, H / 2, H * 0.6);
-    text(ctx, m.home.name, W * 0.68, H / 2 + 2, H * 0.34, { weight: 800, maxWidth: W * 0.28, dir: 'auto' });
-    text(ctx, score, W * 0.45, H / 2 + 2, H * 0.44, { weight: 900, dir: 'ltr', color: '#ffffff' });
-    text(ctx, m.away.name, W * 0.22, H / 2 + 2, H * 0.34, { weight: 800, maxWidth: W * 0.24, dir: 'auto' });
-    text(ctx, m.statusText || (m.elapsed ? m.elapsed + "'" : ''), H * 0.85, H / 2 + 2, H * 0.28, { color: '#7cf0a8', weight: 800, dir: 'ltr' });
+    // The APK's island: black glass pill, red minute badge, round logos, the score glowing emerald.
+    const h = H * 0.8, w = Math.min(W - 8, islandWidth(ctx, m, h, true));
+    drawIsland(ctx, (W - w) / 2, (H - h) / 2, w, h, m, performance.now(), { fav: true, expanded: true });
   }
   update(now, Q) {
-    const on = settings.island !== false && this.sports.liveMine().length > 0 && this.sports.app.active;
+    const on = settings.island !== false && this.sports.liveMine().length > 0 && this.sports.app.active && !this.sports.goal.active;
     this.mesh.visible = on; if (!on) return;
-    if (now - this.flip > 6000) { this.flip = now; this.idx++; this.panel.redraw(); }
+    if (now - this.flip > 6000) { this.flip = now; this.idx++; }
+    if (now - (this.drawn || 0) > 90) { this.drawn = now; this.panel.redraw(); }   // the score breathes
     this.mesh.position.set(0, 0.36, -1.15).applyQuaternion(Q);
     this.mesh.quaternion.copy(Q);
   }
 }
 
-// Team logos (365Scores images allow use in other sites); loaded once, panels redraw when they arrive.
-const LOGOS = new Map();
-let logoSports = null;
-function logo(url) {
-  if (!url) return null;
-  let e = LOGOS.get(url);
-  if (!e) {
-    const img = new Image(); img.crossOrigin = 'anonymous'; img.decoding = 'async';
-    e = { img, ok: false }; LOGOS.set(url, e);
-    img.onload = () => { e.ok = true; if (logoSports) { logoSports.version++; logoSports.island?.redraw(); } };
-    img.src = url;
+// The goal celebration, exactly like the APK: the pill grows into a card, colour wipe, GOAAAL!, then the score
+// bar with the scoring digit popping green. Shown at the top of your view.
+class GoalCard {
+  constructor(app) {
+    this.app = app;
+    this.panel = new CanvasPanel(0.8, 0.34, (ctx, W, H) => { if (this.g) drawGoal(ctx, W, H, this.g, performance.now() - this.t0); }, { pxPerM: 1300 });
+    this.panel.mesh.userData.interact = null; this.panel.mesh.material.depthTest = false; this.panel.mesh.renderOrder = 999;
+    this.mesh = this.panel.mesh; this.mesh.visible = false; this.active = false;
   }
-  return e.ok ? e.img : null;
+  show(g) { this.g = g; this.t0 = performance.now(); this.active = true; }
+  update(now, Q) {
+    if (!this.active) { this.mesh.visible = false; return; }
+    if (now - this.t0 > goalDuration(this.g)) { this.active = false; this.mesh.visible = false; return; }
+    this.mesh.visible = true; this.panel.redraw();
+    this.mesh.position.set(0, 0.24, -1.2).applyQuaternion(Q);
+    this.mesh.quaternion.copy(Q);
+  }
 }
-function drawLogo(ctx, url, x, y, size) {
-  const img = logo(url); if (!img) return;
-  ctx.save(); ctx.beginPath(); ctx.arc(x, y, size / 2 + 4, 0, 7); ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
-  ctx.drawImage(img, x - size * 0.4, y - size * 0.4, size * 0.8, size * 0.8); ctx.restore();
+
+// A light clock floating at the top of your view.
+class Clock {
+  constructor(app) {
+    this.app = app;
+    this.panel = new CanvasPanel(0.14, 0.045, (ctx, W, H) => drawClock(ctx, W, H), { pxPerM: 1500 });
+    this.panel.mesh.userData.interact = null; this.panel.mesh.material.depthTest = false; this.panel.mesh.renderOrder = 997;
+    this.panel.mesh.material.opacity = 0.75;
+    this.mesh = this.panel.mesh; this.mesh.visible = false; this.min = -1;
+  }
+  update(now, Q) {
+    const on = settings.clock !== false && this.app.active;
+    this.mesh.visible = on; if (!on) return;
+    const m = new Date().getMinutes(); if (m !== this.min) { this.min = m; this.panel.redraw(); }
+    this.mesh.position.set(0, 0.45, -1.2).applyQuaternion(Q);
+    this.mesh.quaternion.copy(Q);
+  }
 }
 
 // Draws the matches list onto a panel window's canvas.
 export function drawMatches(ctx, W, H, sports) {
-  logoSports = sports;
   const d = sports?.data;
-  text(ctx, 'المباريات', W - 70, 92, 72, { align: 'right', weight: 800 });
-  const teams = sports?.teams() || [];
-  text(ctx, teams.length ? 'فرقي: ' + teams.map(t => t.name).slice(0, 6).join('، ') : 'أضف فرقك من الشاشة الرئيسية أو افتح cplay3 مرة لمزامنتها', W - 70, 160, 34, { align: 'right', color: '#d5ddef', weight: 600, maxWidth: W - 140 });
-  if (!d) { text(ctx, sports?.error || 'جاري التحميل…', W / 2, H / 2, 48, { weight: 700 }); return; }
-  const list = [...d.matches].sort((a, b) => (sports.mine(b) - sports.mine(a)) || ((b.status === 'live') - (a.status === 'live')) || a.timestamp - b.timestamp).slice(0, 8);
-  if (!list.length) { text(ctx, 'لا مباريات مهمة اليوم', W / 2, H / 2, 48, { weight: 700 }); return; }
-  const top = 210, rh = (H - top - 30) / Math.max(6, list.length);
-  list.forEach((m, i) => {
-    const y = top + i * rh, mine = sports.mine(m), live = m.status === 'live';
-    roundRect(ctx, 50, y + 6, W - 100, rh - 12, 26);
-    ctx.fillStyle = live ? 'rgba(255,77,94,0.16)' : mine ? 'rgba(124,196,255,0.12)' : 'rgba(255,255,255,0.04)'; ctx.fill();
-    const cy = y + rh / 2;
-    // Home team sits on the right, so its goals are written on the right too.
-    const mid = live || m.status === 'finished' ? (m.score.away ?? 0) + ' - ' + (m.score.home ?? 0) : m.omanTime;
-    drawLogo(ctx, m.home.logo, W * 0.86, cy - 8, rh * 0.5);
-    drawLogo(ctx, m.away.logo, W * 0.08 + 20, cy - 8, rh * 0.5);
-    text(ctx, m.home.name, W * 0.66, cy - 8, rh * 0.3, { weight: 800, maxWidth: W * 0.27, dir: 'auto' });
-    text(ctx, mid, W * 0.47, cy - 8, rh * 0.36, { weight: 900, dir: 'ltr', color: live ? '#ff8a96' : '#ffffff' });
-    text(ctx, m.away.name, W * 0.28, cy - 8, rh * 0.3, { weight: 800, maxWidth: W * 0.27, dir: 'auto' });
-    text(ctx, (mine ? '★ ' : '') + (m.league?.name || '') + (live ? ' · ' + (m.statusText || '') : m.status === 'finished' ? ' · انتهت' : ''), W / 2, cy + rh * 0.28, rh * 0.2, { color: COLORS.dim, maxWidth: W - 160, dir: 'auto' });
-  });
+  if (!d) { ctx.clearRect(0, 0, W, H); drawWidget(ctx, W, H, [], { empty: sports?.error || 'جاري التحميل…' }); return; }
+  const mine = sports.teams().length > 0;
+  const list = [...d.matches].sort((a, b) => (sports.mine(b) - sports.mine(a)) || ((b.status === 'live') - (a.status === 'live')) || a.timestamp - b.timestamp);
+  ctx.clearRect(0, 0, W, H);
+  drawWidget(ctx, W, H, list, { heading: mine ? 'مباريات فرقي ⚽' : 'المباريات ⚽', favOf: m => sports.mine(m) });
 }
