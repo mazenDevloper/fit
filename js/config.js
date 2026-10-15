@@ -18,6 +18,7 @@ export const DEFAULTS = {
   k1: 0.17, k2: 0.06,   // radial distortion
   ipd: 68,              // mm, eye separation used for virtual content
   restoreLayout: false,
+  webOneSource: true,    // web pages in the headset: one copy drawn for both eyes (identical eyes, cooler iPhone)
   builtinBrowser: true,  // in the headset, open sites in a paired tablet's built-in browser (click anywhere, curve, 360)
   myTeams: [],           // favourite teams (synced from cplay3): [{name, country}]
   island: true,          // live match island at the top of the view

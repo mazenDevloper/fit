@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, canvasTexture, blip } from './ui.js';
 import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
-import { getItem } from './db.js';
+import { getItem, importFiles } from './db.js';
 import { settings, saveSettings, loadLinks, saveLinks } from './config.js';
 import { CSS_K, EYE } from './render.js';
 import { drawMatches } from './sports.js';
@@ -155,6 +155,7 @@ function homography(w, h, [p0, p1, p2, p3]) {
   return 'matrix3d(' + A.map(v => +v.toFixed(8)).join(',') + ')';
 }
 
+let glowTex = null, glowCv = null, glowCtx = null;
 class SpatialWindow {
   constructor(mgr, kind) {
     this.mgr = mgr; this.kind = kind; this.id = ++winId;
@@ -201,20 +202,23 @@ class SpatialWindow {
     this.mat.uniforms.uSize.value.set(w, h);
     this.frame.geometry.dispose();
     this.frame.geometry = roundedRectGeometry(w + 0.09, h + 0.09, 0.06);
-    this.frame.visible = !this.curved;
+    this.frame.visible = !this.curved && (this.proj || 'flat') === 'flat';
     const y = -h / 2 - 0.042;
     this.bar.position.set(0, y, 0.002);
     this.closeBtn.mesh.position.set(-0.155, y, 0.004);
     this.pinBtn.mesh.position.set(0.155, y, 0.004);
     this.resizer.position.set(0.5 + 0.035, -h / 2 - 0.035, 0.006);
     if (this.toolbar) this.toolbar.mesh.position.set(0, y - 0.075, 0.004);
+    if (this.more) this.more.mesh.position.set(0, y - 0.075 - 0.06 - this.more.heightM / 2 - (this.opts?.mesh.parent ? 0.13 : 0), 0.004);
+    if (this.glow) this.glow.scale.set(w * 1.7, h * 2.1, 1);
   }
   setAspect(a) { if (a && isFinite(a) && Math.abs(a - this.aspect) > 0.001) { this.aspect = a; this.layout(); } }
   // Immersive 180°/360° video: a sphere around you, the window stays as the remote control.
   setProjection(p) {
     this.proj = p;
     if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; }
-    if (p === 'flat') { this.content.visible = true; return; }
+    if (this.frame) this.frame.visible = p === 'flat';
+    if (p === 'flat') { this.content.visible = true; this.mgr.refreshTargets?.(); return; }
     const g = p === '180' ? new THREE.SphereGeometry(12, 64, 48, Math.PI, Math.PI) : new THREE.SphereGeometry(12, 96, 48);
     g.scale(-1, 1, 1);
     const m = contentMaterial(), u = this.mat.uniforms;
@@ -226,6 +230,9 @@ class SpatialWindow {
     sp.rotation.y = this.mgr.forwardYaw() + (p === '360' ? -Math.PI / 2 : 0);
     this.mgr.root.add(sp); this.sphere = sp;
     this.content.visible = false;
+    // Point and click on the picture all around you (shared screens, web pages).
+    if (this.content.userData.interact.toPx) sp.userData.interact = this.content.userData.interact;
+    this.mgr.refreshTargets?.();
     this.mgr.app.toast((this.kind === 'image' ? 'صورة' : this.kind === 'web' ? 'الصفحة' : 'فيديو') + (p === '180' ? ' 180°' : ' 360°') + ' حولك · النافذة للتحكم', 2500);
   }
   disposeSphere() { if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; } }
@@ -248,6 +255,127 @@ class SpatialWindow {
   }
   onDragEnd() { if (this.curved) { this.updateRadius(); this.layout(); } }
   onContentClick() { return false; }
+  // ---------- «المزيد» (⋯): extra options under every window ----------
+  moreItems() {
+    const app = this.mgr.app, M = this.mgr;
+    const dist = () => this.group.getWorldPosition(new THREE.Vector3()).length();
+    return [
+      ['السينما', M.cinema === this ? 'مفعّلة' : 'إيقاف', () => {
+        M.cinema = M.cinema === this ? null : this;
+        app.toast(M.cinema ? 'وضع السينما: الظلام حولك وهذه النافذة وحدها' : 'وضع السينما متوقف', 2200);
+      }],
+      ['إضاءة محيطة', this.glow ? 'مفعّلة' : 'إيقاف', () => this.setGlow(!this.glow)],
+      ['المسافة', dist() < 1.5 ? 'قريبة' : dist() < 2.8 ? 'متوسطة' : 'بعيدة', () => {
+        const d = dist(), n = d < 1.5 ? 2.2 : d < 2.8 ? 3.6 : 1.2;
+        const k = n / Math.max(0.5, d);
+        this.group.position.multiplyScalar(k);   // same direction, new distance
+        this.group.scale.multiplyScalar(k);      // looks the same size: only depth changes
+        this.updateRadius?.(); this.layout(); M.changed();
+      }],
+      ['مسرح ضخم', this.theater ? 'مفعّل' : 'إيقاف', () => this.setTheater(!this.theater)],
+      ['فوق رأسك', this.overhead ? 'مفعّل' : 'إيقاف', () => this.setOverhead(!this.overhead)],
+      ['أمام عينيك', this.headLock ? 'يتبعك' : 'ثابتة', () => { this.headLock = !this.headLock; if (this.headLock) this.pin = null; }],
+      ['لقطة', 'حفظ', () => this.snapshot()],
+    ];
+  }
+  toggleMore() {
+    if (!this.more) {
+      this.more = new CanvasPanel(1.0, 0.2, (ctx, W, H, p) => {
+        glass(ctx, 2, 2, W - 4, H - 4, 36);
+        const items = this.moreItems(), cols = Math.ceil(items.length / 2), cw = (W - 20) / cols, rh = (H - 12) / 2;
+        items.forEach(([l, val, act], i) => {
+          const r = Math.floor(i / cols), c = i % cols;
+          const x = W - 10 - (c + 1) * cw, y = 6 + r * rh, id = 'm' + i, hov = p.isHover(id);
+          const on = /مفعّل|يتبعك/.test(val);
+          if (hov || on) { roundRect(ctx, x + 5, y + 5, cw - 10, rh - 10, 22); ctx.fillStyle = hov ? 'rgba(255,255,255,0.22)' : 'rgba(124,196,255,0.22)'; ctx.fill(); }
+          text(ctx, l, x + cw / 2, y + rh * 0.36, rh * 0.22, { color: COLORS.dim, weight: 600, maxWidth: cw - 14 });
+          text(ctx, val, x + cw / 2, y + rh * 0.7, rh * 0.26, { weight: 800, dir: 'auto', maxWidth: cw - 14 });
+          p.region(x, y, cw, rh, () => { blip('tap', settings.sounds); act(); this.more.redraw(); this.toolbar?.redraw(); }, id);
+        });
+      }, { pxPerM: 1400 });
+    }
+    const m = this.more.mesh;
+    if (m.parent) this.group.remove(m); else this.group.add(m);
+    this.layout(); this.more.redraw(); this.mgr.refreshTargets();
+  }
+  // Ambient light: the window's colours glow softly around it (like Ambilight TVs).
+  setGlow(on) {
+    if (!on) { if (this.glow) { this.group.remove(this.glow); this.glow.material.dispose(); this.glow = null; } return; }
+    if (!glowTex) {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      const gr = g.createRadialGradient(64, 64, 10, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128); glowTex = new THREE.CanvasTexture(c);
+    }
+    this.glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x6688cc, opacity: 0.75 }));
+    this.glow.position.z = -0.03; this.glow.renderOrder = -2;
+    this.group.add(this.glow); this.layout();
+    this.glowAt = 0;
+  }
+  // The picture this window shows right now (video, page picture, photo).
+  pictureSource() {
+    const m = this.mat.uniforms.map.value;
+    const src = m && m.image;
+    if (!src) return null;
+    if (src.tagName === 'VIDEO' && src.readyState < 2) return null;
+    return src;
+  }
+  updateGlow(now) {
+    if (!this.glow || now - (this.glowAt || 0) < 180) return;
+    this.glowAt = now;
+    const src = this.pictureSource(); if (!src) return;
+    if (!glowCv) { glowCv = document.createElement('canvas'); glowCv.width = glowCv.height = 4; glowCtx = glowCv.getContext('2d', { willReadFrequently: true }); }
+    try {
+      glowCtx.drawImage(src, 0, 0, 4, 4);
+      const d = glowCtx.getImageData(0, 0, 4, 4).data; let r = 0, g = 0, b = 0;
+      for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+      const n = d.length / 4, col = new THREE.Color(r / n / 255, g / n / 255, b / n / 255);
+      // Richer, never grey: push saturation a little.
+      const hsl = {}; col.getHSL(hsl); col.setHSL(hsl.h, Math.min(1, hsl.s * 1.4 + 0.1), Math.max(0.25, Math.min(0.6, hsl.l)));
+      this.glow.material.color.lerp(col, 0.35);
+    } catch { /* picture from another site can't be read */ }
+  }
+  // A giant screen far away, like sitting in a cinema hall.
+  setTheater(on) {
+    const g = this.group;
+    if (on) {
+      this.theater = { p: g.position.clone(), q: g.quaternion.clone(), s: g.scale.x };
+      this.mgr.place(g, 5, 0.4, false);
+      g.scale.setScalar(Math.max(4.5, g.scale.x * 4));
+      this.mgr.app.toast('مسرح ضخم: شاشة عرضها نحو ٥ أمتار على بعد ٥ أمتار', 2500);
+    } else if (this.theater) {
+      g.position.copy(this.theater.p); g.quaternion.copy(this.theater.q); g.scale.setScalar(this.theater.s); this.theater = null;
+    }
+    this.headLock = false; this.updateRadius?.(); this.layout(); this.mgr.changed();
+  }
+  // Watching lying down: the window above you, facing down.
+  setOverhead(on) {
+    const g = this.group, M = this.mgr;
+    if (on) {
+      this.overhead = { p: g.position.clone(), q: g.quaternion.clone() };
+      M.root.updateMatrixWorld();
+      const f = M.app.headForward.clone(); f.y = 0; if (f.lengthSq() < 1e-4) f.set(0, 0, -1); f.normalize();
+      const world = new THREE.Vector3(0, 1.9, 0).addScaledVector(f, 0.35);
+      g.position.copy(M.root.worldToLocal(world.clone()));
+      g.lookAt(new THREE.Vector3(0, 0, 0));
+      this.mgr.app.toast('النافذة فوق رأسك — استلقِ وانظر للأعلى', 2500);
+    } else if (this.overhead) { g.position.copy(this.overhead.p); g.quaternion.copy(this.overhead.q); this.overhead = null; }
+    this.headLock = false; this.updateRadius?.(); this.layout(); M.changed();
+  }
+  // Save what the window shows as a photo in the library.
+  async snapshot() {
+    const src = this.pictureSource();
+    if (!src) { this.mgr.app.toast('لا توجد صورة لحفظها بعد'); return; }
+    try {
+      const w = src.videoWidth || src.naturalWidth || src.width, h = src.videoHeight || src.naturalHeight || src.height;
+      const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(src, 0, 0, w, h);
+      const blob = await new Promise((res, rej) => { try { c.toBlob(b => b ? res(b) : rej(new Error('')), 'image/jpeg', 0.92); } catch (e) { rej(e); } });
+      const d = new Date(), name = 'لقطة ' + d.toLocaleDateString('ar') + ' ' + d.toTimeString().slice(0, 5).replace(':', '-') + '.jpg';
+      await importFiles([new File([blob], name, { type: 'image/jpeg' })]);
+      blip('tap', settings.sounds);
+      this.mgr.app.toast('📸 حُفظت اللقطة في المكتبة', 2200);
+      this.mgr.app.renderLibrary?.(); this.mgr.app.launcher?.refresh?.();
+    } catch { this.mgr.app.toast('هذا المحتوى لا يسمح بالتقاط صورة منه', 3000); }
+  }
   update() {}
   ref() { return null; }
   serialize() {
@@ -255,6 +383,8 @@ class SpatialWindow {
     return { kind: this.kind, ref: this.ref(), p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), c: this.curved };
   }
   dispose() {
+    if (this.mgr.cinema === this) this.mgr.cinema = null;
+    this.more?.dispose(); this.setGlow(false);
     this.content.geometry.dispose(); this.mat.dispose(); this.frame.geometry.dispose(); this.frame.material.dispose();
     this.bar.material.map?.dispose(); this.closeBtn.dispose(); this.pinBtn?.dispose(); this.toolbar?.dispose();
   }
@@ -351,6 +481,7 @@ export class VideoWindow extends SpatialWindow {
         { icon: 'sliders', action: () => this.togglePicture() },
         { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
         { icon: 'plus', action: () => this.scaleBy(1.15) },
+        { icon: 'dots', active: () => !!this.more?.mesh.parent, action: () => this.toggleMore() },
       ]).install();
       Object.assign(this.content.userData.interact, {
         scroll: () => this.control,
@@ -368,9 +499,11 @@ export class VideoWindow extends SpatialWindow {
         { icon: 'sliders', action: () => this.togglePicture() },
         { icon: () => this.headLock ? 'target' : 'grid', action: () => { this.headLock = !this.headLock; this.mgr.app.toast(this.headLock ? 'الشاشة مثبتة أمام عينيك وتتبع رأسك' : 'الشاشة ثابتة في مكانها بالغرفة'); } },
         { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
-        { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
+        { icon: () => this.proj === '360' ? 'image' : 'globe', active: () => this.proj === '360', action: () => this.setProjection(this.proj === '360' ? 'flat' : '360') },
+        { icon: () => this.curved ? 'flat' : 'curve', active: () => this.curved, action: () => this.setCurved(!this.curved) },
         { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
         { icon: 'plus', action: () => this.scaleBy(1.15) },
+        { icon: 'dots', active: () => !!this.more?.mesh.parent, action: () => this.toggleMore() },
       ]).install();
       Object.assign(this.content.userData.interact, {
         scroll: () => this.control,
@@ -385,10 +518,12 @@ export class VideoWindow extends SpatialWindow {
       { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
       { icon: 'cast', action: () => this.cast() },
       { icon: 'sliders', action: () => { this.toggleOptions(); this.togglePicture(); } },
-      { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
+      { icon: () => this.proj === '360' ? 'image' : 'globe', active: () => this.proj === '360', action: () => { this.setProjection(this.proj === '360' ? 'flat' : '360'); this.mgr.changed(); } },
+      { icon: () => this.curved ? 'flat' : 'curve', active: () => this.curved, action: () => this.setCurved(!this.curved) },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
-    ], { width: 1.1, progress: { get: () => [this.video.currentTime || 0, this.video.duration || 0], seek: f => { if (this.video.duration) this.video.currentTime = f * this.video.duration; } } }).install();
+      { icon: 'dots', active: () => !!this.more?.mesh.parent, action: () => this.toggleMore() },
+    ], { width: 1.28, progress: { get: () => [this.video.currentTime || 0, this.video.duration || 0], seek: f => { if (this.video.duration) this.video.currentTime = f * this.video.duration; } } }).install();
     this.group.add(this.toolbar.mesh);
     this.layout();
     this.lastBar = 0;
@@ -475,6 +610,44 @@ export class VideoWindow extends SpatialWindow {
     if (this.video.videoWidth) this.setAspect(this.dispAspect());
     this.setProjection(this.proj);
     this.opts?.redraw();
+  }
+  moreItems() {
+    const v = this.video, base = super.moreItems();
+    if (this.remote) {
+      const Q = QUALITY.map(x => x[0]);
+      return [...base,
+        ['جودة البث', (QUALITY.find(x => x[0] === picture().quality) || QUALITY[1])[1], () => { const n = Q[(Q.indexOf(picture().quality) + 1) % Q.length]; saveSettings({ picture: Object.assign(picture(), { quality: n }) }); this.pic?.panel.redraw(); this.sendQuality(n); }],
+        ['الصوت', v.muted ? 'مكتوم' : 'يعمل', () => { v.muted = !v.muted; }],
+        ['صورة', 'ضبط', () => this.togglePicture()],
+      ];
+    }
+    return [...base,
+      ['السرعة', (v.playbackRate || 1) + '×', () => { const o = [1, 1.25, 1.5, 2, 0.5, 0.75]; v.playbackRate = o[(o.indexOf(v.playbackRate) + 1) % o.length]; }],
+      ['مؤقت النوم', this.sleepAt ? Math.max(1, Math.round((this.sleepAt - Date.now()) / 60000)) + ' د' : 'إيقاف', () => this.cycleSleep()],
+      ['التكرار', v.loop ? 'مفعّل' : 'إيقاف', () => { v.loop = !v.loop; }],
+      ['تكبير الصوت', this.boost ? 'مفعّل' : 'إيقاف', () => this.setBoost(!this.boost)],
+    ];
+  }
+  // Stop playing after a while (falling asleep in the headset).
+  cycleSleep() {
+    const o = [0, 15, 30, 60, 90], cur = this.sleepMin || 0, n = o[(o.indexOf(cur) + 1) % o.length];
+    this.sleepMin = n; clearTimeout(this.sleepTimer);
+    this.sleepAt = n ? Date.now() + n * 60000 : 0;
+    if (n) this.sleepTimer = setTimeout(() => { if (this.disposed) return; this.userPaused = true; this.video.pause(); this.mgr.app.toast('مؤقت النوم: توقف الفيديو', 3000); this.sleepAt = 0; this.sleepMin = 0; this.more?.redraw(); }, n * 60000);
+    this.mgr.app.toast(n ? 'سيتوقف الفيديو بعد ' + n + ' دقيقة' : 'مؤقت النوم متوقف', 2000);
+  }
+  // Louder than the device allows for quiet videos (WebAudio gain).
+  setBoost(on) {
+    try {
+      if (!this.boostNode) {
+        const ctx = this.mgr.app.audioCtx || (this.mgr.app.audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+        const srcN = ctx.createMediaElementSource(this.video), g = ctx.createGain();
+        const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 4;
+        srcN.connect(g).connect(comp).connect(ctx.destination); this.boostNode = g; ctx.resume?.();
+      }
+      this.boost = on; this.boostNode.gain.value = on ? 2.4 : 1;
+      this.mgr.app.toast(on ? 'تكبير الصوت مفعّل' : 'الصوت عادي', 1800);
+    } catch { this.mgr.app.toast('تكبير الصوت غير متاح لهذا الفيديو', 2500); }
   }
   toggleOptions() {
     if (!this.opts) {
@@ -652,6 +825,7 @@ export class ImageWindow extends SpatialWindow {
       { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
+      { icon: 'dots', active: () => !!this.more?.mesh.parent, action: () => this.toggleMore() },
     ]).install();
     this.group.add(this.toolbar.mesh);
     this.layout();
@@ -822,12 +996,13 @@ export class WebWindow extends SpatialWindow {
       { icon: () => this.ytState.playing ? 'pause' : 'play', action: () => this.ytToggle() },
       { icon: () => this.ytState.muted ? 'mute' : 'sound', action: () => this.ytMute(!this.ytState.muted) },
     );
+    if (!this.yt) items.push({ icon: () => this.snap ? 'video' : 'stack', active: () => !this.snap, action: () => this.toggleLive() });
     items.push(
       { icon: () => this.proj === '360' ? 'image' : 'globe', active: () => this.proj === '360', action: () => this.view360(this.proj !== '360') },
       { icon: () => this.curved ? 'flat' : 'curve', active: () => this.curved, action: () => this.viewCurved(!this.curved) },
     );
     items.push({ icon: 'grid', action: () => this.cycleShape() });
-    items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) });
+    items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) }, { icon: 'dots', active: () => !!this.more?.mesh.parent, action: () => this.toggleMore() });
     this.toolbar = new Toolbar(items).install();
     this.group.add(this.toolbar.mesh);
     if (this.cplay) this.makeTabs(); else this.makeAddress();
@@ -836,6 +1011,10 @@ export class WebWindow extends SpatialWindow {
     this.layout();
     this.css = [0, 1].map(i => this.makeCss(i));
     mgr.app.renderer.cssCount++;
+    // One source for both eyes: the page runs once and the same picture of it goes to each eye,
+    // so the eyes never load or draw differently.
+    this.oneSource = !this.yt && settings.viewMode === 'sbs' && settings.webOneSource !== false;
+    if (this.oneSource) this.ensureSnap(true);
     this.loadEyes();
     this.onMsg = e => this.handleMessage(e);
     window.addEventListener('message', this.onMsg);
@@ -888,7 +1067,7 @@ export class WebWindow extends SpatialWindow {
   // the page keeps running hidden and its picture is redrawn several times a second onto a curved
   // screen or onto the whole sphere around you; pointing, clicking and scrolling still reach the page.
   canSnap() { return this.cplay || this.proxied; }
-  ensureSnap() {
+  ensureSnap(quiet) {
     if (this.snap) return true;
     if (this.yt) { this.mgr.app.toast('فيديو يوتيوب: استخدم نافذة الفيديو للتقويس و360°', 3500); return false; }
     if (!this.canSnap()) {
@@ -902,18 +1081,43 @@ export class WebWindow extends SpatialWindow {
     this.mat.uniforms.uHole.value = 0;
     if (this.snapGot) this.mat.uniforms.map.value = this.snapCv.texture;
     // Only one copy of the page is needed while it is drawn as a picture.
-    const c1 = this.css[1]; clearTimeout(this.eyeTimer); c1.pending = true; c1.f.src = 'about:blank';
+    const c1 = this.css[1]; c1.pending = true;
+    if (c1.f.getAttribute('src') && c1.f.getAttribute('src') !== 'about:blank') c1.f.src = 'about:blank';
     this.requestSnap(0);
     return true;
   }
   stopSnap() {
-    if (!this.snap || this.curved || this.proj === '360') return;
+    if (!this.snap || this.curved || this.proj === '360' || this.oneSource) return;
     this.snap = false; this.canCurve = false;
     clearTimeout(this.snapTimer);
     this.mat.uniforms.uHole.value = 1;
     this.mat.uniforms.map.value = this.cv.texture;
     this.css.forEach(c => { c.key = ''; c.el.style.opacity = ''; c.el.style.transformOrigin = ''; });
     this.loadEye1();
+  }
+  moreItems() {
+    const base = super.moreItems();
+    const z = this.zoom || 1;
+    return [...base,
+      ['حجم النص', Math.round(z * 100) + '%', () => { const o = [1, 1.15, 1.3, 1.5, 0.85]; this.zoom = o[(o.indexOf(z) + 1) % o.length]; this.send({ type: 'zoom', value: this.zoom }); }],
+      ['الوضع الليلي', this.night ? 'مفعّل' : 'إيقاف', () => { this.night = !this.night; this.send({ type: 'night', on: this.night }); }],
+      ['قراءة تلقائية', this.autoScroll ? 'مفعّلة' : 'إيقاف', () => { this.autoScroll = !this.autoScroll; this.mgr.app.toast(this.autoScroll ? 'الصفحة تتمرّر ببطء — اضغط مجدداً للإيقاف' : 'توقف التمرير', 2200); }],
+      ['المصدر', this.snap ? 'واحد للعينين' : 'مباشر', () => this.toggleLive()],
+    ];
+  }
+  // 🎬 Live: both eyes show the real page (moving video inside sites); otherwise one picture for both eyes.
+  toggleLive() {
+    if (this.snap) {
+      this.oneSource = false;
+      if (this.curved) this.setCurved(false);
+      if (this.proj === '360') this.view360(false);
+      this.stopSnap();
+      this.mgr.app.toast('عرض مباشر: الصفحة تتحرك كما هي (للفيديو داخل المواقع)', 3000);
+    } else {
+      this.oneSource = true; this.ensureSnap();
+      this.mgr.app.toast('مصدر واحد: نفس الصورة للعينين', 2500);
+    }
+    this.toolbar.redraw();
   }
   viewCurved(on) {
     if (on && !this.ensureSnap()) return;
@@ -948,12 +1152,14 @@ export class WebWindow extends SpatialWindow {
   async onSnap(d) {
     this.snapBusy = false;
     if (!this.snap) return;
+    if (d.media && !this.mediaHint && !this.curved && this.proj !== '360') { this.mediaHint = true; this.mgr.app.toast('في الصفحة فيديو يعمل: اضغط 🎬 في الشريط لعرضه مباشرة', 4500); }
     if (d.blob) {
       try {
         const bmp = await createImageBitmap(d.blob);
         const { canvas, ctx, texture } = this.snapCv;
         if (canvas.width !== bmp.width || canvas.height !== bmp.height) { canvas.width = bmp.width; canvas.height = bmp.height; texture.dispose(); }
-        ctx.drawImage(bmp, 0, 0); bmp.close?.();
+        ctx.filter = this.night ? 'invert(0.92) hue-rotate(180deg)' : 'none';
+        ctx.drawImage(bmp, 0, 0); bmp.close?.(); ctx.filter = 'none';
         texture.needsUpdate = true;
         if (!this.snapGot) this.mgr.app.log('الصفحة كصورة: ' + canvas.width + '×' + canvas.height);
         this.snapGot++;
@@ -963,7 +1169,7 @@ export class WebWindow extends SpatialWindow {
     } else if (d.error && !this.snapErr) { this.snapErr = true; this.mgr.app.log('رسم الصفحة: ' + d.error); }
     // Quick refresh right after you click or scroll, calmer when the page is idle.
     const busy = performance.now() - (this.lastInput || 0) < 2500;
-    this.requestSnap(busy ? 120 : 700);
+    this.requestSnap(busy ? 60 : 450);
   }
   poke() { this.lastInput = performance.now(); if (this.snap && !this.snapBusy) this.requestSnap(90); }
 
@@ -1075,7 +1281,7 @@ export class WebWindow extends SpatialWindow {
   placeCss() {
     const r = this.mgr.app.renderer, m = this.content.matrixWorld, h = this.h, k = WEB_INFLATE;
     const head = this.mgr.app.headForward, toWin = this.group.getWorldPosition(new THREE.Vector3()).normalize();
-    const vis = head.dot(toWin) > 0.2;
+    const vis = head.dot(toWin) > 0.2 && this.group.visible;
     const corners = vis ? [[-0.5, h / 2], [0.5, h / 2], [-0.5, -h / 2], [0.5, -h / 2]].map(([x, y]) => new THREE.Vector3(x * k, y * k, 0).applyMatrix4(m)) : null;
     if (this.snap) {
       // Drawn as a picture: the page stays on screen (browsers pause pages moved out of view) but
@@ -1149,6 +1355,7 @@ export class WebWindow extends SpatialWindow {
   update(dt, now) {
     if (this.sphere) this.sphere.position.copy(this.mgr.headLocal());
     this.content.updateMatrixWorld();
+    if (this.autoScroll && this.bridge && now - (this.autoAt || 0) > 120) { this.autoAt = now; this.send({ type: 'scroll', dx: 0, dy: 6, x: 512, y: this.pageH / 2 }); }
     // Momentum after a flick, like iOS scrolling.
     if (Math.abs(this.vel) > 20) {
       const at = this.lastAt || [512, 320];
@@ -1410,8 +1617,12 @@ export class WindowManager {
     this.refreshTargets();
   }
   update(dt, now) {
+    if (this.cinema && !this.windows.includes(this.cinema)) this.cinema = null;
     for (const w of this.windows) {
+      // Cinema: only the chosen window stays visible.
+      w.group.visible = !this.cinema || w === this.cinema;
       w.update(dt, now);
+      if (w.glow) w.updateGlow(now);
       // Pinned to the view: the window glides to stay straight ahead at the same distance.
       if (w.headLock && w.kind !== 'model') {
         // Keep the distance and height it had when pinned (measured once), so it never drifts away.
