@@ -179,7 +179,8 @@ class App {
   async connectMirror(code, attempt = 0) {
     saveSettings({ mirrorCode: code });
     if (!this.active) return;
-    if (settings.viewMode === 'desktop' || this.host?.stream) { this.showLocalScreen(); return; }
+    // Your own code on this computer = show this computer's screen; any other code = that device's screen.
+    if (this.host?.stream && this.host.code === code) { this.showLocalScreen(); return; }
     const again = !!this.mirrorWin;          // reconnecting: keep the window and its last picture
     if (!again) this.toast('جاري الاتصال باللابتوب ' + code + '…', 4000);
     this.log('شاشة اللابتوب: اتصال ' + code + (again ? ' (إعادة)' : ''));
@@ -450,7 +451,7 @@ class App {
     this.controls.sync(); this.controls.reset();
     if (settings.viewMode === 'desktop' && settings.eyeTrack) setTimeout(() => this.gaze.start(), 1200);
     if (this.host?.stream) setTimeout(() => this.showLocalScreen(), 1500);   // already sharing on this computer: show it here too
-    else if (settings.mirrorCode && settings.viewMode !== 'desktop') setTimeout(() => this.connectMirror(settings.mirrorCode), 2000);
+    else if (settings.mirrorCode) setTimeout(() => this.connectMirror(settings.mirrorCode), 2000);
     if (settings.viewMode === 'desktop') { setTimeout(() => this.toast('WASD للتحرك · الأسهم أو السحب للنظر · M القائمة · F ملء الشاشة', 6000), 2500); }
     if (settings.walk) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();

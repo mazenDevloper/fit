@@ -4,7 +4,7 @@ import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, canvasTexture, blip } from './ui.js';
 import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem } from './db.js';
-import { settings, loadLinks, saveLinks } from './config.js';
+import { settings, saveSettings, loadLinks, saveLinks } from './config.js';
 import { CSS_K, EYE } from './render.js';
 
 const BROWSE_ORIGIN = 'https://cplay3.netlify.app';
@@ -163,6 +163,11 @@ class SpatialWindow {
     this.group.add(bar);
     this.closeBtn = new IconButton('close', 0.05, () => this.mgr.close(this));
     this.group.add(this.closeBtn.mesh);
+    this.pinBtn = new IconButton('target', 0.05, () => {
+      this.headLock = !this.headLock;
+      this.mgr.app.toast(this.headLock ? 'النافذة مثبتة في مجال رؤيتك وتتبع رأسك' : 'النافذة ثابتة في مكانها بالغرفة', 2200);
+    });
+    this.group.add(this.pinBtn.mesh);
     // Corner handle: pinch it and pull outward/inward to resize (separate from scrolling and moving).
     const rm = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.38, depthWrite: false });
     this.resizer = new THREE.Mesh(new THREE.CircleGeometry(0.036, 24), rm);
@@ -184,6 +189,7 @@ class SpatialWindow {
     const y = -h / 2 - 0.042;
     this.bar.position.set(0, y, 0.002);
     this.closeBtn.mesh.position.set(-0.155, y, 0.004);
+    this.pinBtn.mesh.position.set(0.155, y, 0.004);
     this.resizer.position.set(0.5 + 0.03, -h / 2 - 0.03, 0.006);
     if (this.toolbar) this.toolbar.mesh.position.set(0, y - 0.075, 0.004);
   }
@@ -215,7 +221,7 @@ class SpatialWindow {
   }
   dispose() {
     this.content.geometry.dispose(); this.mat.dispose(); this.frame.geometry.dispose(); this.frame.material.dispose();
-    this.bar.material.map?.dispose(); this.closeBtn.dispose(); this.toolbar?.dispose();
+    this.bar.material.map?.dispose(); this.closeBtn.dispose(); this.pinBtn?.dispose(); this.toolbar?.dispose();
   }
 }
 
@@ -458,13 +464,7 @@ export class VideoWindow extends SpatialWindow {
     }
     if (now - this.lastBar > 250) { this.lastBar = now; this.toolbar.redraw(); }
     if (this.remote) this.trackPointer(now);
-    // Locked to the view: glide to stay straight ahead at the same distance.
-    if (this.headLock) {
-      const g = this.group, h = this.mgr.headLocal(), d = Math.max(0.8, g.position.distanceTo(h));
-      const t = new THREE.Object3D(); this.mgr.root.add(t); this.mgr.place(t, d, 0, false);
-      g.position.lerp(t.position, Math.min(1, dt * 6)); g.quaternion.slerp(t.quaternion, Math.min(1, dt * 6));
-      this.mgr.root.remove(t);
-    }
+
     // Watchdog: a paused or stuck live screen is restarted.
     if (now - (this.lastCheck || 0) > 1000) {
       this.lastCheck = now;
@@ -643,7 +643,12 @@ export class WebWindow extends SpatialWindow {
     this.base = (() => { try { return new URL(url).origin; } catch { return ''; } })();
     // Internal browser: ordinary sites open through Madar's page service so the pointer can click in them.
     this.direct = direct;
-    this.proxied = !this.cplay && !this.yt && !direct && settings.browseProxy !== false && /^https?:/i.test(url);
+    // Phone/laptop modes touch the page directly; in the headset the internal browser makes clicks possible.
+    // A site you switched to «مباشر» stays direct next time.
+    const hostKey = host.replace(/^www\./, '');
+    const directHost = (settings.directHosts || []).includes(hostKey);
+    this.proxied = !this.cplay && !this.yt && !direct && !directHost && settings.viewMode === 'sbs' && settings.browseProxy !== false && /^https?:/i.test(url);
+    this.direct = !this.proxied && !this.cplay && !this.yt;
     if (this.proxied) this.base = BROWSE_ORIGIN;
     this.bridge = false; this.path = '';
     // Pages that include madar-bridge.js (cplay2) accept taps and scrolls from the hands.
@@ -691,6 +696,10 @@ export class WebWindow extends SpatialWindow {
   setDirect(on) {
     if (this.cplay || this.yt) return;
     this.direct = on; this.proxied = !on;
+    let hk = ''; try { hk = new URL(this.url).hostname.replace(/^www\./, ''); } catch {}
+    const list = (settings.directHosts || []).filter(x => x !== hk);
+    if (on && hk) list.push(hk);
+    saveSettings({ directHosts: list });
     this.base = on ? (() => { try { return new URL(this.url).origin; } catch { return ''; } })() : BROWSE_ORIGIN;
     this.bridge = false; this.tabPanel?.redraw(); this.reload();
     this.mgr.app.toast(on ? 'فتح مباشر: يعمل اللمس فقط في وضع الهاتف' : 'متصفح مدار: النقر والتمرير بالمؤشر', 3000);
@@ -882,7 +891,7 @@ export class WebWindow extends SpatialWindow {
       this.toolbar.redraw();
     }
   }
-  ref() { return this.direct ? { url: this.url, title: this.title, direct: true } : { url: this.url, title: this.title }; }
+  ref() { return { url: this.url, title: this.title }; }
   dispose() {
     this.disposed = true; clearTimeout(this.eyeTimer);
     this.mgr.webClosedAt = performance.now();
@@ -1120,7 +1129,18 @@ export class WindowManager {
     }
     this.refreshTargets();
   }
-  update(dt, now) { for (const w of this.windows) w.update(dt, now); }
+  update(dt, now) {
+    for (const w of this.windows) {
+      w.update(dt, now);
+      // Pinned to the view: the window glides to stay straight ahead at the same distance.
+      if (w.headLock && w.kind !== 'model') {
+        const g = w.group, h = this.headLocal(), d = Math.max(0.8, g.position.distanceTo(h));
+        const t = this._pinT || (this._pinT = new THREE.Object3D());
+        this.root.add(t); this.place(t, d, 0, false); this.root.remove(t);
+        g.position.lerp(t.position, Math.min(1, dt * 6)); g.quaternion.slerp(t.quaternion, Math.min(1, dt * 6));
+      }
+    }
+  }
 }
 
 // ---------- Virtual keyboard with an address bar ----------
