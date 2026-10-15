@@ -201,7 +201,7 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
       <li><div><b>اضغط «ادخل إلى مدار»</b> <span>واسمح بالكاميرا والحركة</span></div></li>
       <li><div><b>ضع الهاتف أفقياً في النظارة</b> <span>تأكد أن غطاء النظارة لا يحجب الكاميرا الخلفية</span></div></li>
       <li><div><b>انظر حولك</b> <span>النوافذ معلّقة في غرفتك. ارفع يديك أمام الكاميرا للتحكم</span></div></li>
-      <li><div><b>القرص للنقر، والقرص المطوّل في الفراغ للقائمة</b> <span>زر النظارة أو لمس الشاشة يعمل كنقرة أيضاً</span></div></li>
+      <li><div><b>القرص أو تثبيت الإصبع ثانيتين للنقر</b> <span>القرص المطوّل في الفراغ يفتح القائمة، ودائرة ركن النافذة لتغيير حجمها، وزر ◎ لتثبيتها أمام عينيك. يد بلايستيشن والماوس يعملان أيضاً</span></div></li>
     </ol>
   </section>
 
@@ -225,9 +225,9 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
   </section>
 
   <section class="card" aria-labelledby="mirTitle">
-    <h2 id="mirTitle">شاشة اللابتوب داخل مدار</h2>
+    <h2 id="mirTitle">مشاركة الشاشة</h2>
     <div id="mirHost">
-      <p class="hint" style="margin-top:0">على اللابتوب: شارك الشاشة ثم افتح الرابط أو امسح الرمز بالهاتف. أبقِ هذه الصفحة مفتوحة على اللابتوب أثناء المشاركة.</p>
+      <p class="hint" style="margin-top:0">على الكمبيوتر أو تطبيق مدار للأندرويد: اضغط «شارك شاشة هذا الجهاز». يُستخدم رقم الجهاز الثابت دائماً، فلا تحتاج رمزاً جديداً كل مرة. أبقِ مدار مفتوحاً أثناء المشاركة.</p>
       <button id="mirStart" class="add" type="button">شارك شاشة هذا الجهاز</button>
       <div id="mirLive" hidden>
         <div class="mircode"><span id="mirCode"></span><div id="mirQr"></div></div>
@@ -239,9 +239,9 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
       </div>
     </div>
     <form id="mirJoin" class="row" novalidate style="margin-top:14px">
-      <label class="hint" for="mirInput" style="margin:0">على الهاتف: أدخل رمز اللابتوب (6 أرقام)، وستظهر شاشته عند الدخول</label>
+      <label class="hint" for="mirInput" style="margin:0">لعرض شاشة جهاز آخر: أدخل رقمه (6 أرقام)، وستظهر شاشته عند الدخول — أو اختره من «أجهزتي»</label>
       <input id="mirInput" type="text" inputmode="numeric" maxlength="6" dir="ltr" placeholder="123456" autocomplete="off">
-      <button class="add" type="submit" style="justify-content:center">حفظ الرمز</button>
+      <button class="add" type="submit" style="justify-content:center">حفظ الرقم</button>
       <p id="mirMsg" class="hint" aria-live="polite" style="margin:0"></p>
     </form>
   </section>
@@ -253,7 +253,7 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
     <p class="hint" style="margin-top:0">فيديو (MP4, MOV) · صور · مجسمات GLB, GLTF, OBJ, STL, FBX, USDZ. لملف GLTF أو OBJ اختر معه ملفاته (bin, mtl, الصور) في المرة نفسها.</p>
     <p id="libStatus" class="hint" aria-live="polite"></p>
     <ul id="libList" class="list"></ul>
-    <p id="libEmpty" class="empty">لا توجد ملفات بعد. التجربة الأولى تتضمن فيديو ومجسماً تجريبيين.</p>
+    <p id="libEmpty" class="empty">لا توجد ملفات بعد. أضف فيديوهاتك وصورك ومجسماتك، أو أرسلها من جهاز آخر عبر «أجهزتي».</p>
   </section>
 
   <section class="card" aria-labelledby="linkTitle">
@@ -322,7 +322,7 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
     </details>
   </section>
 
-  <footer>مدار · يعمل محلياً على جهازك، ولا تُرفع ملفاتك أو صور الكاميرا إلى أي خادم.</footer>
+  <footer>مدار <span id="appVer" dir="ltr"></span> · صور الكاميرا وملفاتك تبقى على جهازك، وما ترسله بين أجهزتك ينتقل مباشرة بينها. صفحات «متصفح مدار» تمر عبر خدمة صفحات مدار.</footer>
 </main>
 
 <div id="gazeCal" hidden><div class="dot"></div><p class="msg"></p></div>

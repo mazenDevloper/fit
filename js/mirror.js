@@ -285,7 +285,7 @@ export class ScreenViewer {
     const peer = this.peer = new window.peerjs.Peer(undefined, rtc);
     await new Promise((res, rej) => { peer.once('open', res); peer.once('error', rej); });
     return new Promise((res, rej) => {
-      const timer = setTimeout(() => rej(new Error('لم يتم العثور على اللابتوب — تأكد من الرمز وأن مدار مفتوح عليه')), 15000);
+      const timer = setTimeout(() => rej(new Error('لم يتم العثور على الجهاز — تأكد من الرقم وأن المشاركة تعمل عليه')), 15000);
       peer.on('error', e => { clearTimeout(timer); rej(new Error(e.type === 'peer-unavailable' ? 'الرمز غير صحيح أو انتهت المشاركة' : (e.message || e.type))); });
       const conn = this.conn = peer.connect(PREFIX + code, { reliable: true });
       conn.on('open', () => conn.send({ type: 'links', links: loadLinks() }));

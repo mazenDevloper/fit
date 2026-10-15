@@ -21,6 +21,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
+export const APP_VERSION = '34';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -178,19 +179,21 @@ class App {
       this.log('عرض شاشة/نافذة محلية');
     } catch (e) { this.toast(e.message || 'لم يتم اختيار شاشة', 3500); }
   }
+  // Friendly name of a device by its number (paired list), e.g. "تابلت مدار" or "جهاز 425950".
+  devName(code) { const d = pairedDevices().find(x => x.code === code); return d ? d.name : 'الجهاز ' + code; }
   async connectMirror(code, attempt = 0) {
     saveSettings({ mirrorCode: code });
     if (!this.active) return;
     // Your own code on this computer = show this computer's screen; any other code = that device's screen.
     if (this.host?.stream && this.host.code === code) { this.showLocalScreen(); return; }
     const again = !!this.mirrorWin;          // reconnecting: keep the window and its last picture
-    if (!again) this.toast('جاري الاتصال باللابتوب ' + code + '…', 4000);
-    this.log('شاشة اللابتوب: اتصال ' + code + (again ? ' (إعادة)' : ''));
+    if (!again) this.toast('جاري الاتصال بـ ' + this.devName(code) + '…', 4000);
+    this.log('الشاشة: اتصال ' + code + (again ? ' (إعادة)' : ''));
     this.viewer = this.viewer || new ScreenViewer();
     try {
       const stream = await this.viewer.connect(code, {
         onEnd: why => this.mirrorLost(code, why),
-        onLinks: n => { if (n) { this.toast('أُضيفت ' + n + ' روابط من اللابتوب'); this.renderLinks(); } },
+        onLinks: n => { if (n) { this.toast('أُضيفت ' + n + ' روابط من ' + this.devName(code)); this.renderLinks(); } },
         onCaps: c => {
           const was = this.mirrorWin?.control;
           this.mirrorWin?.setControl(c);
@@ -203,16 +206,16 @@ class App {
         this.mirrorWin.setStream(stream);
         this.toast('عادت الشاشة', 1800);
       } else {
-        this.mirrorWin = this.windows.open({ kind: 'video', stream, name: 'شاشة اللابتوب', remote: this.viewer });
-        this.toast('ظهرت شاشة اللابتوب أمامك', 2500);
+        this.mirrorWin = this.windows.open({ kind: 'video', stream, name: this.devName(code), remote: this.viewer });
+        this.toast('ظهرت شاشة ' + this.devName(code) + ' أمامك', 2500);
       }
       if (this.viewer.caps) this.mirrorWin.setControl(this.viewer.caps);
       // A picture that stops arriving (frozen) reconnects by itself.
       // (A still screen also sends no new frames, so only reconnect when the link itself is unhealthy.)
-      this.mirrorWin.onStall = () => { if (!this.viewer.healthy()) { this.log('شاشة اللابتوب: الصورة متوقفة'); this.mirrorLost(code, 'stall'); } };
-      this.log('شاشة اللابتوب: متصلة');
+      this.mirrorWin.onStall = () => { if (!this.viewer.healthy()) { this.log('الشاشة: الصورة متوقفة'); this.mirrorLost(code, 'stall'); } };
+      this.log('الشاشة: متصلة ' + code);
     } catch (e) {
-      this.log('شاشة اللابتوب: ' + (e.message || e));
+      this.log('الشاشة: ' + (e.message || e));
       // First failure: ask the device itself what it can do, instead of retrying blindly.
       if (attempt === 0 && !again && this.devices) {
         const who = await this.devices.probe(code).catch(() => null);
@@ -228,11 +231,11 @@ class App {
       }
       // The device may not be sharing yet (or the network is back soon): keep trying for about a minute.
       if (attempt < 7 && this.active) {
-        if (!again) this.toast('بانتظار مشاركة اللابتوب ' + code + '… (' + (attempt + 1) + '/8)', 3000);
+        if (!again) this.toast('بانتظار مشاركة ' + this.devName(code) + '… (' + (attempt + 1) + '/8)', 3000);
         clearTimeout(this.mirrorTimer);
         this.mirrorTimer = setTimeout(() => this.connectMirror(code, attempt + 1), again ? 4000 : 8000);
       } else {
-        this.toast(again ? 'توقفت مشاركة شاشة اللابتوب' : (e.message || 'تعذّر الاتصال'), 5000);
+        this.toast(again ? 'توقفت مشاركة ' + this.devName(code) : (e.message || 'تعذّر الاتصال'), 5000);
         if (this.mirrorWin) this.windows.close(this.mirrorWin);
         this.mirrorWin = null;
       }
@@ -242,7 +245,7 @@ class App {
   mirrorLost(code, why) {
     if (!this.active || !this.mirrorWin) return;
     if (this.mirrorWin && !this.windows.windows.includes(this.mirrorWin)) { this.mirrorWin = null; return; }   // window was closed by the user
-    this.log('شاشة اللابتوب: انقطاع (' + why + ') — إعادة اتصال');
+    this.log('الشاشة: انقطاع (' + why + ') — إعادة اتصال');
     this.toast('انقطع البث — جاري إعادة الاتصال…', 2500);
     clearTimeout(this.mirrorTimer);
     this.mirrorTimer = setTimeout(() => this.connectMirror(code, 0), 800);
@@ -386,12 +389,12 @@ class App {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(() => this.windows?.resumeMedia(), 300); });
     const fromHash = (location.hash.match(/^#m(\d{6})$/) || [])[1];
     if (fromHash) { saveSettings({ mirrorCode: fromHash }); history.replaceState(null, '', location.pathname); }
-    if (settings.mirrorCode) { $('#mirInput').value = settings.mirrorCode; $('#mirMsg').textContent = 'سيظهر اللابتوب ' + settings.mirrorCode + ' عند الدخول'; }
+    if (settings.mirrorCode) { $('#mirInput').value = settings.mirrorCode; $('#mirMsg').textContent = 'ستظهر شاشة ' + this.devName(settings.mirrorCode) + ' عند الدخول'; }
     $('#mirJoin').addEventListener('submit', e => {
       e.preventDefault();
       const c = $('#mirInput').value.replace(/\D/g, '');
       if (c.length !== 6) { $('#mirMsg').textContent = 'الرمز 6 أرقام'; return; }
-      saveSettings({ mirrorCode: c }); $('#mirMsg').textContent = 'حُفظ. ستظهر شاشة اللابتوب عند الدخول'; $('#mirInput').blur();
+      saveSettings({ mirrorCode: c }); $('#mirMsg').textContent = 'حُفظ. ستظهر شاشة ' + this.devName(c) + ' عند الدخول'; $('#mirInput').blur();
     });
     // Decide by what the browser supports (not by device name): Chrome/Edge/Firefox on computers can share;
     // phone and tablet browsers (iPhone, Android incl. Galaxy Tab) can only receive.
@@ -518,6 +521,7 @@ class App {
     this.renderEnvChoices();
     this.bindMirror();
     this.bindDevices();
+    if ($('#appVer')) $('#appVer').textContent = 'v' + APP_VERSION;
     this.renderLibrary(); this.renderLinks(); this.renderSettings();
   }
 

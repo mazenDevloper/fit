@@ -143,10 +143,16 @@ export class Launcher {
         ['target', 'تتبع العين', settings.eyeTrack ? 'مفعّل · لابتوب' : 'متوقف', () => { a.toggleEyeTrack(); this.panel.redraw(); }],
         ['trash', 'إغلاق كل النوافذ', a.windows.windows.length + ' مفتوحة', () => { a.windows.closeAll(); this.panel.redraw(); }],
         ['grid', 'وضع العرض', { sbs: 'نظارة', mono: 'هاتف', desktop: 'لابتوب' }[settings.viewMode], () => { const o = ['sbs', 'mono', 'desktop']; a.setViewMode(o[(o.indexOf(settings.viewMode) + 1) % 3]); this.panel.redraw(); }],
+        ['hand', 'الإصبع كفأرة', settings.handDwell ? 'ثبّته ثانيتين للنقر' : 'متوقف', () => { saveSettings({ handDwell: !settings.handDwell }); this.panel.redraw(); }],
+        ['target', 'مثبّت المؤشر', settings.stabilizer ? 'مفعّل' : 'متوقف', () => { saveSettings({ stabilizer: !settings.stabilizer }); this.panel.redraw(); }],
+        ['sun', 'وضع التبريد', settings.cool ? 'مفعّل · حرارة أقل' : 'متوقف · أعلى جودة', () => { saveSettings({ cool: !settings.cool }); a.renderer.resize(); a.toast(settings.cool ? 'وضع التبريد: يعمل بالكامل بعد الدخول التالي' : 'الجودة القصوى: حرارة أعلى', 3000); this.panel.redraw(); }],
         ['target', 'المشي (تجريبي)', settings.walk ? 'مفعّل' : 'متوقف', () => { a.toggleWalk(); this.panel.redraw(); }],
         ['exit', 'الخروج', 'للشاشة الرئيسية', () => { this.close(); a.exit(); }],
       ];
-      list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, l === 'الخروج' ? COLORS.danger : COLORS.accent); });
+      const per = 10, pages = Math.ceil(list.length / per);
+      this.page = Math.min(this.page, pages - 1);
+      list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, l === 'الخروج' ? COLORS.danger : COLORS.accent); });
+      if (pages > 1) this.pager(ctx, p, W, H, pages);
     }
   }
   // Devices: this device's number, paired devices and the ones found on the same network.

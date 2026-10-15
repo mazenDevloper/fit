@@ -155,6 +155,8 @@ export class Interaction {
       }
       anyHand = true;
       p.dir.set(s.tx, s.ty, -1).normalize().applyQuaternion(Q);
+      if (p.prevDir && p.prevDir.angleTo(p.dir) > 0.004) p.moveT = now;
+      (p.prevDir || (p.prevDir = new THREE.Vector3())).copy(p.dir);
       (p.hist || (p.hist = [])).push({ t: now, d: p.dir.clone() });
       while (p.hist.length > 12) p.hist.shift();
       const hit = p.drag ? null : this.cast(p.dir);
@@ -245,7 +247,9 @@ export class Interaction {
       let hprog = 0;
       if (settings.handDwell !== false && !pinch && !p.drag && this.clickable(hit)) {
         const dwell = settings.handDwellMs || 2000;
-        if (!p.still || p.still.obj !== hit.object || p.still.dir.angleTo(p.dir) > 0.022) p.still = { obj: hit.object, dir: p.dir.clone(), t: now, done: false };
+        // Only something you moved onto counts — never a button that simply appeared under a resting hand.
+        if (!p.still || p.still.obj !== hit.object || p.still.dir.angleTo(p.dir) > 0.022) p.still = { obj: hit.object, dir: p.dir.clone(), t: now, done: false, armed: now - (p.moveT || 0) < 700 };
+        else if (!p.still.armed) { if (now - (p.moveT || 0) < 120) { p.still.armed = true; p.still.t = now; } }
         else if (!p.still.done) {
           hprog = Math.max(0, (now - p.still.t - 250) / (dwell - 250));
           if (hprog >= 1) { p.still.done = true; hprog = 0; this.click(hit); blip('tap', settings.sounds); }
@@ -281,12 +285,16 @@ export class Interaction {
       const hit = this.cast(g.dir);
       g.hit = hit;
       this.setHover(g, hit);
+      if (g.prevDir && g.prevDir.angleTo(g.dir) > 0.002) g.moveT = now;
+      (g.prevDir || (g.prevDir = new THREE.Vector3())).copy(g.dir);
       let prog = 0;
       if (settings.dwell && this.clickable(hit)) {
         const itg = hit.object.userData.interact;
         const region = itg.type === 'panel' ? itg.panel.hitRegion(hit)?.id : itg.type === 'surface' && hit.uv ? Math.round(hit.uv.x * 20) + ':' + Math.round(hit.uv.y * 14) : 'b';
-        if (g.dwellObj !== hit.object || g.dwellRegion !== region) { g.dwellObj = hit.object; g.dwellRegion = region; g.dwellT = now; g.dwellDone = false; }
-        if (!g.dwellDone) {
+        if (g.dwellObj !== hit.object || g.dwellRegion !== region) { g.dwellObj = hit.object; g.dwellRegion = region; g.dwellT = now; g.dwellDone = false; g.armed = now - (g.moveT || 0) < 700; }
+        // A menu that opens right under your gaze isn't clicked by itself: look slightly, then the countdown starts.
+        if (!g.armed) { if (now - (g.moveT || 0) < 120) { g.armed = true; g.dwellT = now; } }
+        else if (!g.dwellDone) {
           prog = (now - g.dwellT) / (settings.dwellMs || 3000);
           if (prog >= 1) { g.dwellDone = true; prog = 0; this.click(hit); blip('tap', settings.sounds); }
         }
