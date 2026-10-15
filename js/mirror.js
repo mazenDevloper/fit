@@ -46,6 +46,25 @@ function androidStream(onEnded) {
   return new Promise((res, rej) => {
     let track = null, writer = null, canvas = null, ctx = null, busy = false, t0 = performance.now(), started = false;
     const useGen = typeof window.MediaStreamTrackGenerator === 'function' && typeof window.VideoFrame === 'function';
+    // Tablet sound: 40 ms PCM chunks (48 kHz stereo 16-bit) from the app, played into an audio track.
+    let ac = null, dest = null, at = 0;
+    try { ac = new AudioContext({ sampleRate: 48000 }); dest = ac.createMediaStreamDestination(); ac.resume?.(); } catch { ac = null; }
+    window.__madarAudio = b64 => {
+      if (!ac || !started) return;
+      try {
+        const bin = atob(b64), n = bin.length >> 2, buf = ac.createBuffer(2, n, 48000);
+        const L = buf.getChannelData(0), R = buf.getChannelData(1);
+        for (let i = 0, j = 0; i < n; i++, j += 4) {
+          let l = bin.charCodeAt(j) | (bin.charCodeAt(j + 1) << 8), r = bin.charCodeAt(j + 2) | (bin.charCodeAt(j + 3) << 8);
+          if (l > 32767) l -= 65536; if (r > 32767) r -= 65536;
+          L[i] = l / 32768; R[i] = r / 32768;
+        }
+        const src = ac.createBufferSource(); src.buffer = buf; src.connect(dest);
+        const now = ac.currentTime;
+        if (at < now + 0.02 || at > now + 0.4) at = now + 0.08;   // small jitter buffer, resync if drifting
+        src.start(at); at += buf.duration;
+      } catch {}
+    };
     const draw = async b64 => {
       if (busy) return; busy = true;
       try {
@@ -71,15 +90,16 @@ function androidStream(onEnded) {
         if (useGen) {
           track = new MediaStreamTrackGenerator({ kind: 'video' });
           writer = track.writable.getWriter();
-          stream = new MediaStream([track]);
+          stream = new MediaStream([track, ...(dest ? dest.stream.getAudioTracks() : [])]);
         } else {
           canvas = document.createElement('canvas'); canvas.width = 1280; canvas.height = 720;
           ctx = canvas.getContext('2d');
           stream = canvas.captureStream(0); track = stream.getVideoTracks()[0];
+          if (dest) dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
         }
         res(stream);
       } else if (state === 'denied') { rej(new Error('أُلغيت المشاركة أو لم يُسمح بها')); }
-      else if (state === 'stopped') { started = false; onEnded?.(); }
+      else if (state === 'stopped') { started = false; try { ac?.close(); } catch {} onEnded?.(); }
     };
     try { A.startCapture(); } catch (e) { rej(new Error('تعذّر بدء التقاط الشاشة')); }
   });
@@ -193,21 +213,34 @@ export class ScreenHost {
       if (!d) return;
       if (d.type === 'links') { const n = mergeLinks(d.links); if (n) this.onStatus?.({ synced: n }); }
       else if (d.type === 'input') this.input(d);
+      else if (d.type === 'quality') this.setQuality(d.level);
     });
+  }
+  // Quality chosen in the headset: picture size, JPEG quality (tablet app) and network bitrate.
+  setQuality(level) {
+    const Q = { low: [960, 62, 1200000], medium: [1280, 72, 2500000], high: [1600, 80, 5000000], max: [1920, 88, 8000000] }[level];
+    if (!Q) return;
+    this.quality = level;
+    try { window.MadarAndroid?.setQuality?.(Q[0], Q[1]); } catch {}
+    if (!window.MadarAndroid) { const t = this.stream?.getVideoTracks()[0]; t?.applyConstraints?.({ width: { ideal: Q[0] * 16 / 9 > 1920 ? 2560 : 1920 }, frameRate: { ideal: 30 } }).catch(() => {}); }
+    (this.calls || []).forEach(c => this.tune(c));
   }
   // Prefer a steady picture over sharpness when the network is weak, so the screen never freezes.
   tune(call) {
     const pc = call && call.peerConnection; if (!pc) return;
+    (this.calls || (this.calls = new Set())).add(call);
+    const rate = { low: 1200000, medium: 2500000, high: 5000000, max: 8000000 }[this.quality || 'high'];
     const apply = () => pc.getSenders().forEach(snd => {
       if (!snd.track || snd.track.kind !== 'video') return;
       try {
         const p = snd.getParameters(); p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
-        p.encodings[0].maxBitrate = 2500000; p.encodings[0].maxFramerate = 30;
+        p.encodings[0].maxBitrate = rate; p.encodings[0].maxFramerate = 30;
         p.degradationPreference = 'maintain-framerate';
         snd.setParameters(p).catch(() => {});
       } catch {}
     });
-    pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') apply(); });
+    pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') apply(); if (pc.connectionState === 'closed') this.calls?.delete(call); });
+    if (pc.connectionState === 'connected') apply();
   }
   status() { this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live: !!this.stream, caps: this.stream ? this.caps() : null }); }
   stop() {

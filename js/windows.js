@@ -12,6 +12,7 @@ const CONTENT_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Posi
 const CONTENT_FRAG = /* glsl */`
   uniform sampler2D map; uniform float uVideo; uniform float uHas; uniform vec2 uSize; uniform float uRadius; uniform float uDim; uniform float uHole;
   uniform vec4 uL; uniform vec4 uR; uniform float uEye;
+  uniform vec4 uPic; uniform vec2 uTexel;   // picture: contrast, saturation, sharpness, green boost
   varying vec2 vUv;
   vec3 dec(vec3 s){ return mix(s * 0.0773993808, pow(s * 0.9478672986 + 0.0521327014, vec3(2.4)), step(0.04045, s)); }
   void main(){
@@ -26,8 +27,20 @@ const CONTENT_FRAG = /* glsl */`
       gl_FragColor = vec4(0.06, 0.07, 0.1, 1.0); return;
     }
     vec4 R = uEye > 0.5 ? uR : uL;
-    vec3 s = texture2D(map, R.xy + vUv * R.zw).rgb;
+    vec2 tc = R.xy + vUv * R.zw;
+    vec3 s = texture2D(map, tc).rgb;
+    if (uPic.z > 0.01) {
+      vec3 n = texture2D(map, tc + vec2(uTexel.x, 0.0)).rgb + texture2D(map, tc - vec2(uTexel.x, 0.0)).rgb
+             + texture2D(map, tc + vec2(0.0, uTexel.y)).rgb + texture2D(map, tc - vec2(0.0, uTexel.y)).rgb;
+      s = clamp(s + uPic.z * (s - n * 0.25), 0.0, 1.0);
+    }
     vec3 c = uVideo > 0.5 ? dec(s) : s;
+    if (uPic.x != 1.0 || uPic.y != 1.0 || uPic.w > 0.0) {
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = mix(vec3(l), c, uPic.y);                       // saturation
+      c.g *= 1.0 + uPic.w * smoothstep(0.0, 0.15, c.g - max(c.r, c.b));   // grass greener (football)
+      c = clamp((c - 0.18) * uPic.x + 0.18, 0.0, 1.0);   // contrast around mid-grey (linear)
+    }
     c = mix(vec3(0.035, 0.04, 0.055), c, uHas) * uDim;
     gl_FragColor = vec4(c, 1.0);
   }`;
@@ -35,7 +48,8 @@ const CONTENT_FRAG = /* glsl */`
 function contentMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: { map: { value: null }, uHole: { value: 0 }, uVideo: { value: 0 }, uHas: { value: 0 }, uSize: { value: new THREE.Vector2(1, 0.5625) }, uRadius: { value: 0.028 }, uDim: { value: 1 },
-      uL: { value: new THREE.Vector4(0, 0, 1, 1) }, uR: { value: new THREE.Vector4(0, 0, 1, 1) }, uEye: EYE },
+      uL: { value: new THREE.Vector4(0, 0, 1, 1) }, uR: { value: new THREE.Vector4(0, 0, 1, 1) }, uEye: EYE,
+      uPic: { value: new THREE.Vector4(1, 1, 0, 0) }, uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) } },
     vertexShader: CONTENT_VERT, fragmentShader: CONTENT_FRAG, side: THREE.DoubleSide,
   });
 }
@@ -225,6 +239,72 @@ class SpatialWindow {
   }
 }
 
+// Picture controls beside a video or shared screen: quality, sharpness, brightness, contrast, colour, presets.
+const PIC_PRESETS = {
+  normal: ['عادي', { bright: 1.05, contrast: 1, sat: 1, sharp: 0, green: 0 }],
+  football: ['كرة القدم AI', { bright: 1.12, contrast: 1.12, sat: 1.25, sharp: 0.7, green: 0.28 }],
+  cinema: ['سينما', { bright: 0.97, contrast: 1.1, sat: 1.05, sharp: 0.25, green: 0 }],
+  vivid: ['حيوي', { bright: 1.15, contrast: 1.15, sat: 1.35, sharp: 0.45, green: 0 }],
+};
+const QUALITY = [['low', 'منخفضة'], ['medium', 'متوسطة'], ['high', 'عالية'], ['max', 'قصوى']];
+function picture() { return Object.assign({ preset: 'normal', quality: 'high' }, PIC_PRESETS.normal[1], settings.picture || {}); }
+class PicturePanel {
+  constructor(win) {
+    this.win = win;
+    const rows = [
+      ['bright', 'السطوع', 0.05, 0.5, 1.8, v => Math.round(v * 100) + '%'],
+      ['contrast', 'التباين', 0.05, 0.6, 1.6, v => Math.round(v * 100) + '%'],
+      ['sat', 'الألوان', 0.05, 0, 2, v => Math.round(v * 100) + '%'],
+      ['sharp', 'الحدة', 0.1, 0, 1.5, v => v.toFixed(1)],
+    ];
+    this.panel = new CanvasPanel(0.34, 0.62, (ctx, W, H, p) => {
+      const pic = picture();
+      glass(ctx, 2, 2, W - 4, H - 4, 34);
+      let y = 46;
+      text(ctx, 'الصورة', W / 2, y, 30, { weight: 800 }); y += 46;
+      // Quality (shared screens only)
+      if (win.remote) {
+        text(ctx, 'جودة البث', W / 2, y, 22, { color: COLORS.dim, weight: 600 }); y += 34;
+        const qw = (W - 30) / QUALITY.length;
+        QUALITY.forEach(([k, l], i) => {
+          const x = W - 15 - (i + 1) * qw, on = pic.quality === k, id = 'q' + k, hov = p.isHover(id);
+          roundRect(ctx, x + 3, y - 22, qw - 6, 44, 22); ctx.fillStyle = on ? 'rgba(255,255,255,0.9)' : hov ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
+          text(ctx, l, x + qw / 2, y + 1, 19, { weight: 800, color: on ? '#141824' : COLORS.text });
+          p.region(x, y - 24, qw, 48, () => { blip('tap', settings.sounds); this.set({ quality: k }); win.sendQuality?.(k); }, id);
+        });
+        y += 50;
+      }
+      rows.forEach(([k, label, step, min, max, fmt]) => {
+        text(ctx, label, W - 24, y, 23, { align: 'right', weight: 700 });
+        text(ctx, fmt(pic[k]), W / 2 - 10, y, 22, { dir: 'ltr', weight: 800, color: COLORS.accent });
+        [['minus', 46, -1], ['plus', 112, 1]].forEach(([ic, x, d]) => {
+          const id = k + d, hov = p.isHover(id);
+          ctx.beginPath(); ctx.arc(x, y, 24, 0, 7); ctx.fillStyle = hov ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.1)'; ctx.fill();
+          icon(ctx, ic, x, y, 22);
+          p.region(x - 32, y - 30, 64, 60, () => { blip('tap', settings.sounds); this.set({ [k]: Math.min(max, Math.max(min, Math.round((pic[k] + d * step) * 100) / 100)), preset: 'custom' }); }, id);
+        });
+        y += 62;
+      });
+      // Presets
+      const keys = Object.keys(PIC_PRESETS), pw = (W - 30) / 2;
+      keys.forEach((k, i) => {
+        const x = W - 15 - ((i % 2) + 1) * pw, yy = y + Math.floor(i / 2) * 54, on = pic.preset === k, id = 'p' + k, hov = p.isHover(id);
+        roundRect(ctx, x + 4, yy - 22, pw - 8, 46, 23); ctx.fillStyle = on ? 'rgba(124,196,255,0.85)' : hov ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
+        text(ctx, PIC_PRESETS[k][0], x + pw / 2, yy + 1, 20, { weight: 800, color: on ? '#0b1020' : COLORS.text });
+        p.region(x, yy - 24, pw, 50, () => { blip('tap', settings.sounds); this.set({ ...PIC_PRESETS[k][1], preset: k }); }, id);
+      });
+    }, { pxPerM: 1500 });
+    this.mesh = this.panel.mesh;
+    this.apply();
+  }
+  set(o) { saveSettings({ picture: Object.assign(picture(), o) }); this.win.mgr.applyPicture(); this.panel.redraw(); }
+  apply() {
+    const pic = picture(), u = this.win.mat.uniforms;
+    u.uDim.value = pic.bright; u.uPic.value.set(pic.contrast, pic.sat, pic.sharp, pic.green);
+  }
+  dispose() { this.panel.dispose(); }
+}
+
 export class VideoWindow extends SpatialWindow {
   constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null, fmt = null, proj = null }) {
     super(mgr, 'video');
@@ -241,6 +321,7 @@ export class VideoWindow extends SpatialWindow {
         { icon: 'home', action: () => this.key('home') },
         { icon: 'keyboard', action: () => this.mgr.openKeyboard() },
         { icon: 'enter', action: () => this.key('enter') },
+        { icon: 'sliders', action: () => this.togglePicture() },
         { icon: () => this.headLock ? 'target' : 'grid', action: () => { this.headLock = !this.headLock; this.mgr.app.toast(this.headLock ? 'الشاشة مثبتة أمام عينيك وتتبع رأسك' : 'الشاشة ثابتة في مكانها بالغرفة'); } },
         { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
         { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
@@ -259,7 +340,7 @@ export class VideoWindow extends SpatialWindow {
       'progress',
       { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
       { icon: 'cast', action: () => this.cast() },
-      { icon: 'sliders', action: () => this.toggleOptions() },
+      { icon: 'sliders', action: () => { this.toggleOptions(); this.togglePicture(); } },
       { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
@@ -267,6 +348,8 @@ export class VideoWindow extends SpatialWindow {
     this.group.add(this.toolbar.mesh);
     this.layout();
     this.lastBar = 0;
+    { const pic = picture(); this.mat.uniforms.uDim.value = pic.bright; this.mat.uniforms.uPic.value.set(pic.contrast, pic.sat, pic.sharp, pic.green); }
+    if (remote) this.togglePicture(true);   // shared screens show their picture controls on the right
     this.load();
   }
   async load() {
@@ -313,6 +396,8 @@ export class VideoWindow extends SpatialWindow {
       this.mat.uniforms.uVideo.value = 1;
     }
     this.mat.uniforms.map.value = this.tex;
+    const tw = this.canvas ? this.canvas.width : w, th = this.canvas ? this.canvas.height : h;
+    this.mat.uniforms.uTexel.value.set(1 / Math.max(1, tw), 1 / Math.max(1, th));
   }
   // Send this video to a TV: AirPlay (Safari) or Chromecast (Chrome) through the browser's own picker.
   cast() {
@@ -375,7 +460,6 @@ export class VideoWindow extends SpatialWindow {
           ['الصيغة', FMT[this.fmt], () => { const o = Object.keys(FMT); this.fmt = o[(o.indexOf(this.fmt) + 1) % o.length]; this.fmtSet = true; this.applyFormat(); }],
           ['العرض', PROJ[this.proj], () => { const o = Object.keys(PROJ); this.setProjection(o[(o.indexOf(this.proj) + 1) % o.length]); this.mgr.changed(); }],
           ['السرعة', (v.playbackRate || 1) + '×', () => { const o = [1, 1.25, 1.5, 2, 0.5, 0.75]; v.playbackRate = o[(o.indexOf(v.playbackRate) + 1) % o.length]; }],
-          ['الإضاءة', Math.round(this.mat.uniforms.uDim.value * 100) + '%', () => { const o = [1, 1.15, 1.3, 0.7, 0.85]; const u = this.mat.uniforms.uDim; u.value = o[(o.indexOf(u.value) + 1) % o.length]; }],
           ['التكرار', v.loop ? 'مفعّل' : 'متوقف', () => { v.loop = !v.loop; }],
           ['أمام العين', this.headLock ? 'مثبتة' : 'حرة', () => { this.headLock = !this.headLock; }],
         ];
@@ -396,7 +480,15 @@ export class VideoWindow extends SpatialWindow {
   layout() {
     super.layout();
     if (this.opts) this.opts.mesh.position.set(0, -this.h / 2 - 0.23, 0.004);
+    if (this.pic) this.pic.mesh.position.set(0.5 + 0.23, 0, 0.004);
   }
+  togglePicture(force) {
+    if (!this.pic) this.pic = new PicturePanel(this);
+    const show = force ?? !this.pic.mesh.parent;
+    if (show && !this.pic.mesh.parent) this.group.add(this.pic.mesh); else if (!show && this.pic.mesh.parent) this.group.remove(this.pic.mesh);
+    this.layout(); this.pic.panel.redraw(); this.mgr.refreshTargets();
+  }
+  sendQuality(q) { if (this.remote) { this.remote.send({ type: 'quality', level: q }); this.mgr.app.toast('جودة البث: ' + (QUALITY.find(x => x[0] === q) || [])[1], 2000); } }
   togglePlay() {
     const v = this.video;
     if (v.paused) { this.userPaused = false; v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); }
@@ -484,7 +576,7 @@ export class VideoWindow extends SpatialWindow {
   dispose() {
     this.disposed = true;
     if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; }
-    this.opts?.dispose();
+    this.opts?.dispose(); this.pic?.dispose();
     super.dispose();
     this.video.onpause = null;
     this.video.pause(); this.video.srcObject = null; this.video.removeAttribute('src'); this.video.load();
@@ -621,12 +713,12 @@ export function youtubeId(url) {
 }
 
 export class WebWindow extends SpatialWindow {
-  constructor(mgr, { url, title = '', direct = false }) {
+  constructor(mgr, { url, title = '', direct = false, aspect = 0 }) {
     super(mgr, 'web');
     this.url = url; this.title = title;
     mgr.app.log('فتح موقع: ' + url);
     this.canCurve = false;
-    this.aspect = 16 / 10;
+    this.aspect = aspect > 0.5 && aspect < 3.3 ? aspect : 16 / 10; this.pageH = Math.round(1024 / this.aspect); this.canReshape = true;
     this.yt = youtubeId(url);
     this.mat.uniforms.uHas.value = 1;
     this.cv = canvasTexture(640, 400);
@@ -654,7 +746,7 @@ export class WebWindow extends SpatialWindow {
     // Pages that include madar-bridge.js (cplay2) accept taps and scrolls from the hands.
     Object.assign(this.content.userData.interact, {
       scroll: () => this.bridge,
-      toPx: uv => [512 + (uv.x - 0.5) * 1024 / WEB_INFLATE, 320 + (0.5 - uv.y) * 640 / WEB_INFLATE],
+      toPx: uv => [512 + (uv.x - 0.5) * 1024 / WEB_INFLATE, this.pageH / 2 + (0.5 - uv.y) * this.pageH / WEB_INFLATE],
       scrollBy: (dx, dy, at) => { this.lastAt = at; this.send({ type: 'scroll', dx, dy, x: at[0], y: at[1] }); },
     });
     const items = [];
@@ -719,6 +811,12 @@ export class WebWindow extends SpatialWindow {
       p.region(W - H * 3, 0, H * 3, H, () => { blip('tap', settings.sounds); this.setDirect(this.proxied); }, 'mode');
     }, { pxPerM: 1500 });
     this.group.add(this.tabPanel.mesh);
+  }
+  // Corner handle on a web page changes its shape too (like resizing a browser window): the page gets taller or wider.
+  setAspect(a) {
+    super.setAspect(a);
+    const h = Math.round(1024 / this.aspect);
+    if (h !== this.pageH) { this.pageH = h; this.css?.forEach(c => { c.el.style.height = h + 'px'; c.key = ''; }); }
   }
   layout() {
     super.layout();
@@ -797,6 +895,7 @@ export class WebWindow extends SpatialWindow {
     // Plain 2D-positioned iframe per eye (3D CSS transforms are unreliable on iOS Safari).
     const el = document.createElement('div');
     el.className = 'webwin';
+    el.style.height = this.pageH + 'px';
     const f = document.createElement('iframe');
     // The page can tell which copy it is (madar-bridge.js: the right-eye copy stays silent and light).
     f.name = 'madar-eye-' + eye;
@@ -823,7 +922,7 @@ export class WebWindow extends SpatialWindow {
       const key = P.map(q => q[0].toFixed(0) + ',' + q[1].toFixed(0)).join(';');
       if (key === c.key) return;
       c.key = key;
-      c.el.style.transform = homography(1024, 640, P);
+      c.el.style.transform = homography(1024, this.pageH, P);
     });
   }
   // The two copies of the page load one after the other (not together), and a new site waits a moment
@@ -891,7 +990,7 @@ export class WebWindow extends SpatialWindow {
       this.toolbar.redraw();
     }
   }
-  ref() { return { url: this.url, title: this.title }; }
+  ref() { return Math.abs(this.aspect - 1.6) > 0.01 ? { url: this.url, title: this.title, aspect: +this.aspect.toFixed(3) } : { url: this.url, title: this.title }; }
   dispose() {
     this.disposed = true; clearTimeout(this.eyeTimer);
     this.mgr.webClosedAt = performance.now();
@@ -1056,6 +1155,10 @@ export class WindowManager {
     blip('close', settings.sounds);
   }
   closeAll() { [...this.windows].forEach(w => this.close(w)); }
+  applyPicture() {
+    const pic = picture();
+    this.windows.forEach(w => { if (w.kind === 'video') { w.mat.uniforms.uDim.value = pic.bright; w.mat.uniforms.uPic.value.set(pic.contrast, pic.sat, pic.sharp, pic.green); w.pic?.panel.redraw(); } });
+  }
   openKeyboard(text = '') {
     let kb = this.windows.find(w => w.kind === 'keyboard');
     if (!kb) kb = this.open({ kind: 'keyboard' });
