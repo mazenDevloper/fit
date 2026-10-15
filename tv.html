@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مدار · شاشة</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060a;color:#e8eefc;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;overflow:hidden}
+  #home{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6vw;padding:4vw;box-sizing:border-box}
+  .box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:28px;padding:3vw;min-width:30vw}
+  h1{margin:0 0 1vw;font-size:3vw}
+  .code{font:800 6vw/1 ui-monospace,Menlo,monospace;letter-spacing:.6vw;color:#7cc4ff;direction:ltr}
+  .qr{background:#fff;border-radius:18px;padding:12px;width:18vw}
+  .qr svg{width:100%;height:auto;display:block}
+  p{color:#a9b3c9;font-size:1.6vw}
+  input{font:700 3vw ui-monospace,monospace;width:14vw;padding:.6vw 1vw;border-radius:14px;border:0;direction:ltr;text-align:center}
+  button{font:700 1.8vw system-ui;padding:.8vw 2vw;border-radius:14px;border:0;background:#7cc4ff;color:#0b1020;margin-inline-start:1vw}
+  button:focus,input:focus{outline:4px solid #fff}
+  #view{position:absolute;inset:0;display:none;background:#000}
+  #view video,#view img,#view iframe{width:100%;height:100%;object-fit:contain;border:0;background:#000}
+  #toast{position:absolute;left:50%;bottom:4vh;transform:translateX(-50%);background:rgba(20,24,36,.9);padding:1vw 2vw;border-radius:99px;font-size:1.6vw;display:none}
+  #list{margin-top:1vw;display:flex;flex-direction:column;gap:.6vw}
+  #list button{margin:0;background:rgba(255,255,255,.1);color:#fff;text-align:right}
+</style>
+</head>
+<body>
+<div id="home">
+  <div class="box">
+    <h1>مدار على هذه الشاشة</h1>
+    <p>رقم هذه الشاشة:</p>
+    <div class="code" id="me">——</div>
+    <p>أرسل إليها ملفاً أو رابطاً من مدار على جهازك، أو اعرض شاشة جهاز:</p>
+    <form id="f"><input id="c" inputmode="numeric" maxlength="6" placeholder="123456"><button>اعرض شاشته</button></form>
+    <div id="list"></div>
+  </div>
+  <div class="qr" id="qr"></div>
+</div>
+<div id="view"></div>
+<div id="toast"></div>
+<script type="module">
+  import { deviceIdentity, pairedDevices, KIND_LABEL } from './js/config.js';
+  import { DeviceHub } from './js/devices.js';
+  import { ScreenViewer, qrSvg, lib } from './js/mirror.js';
+  const $ = s => document.querySelector(s), view = $('#view');
+  const toast = (m, ms = 3500) => { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', ms); };
+  const show = el => { view.innerHTML = ''; view.appendChild(el); view.style.display = 'block'; $('#home').style.display = 'none'; try { document.documentElement.requestFullscreen?.(); } catch {} };
+  const back = () => { view.innerHTML = ''; view.style.display = 'none'; $('#home').style.display = 'flex'; };
+  document.addEventListener('keydown', e => { if (['Escape', 'Backspace', 'GoBack', 'BrowserBack'].includes(e.key) || e.keyCode === 10009 || e.keyCode === 461) { if (view.style.display === 'block') { e.preventDefault(); viewer.close(); back(); } } });
+  const app = {
+    toast,
+    receiveFile(file, from) {
+      const url = URL.createObjectURL(file), t = file.type || '';
+      let el;
+      if (t.startsWith('video') || /\.(mp4|m4v|mov|webm)$/i.test(file.name)) { el = document.createElement('video'); el.src = url; el.autoplay = true; el.controls = true; el.playsInline = true; }
+      else if (t.startsWith('image') || /\.(jpe?g|png|webp|gif|avif)$/i.test(file.name)) { el = document.createElement('img'); el.src = url; }
+      else { toast('وصل ' + file.name + ' (نوع لا يُعرض هنا)'); return; }
+      toast('من ' + (from?.name || 'جهاز') + ': ' + file.name); show(el);
+    },
+    receiveLink(d, from) { const f = document.createElement('iframe'); f.src = d.url; f.allow = 'autoplay; fullscreen; encrypted-media'; toast('رابط من ' + (from?.name || 'جهاز')); show(f); },
+    receiveText(d, from) { toast((from?.name || 'جهاز') + ': ' + d.text, 6000); },
+    receiveProgress(f) { toast('استلام ' + f.meta.name + ' ' + Math.round(f.got / Math.max(1, f.meta.size) * 100) + '%', 1200); },
+  };
+  const hub = new DeviceHub(app), me = deviceIdentity();
+  $('#me').textContent = me.code.replace(/(\d{3})(\d{3})/, '$1 $2');
+  const link = location.origin + location.pathname.replace(/tv\.html$/, '') + '#d' + me.code;
+  lib().then(() => { $('#qr').innerHTML = qrSvg(link, 300); });
+  hub.start();
+  const viewer = new ScreenViewer();
+  async function watch(code, tries = 0) {
+    toast('جاري الاتصال بـ ' + code + '…');
+    try {
+      const stream = await viewer.connect(code, { onEnd: () => { toast('انقطع البث — إعادة الاتصال…'); setTimeout(() => watch(code), 1500); } });
+      const v = document.createElement('video'); v.autoplay = true; v.playsInline = true; v.srcObject = stream; show(v);
+      v.play().catch(() => { v.muted = true; v.play(); toast('اضغط OK لتشغيل الصوت'); v.onclick = () => { v.muted = false; }; });
+      v.onpause = () => setTimeout(() => v.play().catch(() => {}), 300);
+    } catch (e) { if (tries < 6) setTimeout(() => watch(code, tries + 1), 5000); else { toast(e.message || 'تعذّر الاتصال'); back(); } }
+  }
+  $('#f').addEventListener('submit', e => { e.preventDefault(); const c = $('#c').value.replace(/\D/g, ''); if (c.length === 6) watch(c); });
+  const renderList = () => { const l = $('#list'); l.innerHTML = ''; pairedDevices().forEach(d => { const b = document.createElement('button'); b.textContent = '▶ ' + d.name + ' · ' + (KIND_LABEL[d.kind] || '') + ' · ' + d.code; b.onclick = () => watch(d.code); l.appendChild(b); }); };
+  hub.on(renderList); renderList();
+  const h = (location.hash.match(/^#(?:m|d)?(\d{6})$/) || [])[1]; if (h) watch(h);
+</script>
+</body>
+</html>

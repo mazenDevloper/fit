@@ -111,3 +111,39 @@ export function pxPerMm() {
   const ppi = dpr >= 3 ? 153 : 163;
   return ppi / 25.4;
 }
+
+// ---- This device's permanent identity: a fixed 6-digit number (its "remote number") and a name ----
+const DEVICE_KEY = 'madar.device.v1';
+export function deviceKind() {
+  const u = navigator.userAgent;
+  if (/PlayStation/i.test(u)) return 'playstation';
+  if (/VIDAA|Hisense|Tizen|SMART-TV|SmartTV|Web0S|webOS|BRAVIA|Android TV|AFT/i.test(u)) return 'tv';
+  if (/iPhone/.test(u)) return 'iphone';
+  if (/iPad/.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints > 1)) return 'ipad';
+  if (/Android/.test(u)) return /Mobile/.test(u) ? 'phone' : 'tablet';
+  return 'computer';
+}
+export const KIND_LABEL = { playstation: 'بلايستيشن', tv: 'تلفاز', iphone: 'آيفون', ipad: 'آيباد', phone: 'هاتف', tablet: 'تابلت', computer: 'كمبيوتر' };
+export function deviceIdentity() {
+  let d = null;
+  try { d = JSON.parse(safeGet(DEVICE_KEY) || 'null'); } catch {}
+  if (!d || !/^\d{6}$/.test(d.code)) {
+    const kind = deviceKind();
+    d = { code: String(Math.floor(100000 + Math.random() * 900000)), name: (KIND_LABEL[kind] || 'جهاز') + ' ' + (window.MadarAndroid ? 'مدار' : ''), kind };
+    d.name = d.name.trim();
+    safeSet(DEVICE_KEY, JSON.stringify(d));
+  }
+  return d;
+}
+export function saveDeviceIdentity(o) { const d = Object.assign(deviceIdentity(), o); safeSet(DEVICE_KEY, JSON.stringify(d)); return d; }
+// Devices you added (paired): {code, name, kind, added}
+const PAIRED_KEY = 'madar.paired.v1';
+export function pairedDevices() { try { const v = JSON.parse(safeGet(PAIRED_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
+export function savePaired(list) { safeSet(PAIRED_KEY, JSON.stringify(list)); }
+export function addPaired(dev) {
+  if (!dev || !/^\d{6}$/.test(dev.code) || dev.code === deviceIdentity().code) return false;
+  const l = pairedDevices(), i = l.findIndex(x => x.code === dev.code);
+  const rec = { code: dev.code, name: dev.name || ('جهاز ' + dev.code), kind: dev.kind || 'computer', added: Date.now() };
+  if (i >= 0) l[i] = Object.assign(l[i], { name: dev.name || l[i].name, kind: dev.kind || l[i].kind }); else l.push(rec);
+  savePaired(l); return true;
+}

@@ -1,6 +1,7 @@
 // Madar — mixed reality environment for iPhone + SBS headset. Entry point: home screen + MR session.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { deviceIdentity, saveDeviceIdentity, pairedDevices, KIND_LABEL } from './config.js';
 import { settings, saveSettings, applyPreset, resetSettings, VIEWER_PRESETS, loadLayout, saveLayout, loadLinks, saveLinks } from './config.js';
 import { StageOrientation, HeadTracker } from './orient.js';
 import { StereoRenderer } from './render.js';
@@ -12,7 +13,8 @@ import { Slam } from './slam.js';
 import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
 import { LensAdjust } from './lens.js';
-import { ScreenHost, ScreenViewer, qrSvg, AGENT_DOWNLOAD } from './mirror.js';
+import { DeviceHub } from './devices.js';
+import { ScreenHost, ScreenViewer, qrSvg, AGENT_DOWNLOAD, lib } from './mirror.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
@@ -232,6 +234,108 @@ class App {
     clearTimeout(this.mirrorTimer);
     this.mirrorTimer = setTimeout(() => this.connectMirror(code, 0), 800);
   }
+  // ---------- Devices: permanent number + QR, nearby search, pairing, sending things ----------
+  bindDevices() {
+    // TVs (Hisense VIDAA, Samsung, LG) get the light receiver screen.
+    if (deviceIdentity().kind === 'tv' && !/notv/.test(location.search)) { location.replace('tv.html' + location.hash); return; }
+    const hub = this.devices = new DeviceHub(this);
+    const me = hub.me, link = location.origin + location.pathname + '#d' + me.code;
+    if ($('#devCode')) {
+      $('#devCode').textContent = me.code.replace(/(\d{3})(\d{3})/, '$1 $2');
+      $('#devName').value = me.name;
+      $('#devName').addEventListener('change', () => { const n = $('#devName').value.trim() || me.name; saveDeviceIdentity({ name: n }); hub.rename(n); });
+      $('#devCopy').addEventListener('click', () => navigator.clipboard?.writeText(link).then(() => { $('#devCopy').textContent = 'تم النسخ'; }).catch(() => {}));
+      $('#devScan').addEventListener('click', async () => {
+        $('#devMsg').textContent = 'جاري البحث في شبكتك…';
+        const found = await hub.scan().catch(() => []);
+        $('#devMsg').textContent = found.length ? 'وُجد ' + found.length + ' جهاز في شبكتك' : 'لم يُعثر على أجهزة — تأكد أن مدار مفتوح عليها وأنها على نفس الواي فاي';
+      });
+      $('#devAdd').addEventListener('submit', async e => {
+        e.preventDefault();
+        const c = $('#devAddCode').value.replace(/\D/g, '');
+        if (c.length !== 6) { $('#devMsg').textContent = 'الرقم 6 أرقام'; return; }
+        $('#devMsg').textContent = 'جاري الاتصال بالجهاز ' + c + '…';
+        try { const d = await hub.pair(c); $('#devMsg').textContent = 'أُضيف: ' + (d?.name || c); $('#devAddCode').value = ''; }
+        catch (err) { $('#devMsg').textContent = err.message || 'تعذّر الاتصال'; }
+      });
+      lib().then(() => { try { $('#devQr').innerHTML = qrSvg(link, 160); } catch {} });
+    }
+    const render = () => {
+      if ($('#devOnline')) $('#devOnline').textContent = hub.online ? 'متصل ✓' : 'غير متصل';
+      this.launcher?.group.visible && this.launcher.tab === 'devices' && this.launcher.panel.redraw();
+      const ul = $('#devList'); if (!ul) return;
+      const paired = pairedDevices(), near = [...hub.nearby.values()];
+      const all = [...paired.map(d => ({ ...d, paired: true })), ...near.filter(n => !paired.some(p => p.code === n.code))];
+      ul.innerHTML = '';
+      all.forEach(d => {
+        const li = document.createElement('li');
+        const isNear = near.some(n => n.code === d.code);
+        li.innerHTML = `<b></b><button data-a="screen">شاشته</button><button data-a="file">إرسال ملف</button><button data-a="link">إرسال رابط</button>${d.paired ? '<button data-a="del">حذف</button>' : '<button data-a="pair">إضافة</button>'}`;
+        li.querySelector('b').innerHTML = '';
+        li.querySelector('b').append(d.name || d.code);
+        const sm = document.createElement('small'); sm.textContent = (KIND_LABEL[d.kind] || '') + ' · ' + d.code + (isNear ? ' · في شبكتك' : ''); if (isNear) sm.className = 'on';
+        li.querySelector('b').append(sm);
+        li.addEventListener('click', async e => {
+          const act = e.target.dataset?.a; if (!act) return;
+          try {
+            if (act === 'screen') { saveSettings({ mirrorCode: d.code }); $('#mirInput') && ($('#mirInput').value = d.code); $('#devMsg').textContent = 'ستظهر شاشة ' + (d.name || d.code) + ' عند الدخول'; }
+            else if (act === 'pair') { await hub.pair(d.code); }
+            else if (act === 'del') { hub.remove(d.code); }
+            else if (act === 'link') { const u = prompt('الرابط الذي تريد إرساله'); if (u) { await hub.sendLink(d.code, u, u); $('#devMsg').textContent = 'أُرسل الرابط'; } }
+            else if (act === 'file') {
+              const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true;
+              inp.onchange = async () => {
+                for (const f of inp.files) {
+                  await hub.sendFile(d.code, f, p => { $('#devMsg').textContent = 'إرسال ' + f.name + ' ' + Math.round(p * 100) + '%'; });
+                }
+                $('#devMsg').textContent = 'وصلت الملفات إلى ' + (d.name || d.code) + ' ✓';
+              };
+              inp.click();
+            }
+          } catch (err) { $('#devMsg').textContent = err.message || 'تعذّر الاتصال بالجهاز'; }
+        });
+        ul.appendChild(li);
+      });
+    };
+    hub.on(render); render();
+    hub.start().catch(() => {});
+    // A device link (#d123456) opened here: add that device and show its screen when entering.
+    const fromHash = (location.hash.match(/^#d(\d{6})$/) || [])[1];
+    if (fromHash && fromHash !== me.code) {
+      history.replaceState(null, '', location.pathname);
+      saveSettings({ mirrorCode: fromHash });
+      hub.pair(fromHash).then(d => { $('#devMsg') && ($('#devMsg').textContent = 'أُضيف: ' + (d?.name || fromHash)); }).catch(() => {});
+    }
+  }
+  async pairDevice(code) {
+    try { const d = await this.devices.pair(code); this.toast('أُضيف ' + (d?.name || code), 2500); } catch (e) { this.toast(e.message || 'تعذّر الاتصال', 3500); }
+  }
+  async sendToDevice(code, { url, title }) {
+    try { await this.devices.sendLink(code, url, title); this.toast('أُرسل الموقع إلى الجهاز ✓', 2500); } catch (e) { this.toast(e.message || 'تعذّر الإرسال', 3500); }
+  }
+  // ---- Things arriving from other devices ----
+  async receiveFile(file, from) {
+    try {
+      const made = await importFiles([file]);
+      this.renderLibrary();
+      const who = from?.name || from?.code || 'جهاز';
+      if (!made.length) { this.toast('وصل ملف من ' + who + ' لكن نوعه غير مدعوم', 3500); return; }
+      this.toast('وصل من ' + who + ': ' + file.name, 3500);
+      this.log('استلام ملف: ' + file.name + ' من ' + who);
+      if (this.active) made.forEach(it => this.windows.open({ kind: it.type, itemId: it.id, name: it.name }));
+    } catch (e) { this.toast('تعذّر حفظ الملف المستلم', 3500); }
+  }
+  receiveLink(d, from) {
+    const l = loadLinks(); if (!l.some(x => x.url === d.url)) { l.unshift({ id: 'l' + Date.now(), title: d.title || d.url, url: d.url }); saveLinks(l); this.renderLinks(); }
+    this.toast('رابط من ' + (from?.name || from?.code || 'جهاز') + ': ' + (d.title || d.url).slice(0, 40), 3500);
+    if (this.active) this.windows.open({ kind: 'web', url: d.url, title: d.title || '' });
+  }
+  receiveText(d, from) { this.toast((from?.name || 'جهاز') + ': ' + String(d.text || '').slice(0, 80), 5000); }
+  receiveProgress(f) {
+    const now = performance.now(); if (now - (this.lastRecvToast || 0) < 1200) return; this.lastRecvToast = now;
+    if (this.active) this.toast('استلام ' + f.meta.name + ' ' + Math.round(f.got / Math.max(1, f.meta.size) * 100) + '%', 1300);
+  }
+
   bindMirror() {
     // Coming back to Madar (or the screen waking): start paused videos again.
     document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(() => this.windows?.resumeMedia(), 300); });
@@ -368,6 +472,7 @@ class App {
     };
     this.renderEnvChoices();
     this.bindMirror();
+    this.bindDevices();
     this.renderLibrary(); this.renderLinks(); this.renderSettings();
   }
 

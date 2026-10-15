@@ -2,14 +2,14 @@
 // Laptop: shares its screen and shows a 6-digit code / QR / link.
 // Phone: joins with the code (or opens the link) and gets the screen as a window.
 // The same connection also syncs saved links both ways.
-import { loadLinks, saveLinks, settings } from './config.js';
+import { loadLinks, saveLinks, settings, deviceIdentity } from './config.js';
 
 const PREFIX = 'madar-scr-';
 let libP = null;
 function loadScript(src) {
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
 }
-function lib() {
+export function lib() {
   if (!libP) libP = Promise.all([
     loadScript(new URL('../lib/peer/peerjs.min.js', import.meta.url).href),
     loadScript(new URL('../lib/peer/qrcode.js', import.meta.url).href),
@@ -18,10 +18,12 @@ function lib() {
 }
 // STUN finds a direct path; the public TURN relay carries the picture when the two networks can't
 // reach each other directly (e.g. phone on 4G, laptop behind a strict router).
-const rtc = { config: { iceServers: [
+export const rtc = { config: { iceServers: [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
   { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
 ] } };
+// Optional own signalling server (set localStorage 'madar.peerServer' to {"host":..,"port":..,"path":..,"secure":..}).
+try { const own = JSON.parse(localStorage.getItem('madar.peerServer') || 'null'); if (own && own.host) Object.assign(rtc, own); } catch {}
 
 export function mergeLinks(incoming) {
   const mine = loadLinks();
@@ -177,9 +179,13 @@ export class ScreenHost {
     this.stream.getVideoTracks()[0].addEventListener('ended', () => this.stop());
     }
     await lib();
-    for (let tries = 0; tries < 4 && !this.peer; tries++) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      try { this.peer = await this.open(code); this.code = code; } catch (e) { if (e.type !== 'unavailable-id') throw e; }
+    // Always this device's permanent number (so its QR code never changes). If the number is still held by a
+    // session that just closed, wait for it to be released; only as a last resort use a temporary one.
+    const fixed = deviceIdentity().code;
+    for (let tries = 0; tries < 6 && !this.peer; tries++) {
+      const code = tries < 5 ? fixed : String(Math.floor(100000 + Math.random() * 900000));
+      try { this.peer = await this.open(code); this.code = code; }
+      catch (e) { if (e.type !== 'unavailable-id') throw e; await new Promise(r => setTimeout(r, 2500)); }
     }
     this.peer.on('connection', conn => this.accept(conn));
     if (!window.MadarAndroid) this.agent.start();

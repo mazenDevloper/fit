@@ -1,12 +1,12 @@
 // System panels: the Launcher (home), in-headset calibration, and head-locked toasts.
 import * as THREE from 'three';
 import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip, canvasTexture } from './ui.js';
-import { settings, saveSettings, VIEWER_PRESETS, applyPreset } from './config.js';
+import { settings, saveSettings, VIEWER_PRESETS, applyPreset, pairedDevices, KIND_LABEL } from './config.js';
 import { listItems, formatSize } from './db.js';
 
 import { ENVS, envKey } from './envs.js';
 const ENV_LABEL = new Proxy({}, { get: (_, k) => ENVS[envKey(k)].label });
-const TABS = [['apps', 'التطبيقات'], ['library', 'مكتبتي'], ['links', 'المواقع'], ['settings', 'الإعدادات']];
+const TABS = [['apps', 'التطبيقات'], ['devices', 'الأجهزة'], ['library', 'مكتبتي'], ['links', 'المواقع'], ['settings', 'الإعدادات']];
 
 export class Launcher {
   constructor(app) {
@@ -59,7 +59,7 @@ export class Launcher {
     glass(ctx, 0, 0, W, H, 70);
     // Header
     text(ctx, 'مدار', W - 70, 82, 58, { align: 'right', weight: 750 });
-    const tw = 205, th = 66, gap = 14, total = TABS.length * tw + (TABS.length - 1) * gap;
+    const tw = 190, th = 66, gap = 12, total = TABS.length * tw + (TABS.length - 1) * gap;
     let tx = (W - total) / 2;
     [...TABS].reverse().forEach(([k, label]) => {
       const id = 'tab-' + k, hov = p.isHover(id), on = this.tab === k;
@@ -86,11 +86,6 @@ export class Launcher {
         ['cube', 'مجسم تجريبي', 'خوذة GLB', () => { a.windows.open({ kind: 'model', url: 'assets/helmet.glb' }); this.close(); }],
         ['globe', 'cplay3', 'بالتابات واليد', () => { a.openCplay(); this.close(); }],
         ['grid', 'لوحة المفاتيح', 'رابط أو نص أو رمز', () => { a.windows.open({ kind: 'keyboard' }); this.close(); }],
-        ['video', 'شاشة جهاز آخر', settings.mirrorCode ? 'الرمز ' + settings.mirrorCode + ' · أو رمز جديد' : 'التابلت أو اللابتوب بالرمز', () => {
-          this.close();
-          a.windows.openKeyboard(settings.mirrorCode || '');
-          a.toast('اكتب رمز الجهاز (6 أرقام) واضغط «فتح»' + (settings.viewMode === 'desktop' ? ' · لشاشة هذا اللابتوب استخدم زر «عرض شاشة»' : ''), 5000);
-        }],
         ['hand', 'دليل الإيماءات', 'كيف تتحكم', () => { a.windows.open({ kind: 'panel', panel: a.controls.pad.id ? 'pad' : 'guide' }); this.close(); }],
         ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
         ['stack', 'ترتيب النوافذ', 'أمامك', () => { a.windows.arrange(); this.close(); }],
@@ -99,6 +94,8 @@ export class Launcher {
         ['target', 'ضبط العدستين', 'تحريك وتكبير الصورتين', () => { this.close(); a.lensAdjust.open(); }],
       ];
       list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'app' + i); });
+    } else if (this.tab === 'devices') {
+      this.drawDevices(ctx, W, H, p, top);
     } else if (this.tab === 'library') {
       const per = 10, items = this.items;
       if (!items.length) {
@@ -151,6 +148,48 @@ export class Launcher {
       ];
       list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, l === 'الخروج' ? COLORS.danger : COLORS.accent); });
     }
+  }
+  // Devices: this device's number, paired devices and the ones found on the same network.
+  drawDevices(ctx, W, H, p, top) {
+    const a = this.app, hub = a.devices, me = hub?.me || {};
+    const btn = (x, y, w, h, label, act, id, strong) => {
+      const hov = p.isHover(id);
+      roundRect(ctx, x, y, w, h, h / 2); ctx.fillStyle = hov ? 'rgba(255,255,255,0.35)' : strong ? 'rgba(124,196,255,0.3)' : 'rgba(255,255,255,0.1)'; ctx.fill();
+      text(ctx, label, x + w / 2, y + h / 2 + 2, h * 0.42, { weight: 800 });
+      p.region(x, y, w, h, () => { blip('tap', settings.sounds); act(); }, id);
+    };
+    glass(ctx, 50, top, W - 100, 92, 30);
+    text(ctx, 'هذا الجهاز: ' + (me.name || '') + ' · الرقم ' + (me.code || '—'), W - 80, top + 48, 34, { align: 'right', weight: 800, dir: 'auto' });
+    btn(80, top + 18, 300, 56, this.scanning ? 'جاري البحث…' : 'بحث في الشبكة', () => this.scan(), 'scan', true);
+    const paired = pairedDevices(), near = [...(hub?.nearby.values() || [])];
+    const list = [...paired.map(d => ({ ...d, paired: true, near: near.some(n => n.code === d.code) })), ...near.filter(n => !paired.some(d => d.code === n.code)).map(d => ({ ...d, near: true }))];
+    if (!list.length) {
+      text(ctx, 'لا توجد أجهزة بعد', W / 2, H * 0.55, 42, { weight: 700 });
+      text(ctx, 'افتح مدار على التابلت أو اللابتوب أو التلفاز ثم اضغط «بحث في الشبكة»، أو أضف رقمه من الشاشة الرئيسية', W / 2, H * 0.64, 27, { color: COLORS.dim, maxWidth: W - 160 });
+      return;
+    }
+    const per = 5, rh = (H - top - 130) / per, pages = Math.ceil(list.length / per);
+    this.page = Math.min(this.page, pages - 1);
+    const web = [...a.windows.windows].reverse().find(w => w.kind === 'web');
+    list.slice(this.page * per, this.page * per + per).forEach((d, i) => {
+      const y = top + 112 + i * rh, id = 'dev' + i;
+      if (i % 2 === 0) { roundRect(ctx, 50, y, W - 100, rh - 8, 24); ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill(); }
+      const ic = d.kind === 'tv' ? 'video' : d.kind === 'computer' ? 'grid' : d.kind === 'playstation' ? 'target' : 'image';
+      icon(ctx, ic, W - 95, y + rh / 2 - 4, 34, d.near ? COLORS.accent : COLORS.dim);
+      text(ctx, d.name, W - 140, y + rh / 2 - 16, 31, { align: 'right', weight: 800, dir: 'auto', maxWidth: 560 });
+      text(ctx, (KIND_LABEL[d.kind] || '') + ' · ' + d.code + (d.near ? ' · في شبكتك' : ''), W - 140, y + rh / 2 + 22, 23, { align: 'right', color: COLORS.dim, dir: 'auto' });
+      const bh = Math.min(58, rh - 26), by = y + (rh - 8 - bh) / 2;
+      btn(80, by, 220, bh, 'الشاشة', () => { this.close(); a.connectMirror(d.code); }, id + 's', true);
+      if (web) btn(315, by, 250, bh, 'أرسل الموقع', () => a.sendToDevice(d.code, { url: web.url, title: web.title }), id + 'l');
+      if (!d.paired) btn(web ? 580 : 315, by, 200, bh, 'إضافة', () => a.pairDevice(d.code), id + 'p');
+    });
+    if (pages > 1) this.pager(ctx, p, W, H, pages);
+  }
+  async scan() {
+    if (this.scanning || !this.app.devices) return;
+    this.scanning = true; this.panel.redraw();
+    try { await this.app.devices.scan(); } catch {}
+    this.scanning = false; this.panel.redraw();
   }
   pager(ctx, p, W, H, pages) {
     const y = H - 34;
