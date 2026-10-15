@@ -48,6 +48,7 @@ public class CaptureService extends Service {
     private static final long KEEPALIVE_MS = 1000;      // resend the last frame when the screen is still
 
     private MediaProjection projection;
+    private android.os.PowerManager.WakeLock wake;
     private VirtualDisplay display;
     private ImageReader reader;
     private HandlerThread thread;
@@ -99,6 +100,16 @@ public class CaptureService extends Service {
             notifyState("denied"); stopSelf(); return START_NOT_STICKY;
         }
         running = true;
+        // Keep the tablet's screen on while it is shared (like Smart View): a sleeping or locked
+        // screen sends a black picture and can't be operated from the headset.
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+            @SuppressWarnings("deprecation")
+            android.os.PowerManager.WakeLock w = pm.newWakeLock(android.os.PowerManager.SCREEN_DIM_WAKE_LOCK
+                    | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP, "madar:share");
+            w.acquire(6 * 60 * 60 * 1000L);
+            wake = w;
+        } catch (Exception ignored) { }
         notifyState("started");
         handler.postDelayed(keepAlive, KEEPALIVE_MS);
         return START_NOT_STICKY;
@@ -219,6 +230,8 @@ public class CaptureService extends Service {
     public void onDestroy() {
         boolean was = running;
         running = false;
+        try { if (wake != null && wake.isHeld()) wake.release(); } catch (Exception ignored) { }
+        wake = null;
         if (handler != null) handler.removeCallbacksAndMessages(null);
         try { if (display != null) display.release(); } catch (Exception ignored) { }
         try { if (reader != null) reader.close(); } catch (Exception ignored) { }
