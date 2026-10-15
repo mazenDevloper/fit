@@ -101,7 +101,7 @@ export function icon(ctx, name, cx, cy, s, color = COLORS.text) {
       if (name === 'sound') { ctx.beginPath(); ctx.arc(0.1 * h, 0, 0.42 * h, -0.8, 0.8); ctx.stroke(); ctx.beginPath(); ctx.arc(0.1 * h, 0, 0.7 * h, -0.8, 0.8); ctx.stroke(); }
       else { ctx.beginPath(); ctx.moveTo(0.3 * h, -0.3 * h); ctx.lineTo(0.75 * h, 0.3 * h); ctx.moveTo(0.75 * h, -0.3 * h); ctx.lineTo(0.3 * h, 0.3 * h); ctx.stroke(); }
       break;
-    case 'curve': ctx.beginPath(); ctx.moveTo(-0.7 * h, -0.35 * h); ctx.quadraticCurveTo(0, 0.25 * h, 0.7 * h, -0.35 * h); ctx.moveTo(-0.7 * h, 0.35 * h); ctx.quadraticCurveTo(0, 0.95 * h, 0.7 * h, 0.35 * h); ctx.stroke(); break;
+    case 'curve': ctx.beginPath(); ctx.moveTo(-0.8 * h, -0.55 * h); ctx.quadraticCurveTo(0, -0.2 * h, 0.8 * h, -0.55 * h); ctx.lineTo(0.8 * h, 0.55 * h); ctx.quadraticCurveTo(0, 0.2 * h, -0.8 * h, 0.55 * h); ctx.closePath(); ctx.stroke(); break;
     case 'flat': ctx.strokeRect(-0.7 * h, -0.45 * h, 1.4 * h, 0.9 * h); break;
     case 'reload': ctx.beginPath(); ctx.arc(0, 0, 0.55 * h, -Math.PI * 0.2, Math.PI * 1.5); ctx.stroke(); P([[0.25, -0.95], [0.75, -0.5], [0.15, -0.3]]); break;
     case 'spin': ctx.beginPath(); ctx.ellipse(0, 0.2 * h, 0.7 * h, 0.3 * h, 0, 0.3, Math.PI * 2 - 0.3); ctx.stroke(); P([[0.55, 0.05], [0.85, 0.15], [0.6, 0.45]]); ctx.beginPath(); ctx.moveTo(0, -0.7 * h); ctx.lineTo(0, 0.2 * h); ctx.stroke(); break;

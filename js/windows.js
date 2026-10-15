@@ -226,7 +226,7 @@ class SpatialWindow {
     sp.rotation.y = this.mgr.forwardYaw() + (p === '360' ? -Math.PI / 2 : 0);
     this.mgr.root.add(sp); this.sphere = sp;
     this.content.visible = false;
-    this.mgr.app.toast((this.kind === 'image' ? 'صورة' : 'فيديو') + (p === '180' ? ' 180°' : ' 360°') + ' حولك · النافذة للتحكم', 2500);
+    this.mgr.app.toast((this.kind === 'image' ? 'صورة' : this.kind === 'web' ? 'الصفحة' : 'فيديو') + (p === '180' ? ' 180°' : ' 360°') + ' حولك · النافذة للتحكم', 2500);
   }
   disposeSphere() { if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; } }
   setCurved(on) {
@@ -822,7 +822,10 @@ export class WebWindow extends SpatialWindow {
       { icon: () => this.ytState.playing ? 'pause' : 'play', action: () => this.ytToggle() },
       { icon: () => this.ytState.muted ? 'mute' : 'sound', action: () => this.ytMute(!this.ytState.muted) },
     );
-    items.push({ icon: 'globe', action: () => this.toBuiltin('360') }, { icon: 'curve', action: () => this.toBuiltin('curve') });
+    items.push(
+      { icon: () => this.proj === '360' ? 'image' : 'globe', active: () => this.proj === '360', action: () => this.view360(this.proj !== '360') },
+      { icon: () => this.curved ? 'flat' : 'curve', active: () => this.curved, action: () => this.viewCurved(!this.curved) },
+    );
     items.push({ icon: 'grid', action: () => this.cycleShape() });
     items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) });
     this.toolbar = new Toolbar(items).install();
@@ -881,20 +884,88 @@ export class WebWindow extends SpatialWindow {
     this.group.add(this.tabPanel.mesh);
   }
   // Page shape presets: wide (21:9) for a wrap-around feel, normal, tall like a phone.
-  // A page in an ordinary window can't be bent or wrapped around you (the site draws itself);
-  // Madar's built-in browser can — move the page there and apply the choice.
-  async toBuiltin(mode) {
-    const app = this.mgr.app, url = this.url || this.src;
-    if (!app.browserDevice?.()) {
-      app.toast('التقويس و360° يعملان في «متصفح مدار»: ثبّت تطبيق مدار الجديد على التابلت واقرنه من «أجهزتي»', 5000);
-      return;
+  // Curved screen and 360° for web pages. A live page (iframe) can only be shown flat, so in these modes
+  // the page keeps running hidden and its picture is redrawn several times a second onto a curved
+  // screen or onto the whole sphere around you; pointing, clicking and scrolling still reach the page.
+  canSnap() { return this.cplay || this.proxied; }
+  ensureSnap() {
+    if (this.snap) return true;
+    if (this.yt) { this.mgr.app.toast('فيديو يوتيوب: استخدم نافذة الفيديو للتقويس و360°', 3500); return false; }
+    if (!this.canSnap()) {
+      // A site opened «مباشر» can't be drawn — reopen it in Madar's browser first.
+      this.setDirect(false);
+      this.pendingView = true;
     }
-    app.toast('جارٍ نقل الصفحة إلى متصفح مدار…', 2000);
-    await app.openBrowser(url, 0, w => {
-      if (mode === '360') w.setProjection?.('360'); else w.setCurved?.(true);
-      if (this.mgr.windows.includes(this)) this.mgr.close(this);
-    });
+    this.snap = true; this.canCurve = true;
+    this.snapSeq = 0; this.snapBusy = false; this.snapAt = 0; this.snapGot = 0;
+    if (!this.snapCv) { this.snapCv = canvasTexture(1024, this.pageH); this.snapCv.texture.colorSpace = THREE.SRGBColorSpace; }
+    this.mat.uniforms.uHole.value = 0;
+    if (this.snapGot) this.mat.uniforms.map.value = this.snapCv.texture;
+    // Only one copy of the page is needed while it is drawn as a picture.
+    const c1 = this.css[1]; clearTimeout(this.eyeTimer); c1.pending = true; c1.f.src = 'about:blank';
+    this.requestSnap(0);
+    return true;
   }
+  stopSnap() {
+    if (!this.snap || this.curved || this.proj === '360') return;
+    this.snap = false; this.canCurve = false;
+    clearTimeout(this.snapTimer);
+    this.mat.uniforms.uHole.value = 1;
+    this.mat.uniforms.map.value = this.cv.texture;
+    this.css.forEach(c => { c.key = ''; c.el.style.opacity = ''; c.el.style.transformOrigin = ''; });
+    this.loadEye1();
+  }
+  viewCurved(on) {
+    if (on && !this.ensureSnap()) return;
+    this.setCurved(on);
+    if (!on) this.stopSnap();
+    this.mgr.app.toast(on ? 'شاشة منحنية' : 'شاشة مسطحة', 1500);
+  }
+  view360(on) {
+    if (on && !this.ensureSnap()) return;
+    this.setProjection(on ? '360' : 'flat');
+    this.frame.visible = !on;   // only the bars and buttons stay in front of you
+    if (this.sphere) {
+      // Point and click anywhere on the page all around you.
+      this.sphere.userData.interact = this.content.userData.interact;
+      if (this.snapGot) this.sphere.material.uniforms.map.value = this.snapCv.texture;
+    }
+    if (!on) this.stopSnap();
+    this.mgr.refreshTargets();
+  }
+  requestSnap(delay) {
+    clearTimeout(this.snapTimer);
+    this.snapTimer = setTimeout(() => {
+      if (this.disposed || !this.snap) return;
+      const now = performance.now();
+      // Waiting for the page (or a lost answer): ask again.
+      if (!this.bridge || (this.snapBusy && now - this.snapAt < 6000)) { this.requestSnap(400); return; }
+      this.snapBusy = true; this.snapAt = now;
+      const id = ++this.snapSeq;
+      try { this.css[0].f.contentWindow.postMessage({ madar: 1, type: 'snap', id, q: 0.8 }, this.base); } catch {}
+    }, delay);
+  }
+  async onSnap(d) {
+    this.snapBusy = false;
+    if (!this.snap) return;
+    if (d.blob) {
+      try {
+        const bmp = await createImageBitmap(d.blob);
+        const { canvas, ctx, texture } = this.snapCv;
+        if (canvas.width !== bmp.width || canvas.height !== bmp.height) { canvas.width = bmp.width; canvas.height = bmp.height; texture.dispose(); }
+        ctx.drawImage(bmp, 0, 0); bmp.close?.();
+        texture.needsUpdate = true;
+        if (!this.snapGot) this.mgr.app.log('الصفحة كصورة: ' + canvas.width + '×' + canvas.height);
+        this.snapGot++;
+        this.mat.uniforms.map.value = texture;
+        if (this.sphere) this.sphere.material.uniforms.map.value = texture;
+      } catch (e) { if (!this.snapErr) { this.snapErr = true; this.mgr.app.log('رسم الصفحة: ' + e.message); } }
+    } else if (d.error && !this.snapErr) { this.snapErr = true; this.mgr.app.log('رسم الصفحة: ' + d.error); }
+    // Quick refresh right after you click or scroll, calmer when the page is idle.
+    const busy = performance.now() - (this.lastInput || 0) < 2500;
+    this.requestSnap(busy ? 120 : 700);
+  }
+  poke() { this.lastInput = performance.now(); if (this.snap && !this.snapBusy) this.requestSnap(90); }
 
   cycleShape() {
     const S = [[16 / 10, '16:10'], [16 / 9, '16:9'], [21 / 9, 'عريضة 21:9'], [4 / 3, '4:3'], [1, 'مربعة'], [9 / 16, 'طولية كالهاتف']];
@@ -950,7 +1021,8 @@ export class WebWindow extends SpatialWindow {
   send(msg) {
     if (!this.bridge || !this.css) return;
     msg.madar = 1;
-    this.css.forEach(c => { try { c.f.contentWindow.postMessage(msg, this.base); } catch {} });
+    (this.snap ? [this.css[0]] : this.css).forEach(c => { try { c.f.contentWindow.postMessage(msg, this.base); } catch {} });
+    if (msg.type !== 'snap') this.poke();
   }
   navTo(path) {
     this.path = path; this.tabPanel?.redraw();
@@ -1005,6 +1077,13 @@ export class WebWindow extends SpatialWindow {
     const head = this.mgr.app.headForward, toWin = this.group.getWorldPosition(new THREE.Vector3()).normalize();
     const vis = head.dot(toWin) > 0.2;
     const corners = vis ? [[-0.5, h / 2], [0.5, h / 2], [-0.5, -h / 2], [0.5, -h / 2]].map(([x, y]) => new THREE.Vector3(x * k, y * k, 0).applyMatrix4(m)) : null;
+    if (this.snap) {
+      // Drawn as a picture: the page stays on screen (browsers pause pages moved out of view) but
+      // nearly transparent, in the corner of the left eye, so the picture of it is what you see.
+      const c = this.css[0];
+      if (c.el.style.opacity !== '0.01') { c.el.style.opacity = '0.01'; c.el.style.transform = 'translate(0px,0px) scale(0.25)'; c.el.style.transformOrigin = '0 0'; c.key = ''; }
+      return;
+    }
     this.css.forEach((c, i) => {
       const P = corners && corners.map(v => r.eyePx(i, v));
       if (!P || P.some(q => !q)) { if (c.el.style.display !== 'none') c.el.style.display = 'none'; c.key = ''; return; }
@@ -1030,7 +1109,7 @@ export class WebWindow extends SpatialWindow {
   }
   loadEye1() {
     const c = this.css[1];
-    if (this.disposed || !c.pending) return;
+    if (this.disposed || !c.pending || this.snap) return;
     c.pending = false; clearTimeout(this.eyeTimer);
     c.f.src = this.src(1);
   }
@@ -1049,6 +1128,7 @@ export class WebWindow extends SpatialWindow {
   ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
   handleMessage(e) {
     if (e.origin === this.base && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
+      if (e.data.type === 'snap') { if (this.css[0].f.contentWindow === e.source) this.onSnap(e.data); return; }
       if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay3: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
       if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }
       if (e.data.url && this.proxied && this.css[0].f.contentWindow === e.source && e.data.url !== this.url) { this.url = e.data.url; this.tabPanel?.redraw(); this.mgr.changed(); }
@@ -1067,6 +1147,7 @@ export class WebWindow extends SpatialWindow {
   userGesture() { if (this.yt && this.ytState.muted) this.ytMute(false); }
   reload() { this.css.forEach(c => { c.f.src = 'about:blank'; }); this.loadEyes(); }
   update(dt, now) {
+    if (this.sphere) this.sphere.position.copy(this.mgr.headLocal());
     this.content.updateMatrixWorld();
     // Momentum after a flick, like iOS scrolling.
     if (Math.abs(this.vel) > 20) {
@@ -1091,6 +1172,7 @@ export class WebWindow extends SpatialWindow {
     this.css.forEach(c => { c.f.src = 'about:blank'; c.el.remove(); });
     this.mgr.app.renderer.cssCount--;
     this.cv.texture.dispose();
+    clearTimeout(this.snapTimer); this.disposeSphere(); this.snapCv?.texture.dispose();
   }
 }
 
@@ -1203,7 +1285,7 @@ export class WindowManager {
   }
   refreshTargets() {
     const t = [];
-    for (const w of this.windows) (w.world ? [w.group, w.world] : [w.group]).forEach(g => g.traverse(o => { if (o.userData.interact) t.push(o); }));
+    for (const w of this.windows) [w.group, w.world, w.sphere?.userData.interact ? w.sphere : null].filter(Boolean).forEach(g => g.traverse(o => { if (o.userData.interact) t.push(o); }));
     this.targets = t;
     this.app.interaction?.setTargets();
   }
