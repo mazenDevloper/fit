@@ -203,7 +203,7 @@ export class Interaction {
             const it = p.surf.mesh.userData.interact, cur = it.toPx(h.uv);
             const dx = p.surf.last[0] - cur[0], dy = p.surf.last[1] - cur[1];
             if (Math.abs(dx) + Math.abs(dy) > 0.5) {
-              it.scrollBy(dx * 1.6, dy * 1.6, cur); p.surf.total += Math.abs(dx) + Math.abs(dy); p.surf.last = cur;
+              { const ax = Math.abs(dx), ay = Math.abs(dy); const sx = ax > ay * 1.4 ? dx * 2.2 : ay > ax * 1.4 ? 0 : dx * 1.6, sy = ay > ax * 1.4 ? dy * 1.6 : ax > ay * 1.4 ? 0 : dy * 1.6; it.scrollBy(sx, sy, cur); } p.surf.total += Math.abs(dx) + Math.abs(dy); p.surf.last = cur;
               const v = dy * 1.6 / Math.max(dt, 0.008); p.surf.vel = (p.surf.vel || 0) * 0.6 + v * 0.4;
             }
             if (p.surf.total > 14) p.fired = true;   // it was a scroll, not a tap

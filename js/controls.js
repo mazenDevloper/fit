@@ -288,7 +288,7 @@ export class Controls {
     if (edge(11)) { const w = this.pointedWindow(); if (w && w.kind === 'model') this.toggleOrbit(w); }
     if (edge(4) || edge(5)) { const w = this.pointedWindow(); if (w && w.scaleBy) { w.scaleBy(edge(5) ? 1.15 : 1 / 1.15); this.rumble(gp, 0.2, 20); } }
     if (b[12]) this.nav.y += 0.8 * dt; if (b[13]) this.nav.y -= 0.8 * dt;
-    if (edge(14) || edge(15)) this.look.yaw += edge(14) ? Math.PI / 6 : -Math.PI / 6;
+    if (edge(14) || edge(15)) { if (!this.scrollPointed(0, edge(14) ? -350 : 350)) this.look.yaw += edge(14) ? Math.PI / 6 : -Math.PI / 6; }
     this.pad.prev = b;
   }
   pointedWindow() {
@@ -296,12 +296,13 @@ export class Controls {
     return p ? p.hit.object.userData.interact.window : null;
   }
   // Scroll whatever page or shared screen the pointer is on, at the pointer's position.
-  scrollPointed(dy) {
+  scrollPointed(dy, dx = 0) {
     const p = this.app.interaction.pointers.find(x => x.active && x.hit);
     const it = p && p.hit.object.userData.interact;
-    if (it && it.scroll && it.scroll() && it.scrollBy && it.toPx && p.hit.uv) { it.scrollBy(0, dy, it.toPx(p.hit.uv)); return; }
+    if (it && it.scroll && it.scroll() && it.scrollBy && it.toPx && p.hit.uv) { it.scrollBy(dx, dy, it.toPx(p.hit.uv)); return true; }
     const w = it && it.window;
-    if (w && w.send && w.bridge) w.send({ type: 'scroll', dx: 0, dy, x: 512, y: 320 });
+    if (w && w.send && w.bridge) { w.send({ type: 'scroll', dx, dy, x: 512, y: 320 }); return true; }
+    return false;
   }
   rumble(gp, strength, ms) {
     try { gp.vibrationActuator?.playEffect?.('dual-rumble', { duration: ms, strongMagnitude: strength, weakMagnitude: strength }); } catch {}

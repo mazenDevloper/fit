@@ -222,6 +222,7 @@ export class VideoWindow extends SpatialWindow {
         { icon: 'home', action: () => this.key('home') },
         { icon: 'keyboard', action: () => this.mgr.openKeyboard() },
         { icon: 'enter', action: () => this.key('enter') },
+        { icon: () => this.headLock ? 'target' : 'grid', action: () => { this.headLock = !this.headLock; this.mgr.app.toast(this.headLock ? 'الشاشة مثبتة أمام عينيك وتتبع رأسك' : 'الشاشة ثابتة في مكانها بالغرفة'); } },
         { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
         { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
         { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
@@ -369,6 +370,13 @@ export class VideoWindow extends SpatialWindow {
     }
     if (now - this.lastBar > 250) { this.lastBar = now; this.toolbar.redraw(); }
     if (this.remote) this.trackPointer(now);
+    // Locked to the view: glide to stay straight ahead at the same distance.
+    if (this.headLock) {
+      const g = this.group, h = this.mgr.headLocal(), d = Math.max(0.8, g.position.distanceTo(h));
+      const t = new THREE.Object3D(); this.mgr.root.add(t); this.mgr.place(t, d, 0, false);
+      g.position.lerp(t.position, Math.min(1, dt * 6)); g.quaternion.slerp(t.quaternion, Math.min(1, dt * 6));
+      this.mgr.root.remove(t);
+    }
     // Watchdog: a paused or stuck live screen is restarted.
     if (now - (this.lastCheck || 0) > 1000) {
       this.lastCheck = now;
