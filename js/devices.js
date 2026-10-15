@@ -26,7 +26,10 @@ export class DeviceHub {
   }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit() { this.listeners.forEach(f => { try { f(); } catch {} }); }
-  hello() { return { type: 'hello', code: this.me.code, name: this.me.name, kind: this.me.kind }; }
+  hello() {
+    const s = this.app.shareState?.() || {};
+    return { type: 'hello', code: this.me.code, name: this.me.name, kind: this.me.kind, sharing: !!s.sharing, canShare: !!s.canShare };
+  }
 
   async start() {
     if (this.started) return; this.started = true;
@@ -105,6 +108,8 @@ export class DeviceHub {
     const from = c.who || {};
     if (!this.known(from.code)) { c.send({ type: 'refused' }); return; }   // only paired devices may send things
     if (d.type === 'link') this.app.receiveLink?.(d, from);
+    else if (d.type === 'share-request') this.app.receiveShareRequest?.(from);
+    else if (d.type === 'watch' && /^\d{6}$/.test(d.code)) this.app.receiveWatch?.(d.code, from);
     else if (d.type === 'text') this.app.receiveText?.(d, from);
     else if (d.type === 'file-start') this.incoming.set(d.id, { meta: d, parts: [], got: 0, from });
     else if (d.type === 'file-chunk') { const f = this.incoming.get(d.id); if (f) { f.parts.push(d.data); f.got += d.data.byteLength || d.data.size || 0; this.app.receiveProgress?.(f); } }
@@ -136,6 +141,11 @@ export class DeviceHub {
   }
   remove(code) { savePaired(pairedDevices().filter(x => x.code !== code)); this.emit(); }
   async sendLink(code, url, title) { const c = await this.open(code); c.send({ type: 'link', url, title }); setTimeout(() => c.close(), 1500); }
+  // What a device can do right now (sharing its screen? able to?).
+  async probe(code) { const c = await this.open(code); const w = c.who; setTimeout(() => c.close(), 800); return w; }
+  async requestShare(code) { const c = await this.open(code); c.send({ type: 'share-request' }); setTimeout(() => c.close(), 1500); }
+  // Ask a device (e.g. the TV) to show another device's screen.
+  async sendWatch(code, screenCode) { const c = await this.open(code); c.send({ type: 'watch', code: screenCode }); setTimeout(() => c.close(), 1500); }
   async sendText(code, text) { const c = await this.open(code); c.send({ type: 'text', text }); setTimeout(() => c.close(), 1500); }
   async sendFile(code, file, onProgress) {
     const c = await this.open(code);

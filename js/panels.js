@@ -179,7 +179,8 @@ export class Launcher {
       text(ctx, d.name, W - 140, y + rh / 2 - 16, 31, { align: 'right', weight: 800, dir: 'auto', maxWidth: 560 });
       text(ctx, (KIND_LABEL[d.kind] || '') + ' · ' + d.code + (d.near ? ' · في شبكتك' : ''), W - 140, y + rh / 2 + 22, 23, { align: 'right', color: COLORS.dim, dir: 'auto' });
       const bh = Math.min(58, rh - 26), by = y + (rh - 8 - bh) / 2;
-      btn(80, by, 220, bh, 'الشاشة', () => { this.close(); a.connectMirror(d.code); }, id + 's', true);
+      if (d.kind === 'tv') btn(80, by, 220, bh, 'اعرض عليه', () => a.showOnDevice(d.code, settings.mirrorCode), id + 's', true);
+      else btn(80, by, 220, bh, 'الشاشة', () => { this.close(); a.connectMirror(d.code); }, id + 's', true);
       if (web) btn(315, by, 250, bh, 'أرسل الموقع', () => a.sendToDevice(d.code, { url: web.url, title: web.title }), id + 'l');
       if (!d.paired) btn(web ? 580 : 315, by, 200, bh, 'إضافة', () => a.pairDevice(d.code), id + 'p');
     });

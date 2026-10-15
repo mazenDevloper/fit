@@ -213,7 +213,20 @@ class App {
       this.log('شاشة اللابتوب: متصلة');
     } catch (e) {
       this.log('شاشة اللابتوب: ' + (e.message || e));
-      // The laptop may not be sharing yet (or the network is back soon): keep trying for about a minute.
+      // First failure: ask the device itself what it can do, instead of retrying blindly.
+      if (attempt === 0 && !again && this.devices) {
+        const who = await this.devices.probe(code).catch(() => null);
+        if (who && who.sharing === false) {
+          if (!who.canShare) {
+            this.toast((who.name || code) + ' لا يستطيع مشاركة شاشته (' + (KIND_LABEL[who.kind] || 'جهاز') + ') — أرسل إليه ملفات، أو اعرض عليه شاشة جهاز آخر من «الأجهزة»', 7000);
+            this.log('الجهاز ' + code + ' يستقبل فقط');
+            return;
+          }
+          await this.devices.requestShare(code).catch(() => {});
+          this.toast('طُلبت المشاركة من ' + (who.name || code) + ' — وافق على الطلب في ذلك الجهاز', 6000);
+        } else if (!who) this.toast('الجهاز ' + code + ' غير متصل — افتح مدار عليه', 4500);
+      }
+      // The device may not be sharing yet (or the network is back soon): keep trying for about a minute.
       if (attempt < 7 && this.active) {
         if (!again) this.toast('بانتظار مشاركة اللابتوب ' + code + '… (' + (attempt + 1) + '/8)', 3000);
         clearTimeout(this.mirrorTimer);
@@ -270,7 +283,7 @@ class App {
       all.forEach(d => {
         const li = document.createElement('li');
         const isNear = near.some(n => n.code === d.code);
-        li.innerHTML = `<b></b><button data-a="screen">شاشته</button><button data-a="file">إرسال ملف</button><button data-a="link">إرسال رابط</button>${d.paired ? '<button data-a="del">حذف</button>' : '<button data-a="pair">إضافة</button>'}`;
+        li.innerHTML = `<b></b>${d.kind === 'tv' ? '<button data-a="watch">اعرض عليه شاشة</button>' : '<button data-a="screen">شاشته</button>'}<button data-a="file">إرسال ملف</button><button data-a="link">إرسال رابط</button>${d.paired ? '<button data-a="del">حذف</button>' : '<button data-a="pair">إضافة</button>'}`;
         li.querySelector('b').innerHTML = '';
         li.querySelector('b').append(d.name || d.code);
         const sm = document.createElement('small'); sm.textContent = (KIND_LABEL[d.kind] || '') + ' · ' + d.code + (isNear ? ' · في شبكتك' : ''); if (isNear) sm.className = 'on';
@@ -280,6 +293,10 @@ class App {
           try {
             if (act === 'screen') { saveSettings({ mirrorCode: d.code }); $('#mirInput') && ($('#mirInput').value = d.code); $('#devMsg').textContent = 'ستظهر شاشة ' + (d.name || d.code) + ' عند الدخول'; }
             else if (act === 'pair') { await hub.pair(d.code); }
+            else if (act === 'watch') {
+              const src = prompt('رقم الجهاز الذي تريد عرض شاشته على ' + (d.name || 'التلفاز'), settings.mirrorCode || '');
+              if (src && /^\d{6}$/.test(src.trim())) { await hub.sendWatch(d.code, src.trim()); $('#devMsg').textContent = 'يعرض ' + (d.name || d.code) + ' الآن شاشة ' + src.trim(); }
+            }
             else if (act === 'del') { hub.remove(d.code); }
             else if (act === 'link') { const u = prompt('الرابط الذي تريد إرساله'); if (u) { await hub.sendLink(d.code, u, u); $('#devMsg').textContent = 'أُرسل الرابط'; } }
             else if (act === 'file') {
@@ -310,6 +327,10 @@ class App {
   async pairDevice(code) {
     try { const d = await this.devices.pair(code); this.toast('أُضيف ' + (d?.name || code), 2500); } catch (e) { this.toast(e.message || 'تعذّر الاتصال', 3500); }
   }
+  async showOnDevice(code, screenCode) {
+    if (!screenCode || screenCode === code) { this.toast('اعرض شاشة جهاز أولاً (مثل التابلت) ثم أرسلها للتلفاز', 4000); return; }
+    try { await this.devices.sendWatch(code, screenCode); this.toast('أُرسلت الشاشة ' + screenCode + ' إلى الجهاز ✓', 3000); } catch (e) { this.toast(e.message || 'تعذّر الإرسال', 3500); }
+  }
   async sendToDevice(code, { url, title }) {
     try { await this.devices.sendLink(code, url, title); this.toast('أُرسل الموقع إلى الجهاز ✓', 2500); } catch (e) { this.toast(e.message || 'تعذّر الإرسال', 3500); }
   }
@@ -329,6 +350,30 @@ class App {
     const l = loadLinks(); if (!l.some(x => x.url === d.url)) { l.unshift({ id: 'l' + Date.now(), title: d.title || d.url, url: d.url }); saveLinks(l); this.renderLinks(); }
     this.toast('رابط من ' + (from?.name || from?.code || 'جهاز') + ': ' + (d.title || d.url).slice(0, 40), 3500);
     if (this.active) this.windows.open({ kind: 'web', url: d.url, title: d.title || '' });
+  }
+  shareState() {
+    const app = !!window.MadarAndroid, browser = typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+    return { sharing: !!this.host?.stream, canShare: app || browser };
+  }
+  // A paired device asks to see this screen.
+  receiveShareRequest(from) {
+    if (this.host?.stream) return;
+    const who = from?.name || from?.code || 'جهاز';
+    this.log('طلب مشاركة من ' + who);
+    if (window.MadarAndroid) { this.toast(who + ' يطلب شاشتك', 3000); this.host?.start().catch(() => {}); return; }   // Android shows its own consent dialog
+    // Browsers need a click before sharing: show a big button.
+    let b = document.getElementById('shareAsk');
+    if (!b) { b = document.createElement('button'); b.id = 'shareAsk'; document.body.appendChild(b); }
+    Object.assign(b.style, { position: 'fixed', zIndex: 99999, left: '50%', top: '20px', transform: 'translateX(-50%)', padding: '16px 26px', borderRadius: '18px', border: '0', background: '#7cc4ff', color: '#0b1020', font: '800 18px system-ui', boxShadow: '0 10px 40px rgba(0,0,0,.5)' });
+    b.textContent = who + ' يطلب شاشتك — اضغط للمشاركة';
+    b.onclick = () => { b.remove(); this.host?.start().catch(e => this.showError(e.message || 'لم تبدأ المشاركة')); };
+    setTimeout(() => b.remove(), 60000);
+  }
+  // A paired device asks this one to show a screen (e.g. phone tells the TV to show the tablet).
+  receiveWatch(code, from) {
+    this.toast((from?.name || 'جهاز') + ' يعرض هنا شاشة ' + code, 3000);
+    saveSettings({ mirrorCode: code });
+    if (this.active) this.connectMirror(code);
   }
   receiveText(d, from) { this.toast((from?.name || 'جهاز') + ': ' + String(d.text || '').slice(0, 80), 5000); }
   receiveProgress(f) {

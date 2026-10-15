@@ -57,6 +57,8 @@
       toast('من ' + (from?.name || 'جهاز') + ': ' + file.name); show(el);
     },
     receiveLink(d, from) { const f = document.createElement('iframe'); f.src = d.url; f.allow = 'autoplay; fullscreen; encrypted-media'; toast('رابط من ' + (from?.name || 'جهاز')); show(f); },
+    shareState() { return { sharing: false, canShare: false }; },
+    receiveWatch(code) { watch(code); },
     receiveText(d, from) { toast((from?.name || 'جهاز') + ': ' + d.text, 6000); },
     receiveProgress(f) { toast('استلام ' + f.meta.name + ' ' + Math.round(f.got / Math.max(1, f.meta.size) * 100) + '%', 1200); },
   };
