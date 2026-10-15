@@ -682,7 +682,8 @@ class App {
 
   async startCamera() {
     if (!navigator.mediaDevices?.getUserMedia) return false;
-    const base = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60, max: 60 } };
+    // Cool mode: 30 fps camera is plenty for passthrough and roughly halves the camera's heat.
+    const base = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: settings.cool ? { ideal: 30, max: 30 } : { ideal: 60, max: 60 } };
     let stream = null;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...base, facingMode: { ideal: settings.viewMode === 'desktop' ? 'user' : 'environment' } } }); }
     catch (e) { console.warn(e); try { stream = await navigator.mediaDevices.getUserMedia({ video: true }); } catch { return false; } }

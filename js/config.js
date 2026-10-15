@@ -33,7 +33,11 @@ export const DEFAULTS = {
   rxStrength: 1,        // how strongly the prescription shapes per-eye sharpening
   rxR: { sph: -0.75, cyl: -0.50, axis: 90 },   // from the user's glasses card
   rxL: { sph: 0.50, cyl: -3.00, axis: 65 },
-  dwellMs: 3000,
+  dwellMs: 2000,
+  handDwell: true,       // hold the hand pointer still on something to click (one finger = mouse)
+  handDwellMs: 2000,
+  stabilizer: true,      // filters small head tremors out of the pointers
+  cool: true,            // cooler iPhone: 30 fps camera, lighter rendering
   moveEnabled: true,    // walk around the environment (sticks, keys, hand drag)
   eyeTrack: false,      // laptop mode: eye tracking with the front camera
   blinkClick: true,     // long blink = click
@@ -69,6 +73,8 @@ if (settings.v < 5) {
   try { if (!('ontouchstart' in window) && matchMedia('(pointer: fine)').matches && typeof DeviceOrientationEvent?.requestPermission !== 'function') settings.viewMode = 'desktop'; } catch {}
   settings.v = 5; safeSet(KEY, JSON.stringify(settings));
 }
+// v6: 2 s clicks, hand-hold click, stabiliser and cool mode on.
+if (settings.v < 6) { Object.assign(settings, { dwellMs: 2000, handDwell: true, handDwellMs: 2000, stabilizer: true, cool: true, v: 6 }); safeSet(KEY, JSON.stringify(settings)); }
 
 const listeners = new Set();
 export function onSettings(fn) { listeners.add(fn); return () => listeners.delete(fn); }

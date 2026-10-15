@@ -51,27 +51,23 @@ function androidStream(onEnded) {
     // Tablet sound: 40 ms PCM chunks (48 kHz stereo 16-bit) from the app, played into an audio track.
     let ac = null, dest = null, at = 0;
     try { ac = new AudioContext({ sampleRate: 48000 }); dest = ac.createMediaStreamDestination(); ac.resume?.(); } catch { ac = null; }
-    window.__madarAudio = b64 => {
+    const playPcm = pcm => {   // Int16Array, stereo interleaved
       if (!ac || !started) return;
       try {
-        const bin = atob(b64), n = bin.length >> 2, buf = ac.createBuffer(2, n, 48000);
+        const n = pcm.length >> 1, buf = ac.createBuffer(2, n, 48000);
         const L = buf.getChannelData(0), R = buf.getChannelData(1);
-        for (let i = 0, j = 0; i < n; i++, j += 4) {
-          let l = bin.charCodeAt(j) | (bin.charCodeAt(j + 1) << 8), r = bin.charCodeAt(j + 2) | (bin.charCodeAt(j + 3) << 8);
-          if (l > 32767) l -= 65536; if (r > 32767) r -= 65536;
-          L[i] = l / 32768; R[i] = r / 32768;
-        }
+        for (let i = 0; i < n; i++) { L[i] = pcm[2 * i] / 32768; R[i] = pcm[2 * i + 1] / 32768; }
         const src = ac.createBufferSource(); src.buffer = buf; src.connect(dest);
         const now = ac.currentTime;
         if (at < now + 0.02 || at > now + 0.4) at = now + 0.08;   // small jitter buffer, resync if drifting
         src.start(at); at += buf.duration;
       } catch {}
     };
-    const draw = async b64 => {
+    const b64bytes = b64 => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+    window.__madarAudio = b64 => { const u = b64bytes(b64); playPcm(new Int16Array(u.buffer, 0, u.length >> 1)); };
+    const draw = async u => {
       if (busy) return; busy = true;
       try {
-        const bin = atob(b64), u = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
         const bmp = await createImageBitmap(new Blob([u], { type: 'image/jpeg' }));
         if (useGen) {
           const f = new VideoFrame(bmp, { timestamp: Math.round((performance.now() - t0) * 1000) });
@@ -84,7 +80,20 @@ function androidStream(onEnded) {
       } catch {}
       busy = false;
     };
-    window.__madarFrame = b64 => { if (started) draw(b64); try { window.__madarTick?.(); } catch {} };
+    window.__madarFrame = b64 => { if (started) draw(b64bytes(b64)); try { window.__madarTick?.(); } catch {} };
+    // Fast path (newer Android WebView): raw bytes arrive as messages — no text encoding, much less work.
+    // Header "MDR" + 1 = JPEG picture, 2 = PCM sound.
+    if (!window.__madarBin) {
+      window.__madarBin = true;
+      window.addEventListener('message', e => {
+        const d = e.data; if (!(d instanceof ArrayBuffer) || d.byteLength < 5) return;
+        const h = new Uint8Array(d, 0, 4); if (h[0] !== 77 || h[1] !== 68 || h[2] !== 82) return;
+        if (h[3] === 1) { window.__madarBinFrame?.(new Uint8Array(d, 4)); try { window.__madarTick?.(); } catch {} }
+        else if (h[3] === 2) window.__madarBinAudio?.(new Int16Array(d.slice(4)));
+      });
+    }
+    window.__madarBinFrame = u => { if (started) draw(u); };
+    window.__madarBinAudio = pcm => playPcm(pcm);
     window.__madarCapture = state => {
       if (state === 'started' && !started) {
         started = true;
@@ -224,10 +233,12 @@ export class ScreenHost {
   }
   // Quality chosen in the headset: picture size, JPEG quality (tablet app) and network bitrate.
   setQuality(level) {
-    const Q = { low: [960, 62, 1200000], medium: [1280, 72, 2500000], high: [1600, 80, 5000000], max: [1920, 88, 8000000] }[level];
+    // game: smooth 30 fps first (smaller picture, motion-tuned encoder).
+    const Q = { game: [1280, 74, 6000000, 30], low: [960, 62, 1200000, 24], medium: [1280, 72, 2500000, 30], high: [1600, 80, 5000000, 30], max: [1920, 88, 8000000, 30] }[level];
     if (!Q) return;
     this.quality = level;
-    try { window.MadarAndroid?.setQuality?.(Q[0], Q[1]); } catch {}
+    try { window.MadarAndroid?.setQuality?.(Q[0], Q[1]); window.MadarAndroid?.setFps?.(Q[3]); } catch {}
+    this.stream?.getVideoTracks().forEach(t => { try { t.contentHint = level === 'game' ? 'motion' : 'detail'; } catch {} });
     if (!window.MadarAndroid) { const t = this.stream?.getVideoTracks()[0]; t?.applyConstraints?.({ width: { ideal: Q[0] * 16 / 9 > 1920 ? 2560 : 1920 }, frameRate: { ideal: 30 } }).catch(() => {}); }
     (this.calls || []).forEach(c => this.tune(c));
   }
@@ -235,13 +246,13 @@ export class ScreenHost {
   tune(call) {
     const pc = call && call.peerConnection; if (!pc) return;
     (this.calls || (this.calls = new Set())).add(call);
-    const rate = { low: 1200000, medium: 2500000, high: 5000000, max: 8000000 }[this.quality || 'high'];
+    const rate = { game: 6000000, low: 1200000, medium: 2500000, high: 5000000, max: 8000000 }[this.quality || 'high'];
     const apply = () => pc.getSenders().forEach(snd => {
       if (!snd.track || snd.track.kind !== 'video') return;
       try {
         const p = snd.getParameters(); p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
         p.encodings[0].maxBitrate = rate; p.encodings[0].maxFramerate = 30;
-        p.degradationPreference = 'maintain-framerate';
+        p.degradationPreference = this.quality === 'game' || this.quality === 'low' ? 'maintain-framerate' : 'balanced';
         snd.setParameters(p).catch(() => {});
       } catch {}
     });

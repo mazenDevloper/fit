@@ -171,7 +171,8 @@ export class StereoRenderer {
     const px = pxPerMm();
     const cssSize = 2 * TAN_MAX * settings.screenToLens * px;
     // Match the screen's pixel density at the lens centre (1:1), within memory limits.
-    const cap = this.cssCount > 0 ? 1280 : 1664;   // leave memory for web pages when one is open
+    // Leave memory for web pages when one is open; cool mode renders a little lighter to keep the iPhone cool.
+    const cap = this.cssCount > 0 ? 1280 : settings.cool ? 1408 : 1664;
     this.quality = this.quality || 1;
     const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr * this.quality / 64) * 64, 896, cap);
     if (want !== this.rtSize) this.makeTargets(want);

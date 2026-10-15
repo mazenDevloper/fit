@@ -2,6 +2,7 @@
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 const MODEL_CACHE = 'madar-models-v1';
 const LOCAL_MODEL = new URL('../assets/hand_landmarker.task', import.meta.url).href;
+import { settings } from './config.js';
 
 class OneEuro {
   constructor(minCutoff = 1.4, beta = 2.0, dCutoff = 1.0) { this.minCutoff = minCutoff; this.beta = beta; this.dCutoff = dCutoff; this.x = null; this.dx = 0; this.t = 0; }
@@ -91,7 +92,7 @@ export class HandTracker {
     for (const s of this.slots) if (s.active && now - s.seen > 260) { s.active = false; s.pinch = false; s.fx.reset(); s.fy.reset(); s.fd.reset(); }
     if (this.state !== 'ready' || !video || video.readyState < 2) return;
     if (video.currentTime === this.lastVideoTime) return;
-    const interval = this.delegate === 'GPU' ? 38 : 50;   // ~25 Hz is enough for gestures and saves GPU
+    const interval = settings.cool ? (this.delegate === 'GPU' ? 45 : 60) : (this.delegate === 'GPU' ? 38 : 50);   // ~25 Hz is enough for gestures and saves GPU
     if (now - this.lastDetect < interval) return;
     this.lastVideoTime = video.currentTime;
     this.lastDetect = now;

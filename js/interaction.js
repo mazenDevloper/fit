@@ -127,8 +127,20 @@ export class Interaction {
     this.reanchor();
   }
 
+  // Pointer stabiliser: small head tremors are filtered out of every pointer (hands and gaze), while
+  // deliberate head turns pass straight through. The view itself is never delayed.
+  stableQ(dt) {
+    const R = this.app.renderQ, S = this.sq || (this.sq = R.clone());
+    const ang = S.angleTo(R);
+    if (ang > 0.35) { S.copy(R); return S; }                 // big jump (recenter): snap
+    // < ~0.4° per frame: hold almost still; faster movement follows proportionally.
+    const k = THREE.MathUtils.clamp((ang - 0.003) / 0.03, 0, 1);
+    const a = 0.04 + 0.96 * k * k;
+    S.slerp(R, Math.min(1, a * Math.max(1, dt * 60)));
+    return S;
+  }
   update(dt, now) {
-    const Q = this.app.renderQ;
+    const Q = settings.stabilizer === false ? this.app.renderQ : this.stableQ(dt);
     const slots = this.app.hands.slots;
     const handsOn = settings.handsEnabled && this.app.hands.state === 'ready';
     let anyHand = false;
@@ -143,13 +155,18 @@ export class Interaction {
       }
       anyHand = true;
       p.dir.set(s.tx, s.ty, -1).normalize().applyQuaternion(Q);
+      (p.hist || (p.hist = [])).push({ t: now, d: p.dir.clone() });
+      while (p.hist.length > 12) p.hist.shift();
       const hit = p.drag ? null : this.cast(p.dir);
       p.hit = hit;
       if (!p.drag) this.setHover(p, hit);
       const pinch = s.pinch;
       if (pinch && !p.wasPinch) {
         p.t0 = now; p.start = [s.tx, s.ty]; p.moved = 0; p.fired = false;
-        p.downObj = hit ? hit.object : null; p.downHit = hit;
+        // Pinching pulls the index finger and moves the pointer: aim with where it was ~90 ms before.
+        let pre = null; for (const h of p.hist) if (now - h.t >= 90) pre = h;
+        const aimHit = pre && !p.drag ? (this.cast(pre.d) || hit) : hit;
+        p.downObj = aimHit ? aimHit.object : null; p.downHit = aimHit;
         p.surf = null; p.pendingDrag = null; p.world = null;
         const it = hit && hit.object.userData.interact;
         const other = this.pointers[1 - i];
@@ -225,7 +242,16 @@ export class Interaction {
         }
       } else if (p.wasPinch) this.release(p, now, hit);
       p.wasPinch = pinch;
-      this.drawCursor(p, hit, s.strength, pinch);
+      let hprog = 0;
+      if (settings.handDwell !== false && !pinch && !p.drag && this.clickable(hit)) {
+        const dwell = settings.handDwellMs || 2000;
+        if (!p.still || p.still.obj !== hit.object || p.still.dir.angleTo(p.dir) > 0.022) p.still = { obj: hit.object, dir: p.dir.clone(), t: now, done: false };
+        else if (!p.still.done) {
+          hprog = Math.max(0, (now - p.still.t - 250) / (dwell - 250));
+          if (hprog >= 1) { p.still.done = true; hprog = 0; this.click(hit); blip('tap', settings.sounds); }
+        }
+      } else p.still = null;
+      this.drawCursor(p, hit, s.strength, pinch, hprog);
     }
 
     // Two empty-space pinches held together → recenter.
@@ -277,8 +303,7 @@ export class Interaction {
     if (p.drag) { this.endDrag(p); return; }
     if (!p.fired && p.downObj && p.moved < 0.07 && now - p.t0 < 1000) {
       // Click whatever is under the pointer now if it is the same object, else the original target.
-      const h = hit && hit.object === p.downObj ? hit : p.downHit;
-      this.click(h);
+      this.click(p.downHit);   // the spot aimed at before pinching, not where the pinch dragged it
     }
     p.downObj = null; p.downHit = null;
   }

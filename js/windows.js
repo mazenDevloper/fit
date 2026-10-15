@@ -246,7 +246,7 @@ const PIC_PRESETS = {
   cinema: ['سينما', { bright: 0.97, contrast: 1.1, sat: 1.05, sharp: 0.25, green: 0 }],
   vivid: ['حيوي', { bright: 1.15, contrast: 1.15, sat: 1.35, sharp: 0.45, green: 0 }],
 };
-const QUALITY = [['low', 'منخفضة'], ['medium', 'متوسطة'], ['high', 'عالية'], ['max', 'قصوى']];
+const QUALITY = [['game', 'ألعاب'], ['medium', 'متوسطة'], ['high', 'عالية'], ['max', 'قصوى']];
 function picture() { return Object.assign({ preset: 'normal', quality: 'high' }, PIC_PRESETS.normal[1], settings.picture || {}); }
 class PicturePanel {
   constructor(win) {
