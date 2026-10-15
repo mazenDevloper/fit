@@ -22,7 +22,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '42';
+export const APP_VERSION = '43';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -803,7 +803,8 @@ class App {
   async startCamera() {
     if (!navigator.mediaDevices?.getUserMedia) return false;
     // Cool mode: 30 fps camera is plenty for passthrough and roughly halves the camera's heat.
-    const base = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: settings.cool ? { ideal: 30, max: 30 } : { ideal: 60, max: 60 } };
+    const roomShown = !isImmersive(settings.environment);
+    const base = { width: { ideal: roomShown || !settings.cool ? 1280 : 640 }, height: { ideal: roomShown || !settings.cool ? 720 : 360 }, frameRate: settings.cool ? { ideal: 30, max: 30 } : { ideal: 60, max: 60 } };
     let stream = null;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...base, facingMode: { ideal: settings.viewMode === 'desktop' ? 'user' : 'environment' } } }); }
     catch (e) { console.warn(e); try { stream = await navigator.mediaDevices.getUserMedia({ video: true }); } catch { return false; } }
@@ -992,11 +993,19 @@ class App {
 
   // ---------- Frame loop ----------
   frame(now) {
-    const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
-    this.renderer.adapt(dt);
     if (this.head.hasData) this.head.pose(settings.poseDelay, this.renderQ);
     else this.renderQ.setFromEuler(new THREE.Euler(-this.debugPitch, -this.debugYaw, 0, 'YXZ'));
     this.controls.applyLook(this.renderQ);
+    // Cool mode: while your head is still, draw 30 times a second instead of 60 (the GPU does half
+    // the work, the iPhone stays much cooler); any head movement goes straight back to full smoothness.
+    if (settings.cool && this.lastQ) {
+      const moving = this.lastQ.angleTo(this.renderQ) > 0.004;
+      if (moving) this.movingAt = now;
+      if (now - (this.movingAt || 0) > 250 && now - this.last < 28) return;
+    }
+    (this.lastQ ||= new THREE.Quaternion()).copy(this.renderQ);
+    const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
+    if (!settings.cool || now - (this.movingAt || 0) < 250) this.renderer.adapt(dt);   // half-rate still frames aren't slowness
     this.headForward.set(0, 0, -1).applyQuaternion(this.renderQ);
     const touching = this.controls.applyTouches(now);
     if (settings.handsEnabled && !touching) this.hands.update(this.camVideo, now, (x, y) => { const [sx, sy] = this.renderer.imageToStage(x, y); return this.renderer.stageToTan(sx, sy); });
@@ -1029,3 +1038,4 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 }
 
 window.madar = new App();
+window.__madarToast = m => window.madar.toast(m, 6000);
