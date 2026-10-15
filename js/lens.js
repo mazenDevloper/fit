@@ -87,7 +87,7 @@ export class LensAdjust {
     this.app.applySettings();
     const px = pxPerMm(), { width, height } = this.app.orientation;
     // Rings show where each lens centre sits now.
-    const size = 2 * 1.22 * settings.screenToLens * px * 0.62;
+    const size = 2 * 1.4 * settings.screenToLens * px * 0.55;
     [...this.el.querySelectorAll('.la-ring')].forEach((r, i) => {
       const cx = width / 2 + (i ? 1 : -1) * settings.lensSep * 0.5 * px;
       const cy = height / 2 - (settings.vOffset + (i ? 0.5 : -0.5) * (settings.vSkew || 0)) * px;

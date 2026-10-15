@@ -63,7 +63,7 @@ function androidStream(onEnded) {
       } catch {}
       busy = false;
     };
-    window.__madarFrame = b64 => { if (started) draw(b64); };
+    window.__madarFrame = b64 => { if (started) draw(b64); try { window.__madarTick?.(); } catch {} };
     window.__madarCapture = state => {
       if (state === 'started' && !started) {
         started = true;
@@ -163,6 +163,13 @@ export class ScreenHost {
     }
     this.peer.on('connection', conn => this.accept(conn));
     if (!window.MadarAndroid) this.agent.start();
+    else {
+      let last = 0;
+      window.__madarTick = () => {
+        const now = Date.now(); if (now - last < 4000 || !this.peer) return; last = now;
+        try { if (this.peer.disconnected && !this.peer.destroyed) this.peer.reconnect(); else this.peer.socket?.send?.({ type: 'HEARTBEAT' }); } catch {}
+      };
+    }
     // Keep the code reachable: if the signalling link drops (Wi-Fi blip, laptop asleep), rejoin with the same code.
     this.peer.on('disconnected', () => { setTimeout(() => { try { if (this.peer && !this.peer.destroyed) this.peer.reconnect(); } catch {} }, 1000); });
     this.status();

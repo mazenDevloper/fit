@@ -295,6 +295,12 @@ class App {
   // ---------- Home screen ----------
   bindHome() {
     $('#enter').addEventListener('click', () => this.enter());
+    // Preview and adjust the two lens images (move, zoom, height) straight from the home page.
+    $('#lensPreview')?.addEventListener('click', async () => {
+      if (settings.viewMode !== 'sbs') saveSettings({ viewMode: 'sbs' });
+      try { await this.enter(); } catch (e) { this.log('lens preview: ' + (e.message || e)); }
+      setTimeout(() => { if (this.active) this.lensAdjust.open(); }, 900);
+    });
     const standalone = window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches;
     $('#install').hidden = standalone;
     $('#files').addEventListener('change', async e => {
@@ -464,6 +470,12 @@ class App {
       this.crashed = false;
       const w = this.windows.open({ kind: 'panel', panel: 'welcome' });
       setTimeout(() => this.toast('بدأنا بمساحة خفيفة بعد الإغلاق المفاجئ', 4000), 1500);
+      return;
+    }
+    // Stable start: an empty space (or just the shared screen when a code is saved). Old windows come back only if asked.
+    if (!settings.restoreLayout) {
+      if (!settings.mirrorCode) setTimeout(() => this.toast('مساحة فارغة · افتح القائمة بزر Options أو بقرصة طويلة', 4500), 1800);
+      try { localStorage.setItem(FIRST_RUN, '1'); } catch {}
       return;
     }
     if (saved && saved.windows && saved.windows.length && !first) { this.windows.restore(saved.windows); return; }

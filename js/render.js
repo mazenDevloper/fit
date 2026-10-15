@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { CSS3DRenderer } from 'three/addons/renderers/CSS3DRenderer.js';
 import { settings, pxPerMm } from './config.js';
 
-const TAN_MAX = 1.22;  // half-extent (tan) covered by each eye's render target (smaller = sharper centre)
+const TAN_MAX = 1.4;   // half-extent (tan) covered by each eye's render target (smaller = sharper centre)
 export const CSS_K = 1000; // CSS layer works in millimetres so browsers keep 3D precision
 
 const BG_VERT = /* glsl */`

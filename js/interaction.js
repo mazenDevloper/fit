@@ -158,6 +158,9 @@ export class Interaction {
           // Both hands on one window: grab it with two hands to scale (and move it with the first hand).
           if (!other.drag) { const h = other.pendingDrag || this.cast(other.dir); other.surf = null; other.pendingDrag = null; if (h) this.startDrag(other, h, slots[1 - i]); }
           if (other.drag) { this.beginScale(other.drag.win); p.scaleHelper = true; p.fired = true; other.fired = true; p.downObj = null; }
+        } else if (it && it.type === 'resize' && it.window) {
+          p.zoom = { win: it.window, s0: it.window.group.scale.x, x0: s.tx, y0: s.ty, corner: true }; p.fired = true;
+          blip('grab', settings.sounds);
         } else if (it && it.type === 'drag') this.startDrag(p, hit, s);
         else if (it && it.type === 'surface' && it.scroll && it.scroll()) {
           // Pinch-drag inside an interactive page scrolls it, like a finger on a touch screen.
@@ -172,7 +175,8 @@ export class Interaction {
       if (pinch) {
         p.moved = Math.max(p.moved, Math.hypot(s.tx - p.start[0], s.ty - p.start[1]));
         // One-hand resize: pinch a window and hold still briefly, then move the hand up (bigger) or down (smaller).
-        const zwin = (p.drag?.win?.kind === 'model' ? p.drag.win : null) || p.surf?.win || p.pendingDrag?.object.userData.interact.window;
+        // (Windows resize from their corner handle; pinch-hold resize is kept for 3D models only.)
+        const zwin = p.drag?.win?.kind === 'model' ? p.drag.win : null;
         if (!p.zoom && zwin && !p.scaleHelper && !this.scaleMode && p.moved < 0.02 && now - p.t0 > ZOOM_HOLD) {
           if (p.drag) this.endDrag(p);
           p.surf = null; p.pendingDrag = null; p.fired = true;
@@ -182,7 +186,8 @@ export class Interaction {
         }
         if (p.zoom) {
           const z = p.zoom, lim = z.win.kind === 'model' ? [0.1, 12] : [0.25, 8];
-          const target = THREE.MathUtils.clamp(z.s0 * Math.exp((s.ty - z.y0) * 3.2), lim[0], lim[1]);
+          const f = z.corner ? ((s.tx - z.x0) - (s.ty - z.y0)) * 2.6 : (s.ty - z.y0) * 3.2;
+          const target = THREE.MathUtils.clamp(z.s0 * Math.exp(f), lim[0], lim[1]);
           z.win.group.scale.setScalar(z.win.group.scale.x + (target - z.win.group.scale.x) * 0.35);
           this.drawCursor(p, null, 1, true);
         }

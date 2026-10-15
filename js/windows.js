@@ -163,6 +163,13 @@ class SpatialWindow {
     this.group.add(bar);
     this.closeBtn = new IconButton('close', 0.05, () => this.mgr.close(this));
     this.group.add(this.closeBtn.mesh);
+    // Corner handle: pinch it and pull outward/inward to resize (separate from scrolling and moving).
+    const rm = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.38, depthWrite: false });
+    this.resizer = new THREE.Mesh(new THREE.CircleGeometry(0.036, 24), rm);
+    const arrow = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.008), new THREE.MeshBasicMaterial({ color: 0x141824 }));
+    arrow.rotation.z = -Math.PI / 4; arrow.position.z = 0.001; this.resizer.add(arrow);
+    this.resizer.userData.interact = { type: 'resize', window: this, hover: on => { rm.opacity = on ? 0.9 : 0.38; return true; } };
+    this.group.add(this.resizer);
     this.toolbar = null;
   }
   get h() { return 1 / this.aspect; }
@@ -177,6 +184,7 @@ class SpatialWindow {
     const y = -h / 2 - 0.042;
     this.bar.position.set(0, y, 0.002);
     this.closeBtn.mesh.position.set(-0.155, y, 0.004);
+    this.resizer.position.set(0.5 + 0.03, -h / 2 - 0.03, 0.006);
     if (this.toolbar) this.toolbar.mesh.position.set(0, y - 0.075, 0.004);
   }
   setAspect(a) { if (a && isFinite(a) && Math.abs(a - this.aspect) > 0.001) { this.aspect = a; this.layout(); } }
