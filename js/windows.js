@@ -6,6 +6,8 @@ import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem } from './db.js';
 import { settings, saveSettings, loadLinks, saveLinks } from './config.js';
 import { CSS_K, EYE } from './render.js';
+import { drawMatches } from './sports.js';
+import { BalloonGame } from './games.js';
 
 const BROWSE_ORIGIN = 'https://cplay3.netlify.app';
 const CONTENT_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -187,7 +189,7 @@ class SpatialWindow {
     this.resizer = new THREE.Mesh(new THREE.CircleGeometry(0.05, 28), rm);
     const arrow = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.011), new THREE.MeshBasicMaterial({ color: 0x141824 }));
     arrow.rotation.z = -Math.PI / 4; arrow.position.z = 0.001; this.resizer.add(arrow);
-    this.resizer.userData.interact = { type: 'resize', window: this, hover: on => { rm.opacity = on ? 0.9 : 0.38; return true; } };
+    this.resizer.userData.interact = { type: 'resize', window: this, hover: on => { rm.opacity = on ? 0.9 : 0.38; return true; }, click: () => this.mgr.app.interaction.beginResizeMode(this) };
     this.group.add(this.resizer);
     this.toolbar = null;
   }
@@ -208,6 +210,25 @@ class SpatialWindow {
     if (this.toolbar) this.toolbar.mesh.position.set(0, y - 0.075, 0.004);
   }
   setAspect(a) { if (a && isFinite(a) && Math.abs(a - this.aspect) > 0.001) { this.aspect = a; this.layout(); } }
+  // Immersive 180°/360° video: a sphere around you, the window stays as the remote control.
+  setProjection(p) {
+    this.proj = p;
+    if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; }
+    if (p === 'flat') { this.content.visible = true; return; }
+    const g = p === '180' ? new THREE.SphereGeometry(12, 64, 48, Math.PI, Math.PI) : new THREE.SphereGeometry(12, 96, 48);
+    g.scale(-1, 1, 1);
+    const m = contentMaterial(), u = this.mat.uniforms;
+    ['map', 'uVideo', 'uHas', 'uL', 'uR', 'uDim'].forEach(k => { m.uniforms[k] = u[k]; });
+    m.uniforms.uSize.value.set(1, 1); m.uniforms.uRadius.value = 0;
+    m.side = THREE.FrontSide; m.depthWrite = false;
+    const sp = new THREE.Mesh(g, m);
+    sp.renderOrder = -10; sp.frustumCulled = false;
+    sp.rotation.y = this.mgr.forwardYaw() + (p === '360' ? -Math.PI / 2 : 0);
+    this.mgr.root.add(sp); this.sphere = sp;
+    this.content.visible = false;
+    this.mgr.app.toast((this.kind === 'image' ? 'صورة' : 'فيديو') + (p === '180' ? ' 180°' : ' 360°') + ' حولك · النافذة للتحكم', 2500);
+  }
+  disposeSphere() { if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; } }
   setCurved(on) {
     if (!this.canCurve) return;
     this.curved = on;
@@ -432,24 +453,6 @@ export class VideoWindow extends SpatialWindow {
     this.setProjection(this.proj);
     this.opts?.redraw();
   }
-  // Immersive 180°/360° video: a sphere around you, the window stays as the remote control.
-  setProjection(p) {
-    this.proj = p;
-    if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; }
-    if (p === 'flat') { this.content.visible = true; return; }
-    const g = p === '180' ? new THREE.SphereGeometry(12, 64, 48, Math.PI, Math.PI) : new THREE.SphereGeometry(12, 96, 48);
-    g.scale(-1, 1, 1);
-    const m = contentMaterial(), u = this.mat.uniforms;
-    ['map', 'uVideo', 'uHas', 'uL', 'uR', 'uDim'].forEach(k => { m.uniforms[k] = u[k]; });
-    m.uniforms.uSize.value.set(1, 1); m.uniforms.uRadius.value = 0;
-    m.side = THREE.FrontSide; m.depthWrite = false;
-    const sp = new THREE.Mesh(g, m);
-    sp.renderOrder = -10; sp.frustumCulled = false;
-    sp.rotation.y = this.mgr.forwardYaw() + (p === '360' ? -Math.PI / 2 : 0);
-    this.mgr.root.add(sp); this.sphere = sp;
-    this.content.visible = false;
-    this.mgr.app.toast(p === '180' ? 'فيديو 180° حولك · النافذة للتحكم' : 'فيديو 360° حولك · النافذة للتحكم', 2500);
-  }
   toggleOptions() {
     if (!this.opts) {
       const FMT = { '2d': '2D', sbs: 'SBS كامل', sbsh: 'SBS', ou: 'OU كامل', ouh: 'OU' }, PROJ = { flat: 'شاشة', '180': '180°', '360': '360°' };
@@ -567,7 +570,7 @@ export class VideoWindow extends SpatialWindow {
     }
   }
   ref() {
-    if (this.stream) return null;
+    if (this.stream || (this.url && this.url.startsWith('blob:'))) return null;
     const r = this.itemId ? { item: this.itemId } : { url: this.url };
     if (this.fmt !== '2d') r.fmt = this.fmt;
     if (this.proj !== 'flat') r.proj = this.proj;
@@ -587,10 +590,11 @@ export class VideoWindow extends SpatialWindow {
 }
 
 export class ImageWindow extends SpatialWindow {
-  constructor(mgr, { itemId }) {
+  constructor(mgr, { itemId, file = null, proj = null }) {
     super(mgr, 'image');
-    this.itemId = itemId;
+    this.itemId = itemId; this.file = file; this.proj = proj || 'flat';
     this.toolbar = new Toolbar([
+      { icon: () => this.proj === '360' ? 'image' : 'globe', action: () => { this.setProjection(this.proj === '360' ? 'flat' : '360'); this.mgr.changed(); } },
       { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
@@ -600,7 +604,7 @@ export class ImageWindow extends SpatialWindow {
     this.load();
   }
   async load() {
-    const item = await getItem(this.itemId);
+    const item = this.file ? { name: this.file.name, files: [{ blob: this.file }] } : await getItem(this.itemId);
     if (!item) { this.mgr.close(this); return; }
     this.mgr.app.log('فتح صورة: ' + item.name);
     try {
@@ -620,10 +624,14 @@ export class ImageWindow extends SpatialWindow {
       this.mat.uniforms.map.value = t; this.mat.uniforms.uHas.value = 1;
       this.tex = t;
       this.setAspect(c.width / c.height);
+      const r = c.width / c.height;
+      if (this.proj && this.proj !== 'flat') this.setProjection(this.proj);
+      else if (/360|panorama|بانوراما|مكة|مكه|الحرم/i.test(item.name || '') && Math.abs(r - 2) < 0.15) this.setProjection('360');
     } catch { this.mgr.app.toast('تعذّر فتح الصورة'); }
   }
-  ref() { return { item: this.itemId }; }
-  dispose() { super.dispose(); this.tex?.dispose(); }
+  ref() { return this.file ? null : this.proj !== 'flat' ? { item: this.itemId, proj: this.proj } : { item: this.itemId }; }
+  update() { if (this.sphere) this.sphere.position.copy(this.mgr.headLocal()); }
+  dispose() { this.disposeSphere(); super.dispose(); this.tex?.dispose(); }
 }
 
 // Info panels drawn on canvas: welcome, gesture guide, clock.
@@ -632,7 +640,7 @@ export class PanelWindow extends SpatialWindow {
     super(mgr, 'panel');
     this.panelKind = panel;
     this.canCurve = false;
-    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42], pad: [1, 0.86] };
+    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42], pad: [1, 0.86], matches: [1, 0.8] };
     const [w, h] = specs[panel] || [1, 0.6];
     this.aspect = w / h;
     this.cv = canvasTexture(1400, Math.round(1400 * h / w));
@@ -655,6 +663,7 @@ export class PanelWindow extends SpatialWindow {
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, 0, W, H * 0.02);
     const k = this.panelKind;
+    if (k === 'matches') { drawMatches(ctx, W, H, this.mgr.app.sports); this.drawnV = this.mgr.app.sports?.version; texture.needsUpdate = true; return; }
     if (k === 'clock') {
       const now = new Date();
       const t = now.toLocaleTimeString('ar-OM-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -694,7 +703,10 @@ export class PanelWindow extends SpatialWindow {
     }
     texture.needsUpdate = true;
   }
-  update(dt, now) { if (this.panelKind === 'clock' && now - this.lastDraw > 1000) { this.lastDraw = now; this.draw(); } }
+  update(dt, now) {
+    if (this.panelKind === 'clock' && now - this.lastDraw > 1000) { this.lastDraw = now; this.draw(); }
+    if (this.panelKind === 'matches' && this.drawnV !== this.mgr.app.sports?.version) this.draw();
+  }
   ref() { return { panel: this.panelKind }; }
   dispose() { super.dispose(); this.cv.texture.dispose(); }
 }
@@ -1015,8 +1027,8 @@ export class WebWindow extends SpatialWindow {
 // --- 3D model volume ---
 let shadowTex = null;
 export class ModelVolume {
-  constructor(mgr, { itemId = null, url = null, name = '' }) {
-    this.mgr = mgr; this.kind = 'model'; this.id = ++winId;
+  constructor(mgr, { itemId = null, url = null, name = '', files = null }) {
+    this.mgr = mgr; this.kind = 'model'; this.id = ++winId; this.files = files;
     mgr.app.log('فتح مجسم: ' + (name || url || itemId));
     this.itemId = itemId; this.url = url; this.name = name;
     this.group = new THREE.Group();
@@ -1062,7 +1074,8 @@ export class ModelVolume {
         if (!item) { this.mgr.close(this); return; }
         this.name = item.name;
         res = await loadModelFromFiles(item.files, item.format);
-      } else res = await loadModelFromUrl(this.url);
+      } else if (this.files) res = await loadModelFromFiles(this.files.map(f => ({ name: f.name, blob: f })));
+      else res = await loadModelFromUrl(this.url);
       this.revoke = res.revoke;
       const { radius, height } = normalize(res.object);
       this.pivot.add(res.object);
@@ -1097,7 +1110,7 @@ export class ModelVolume {
   }
   serialize() {
     const g = this.group;
-    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin };
+    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : this.files ? null : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin };
   }
   dispose() {
     this.toolbar.dispose();
@@ -1120,7 +1133,7 @@ export class WindowManager {
   }
   refreshTargets() {
     const t = [];
-    for (const w of this.windows) w.group.traverse(o => { if (o.userData.interact) t.push(o); });
+    for (const w of this.windows) (w.world ? [w.group, w.world] : [w.group]).forEach(g => g.traverse(o => { if (o.userData.interact) t.push(o); }));
     this.targets = t;
     this.app.interaction?.setTargets();
   }
@@ -1188,6 +1201,7 @@ export class WindowManager {
     }
     if (k === 'panel') return this.add(new PanelWindow(this, spec), { dist: 1.6, scale: spec.panel === 'clock' ? 0.55 : 0.95, y: spec.panel === 'clock' ? 0.45 : 0 });
     if (k === 'model') return this.add(new ModelVolume(this, spec), { dist: 1.25, y: -0.38 });
+    if (k === 'game') { const old = this.windows.find(w => w.kind === 'game'); if (old) this.close(old); return this.add(new BalloonGame(this), { dist: 1.2, y: -0.28, scale: 1 }); }
     if (k === 'keyboard') { const old = this.windows.find(w => w.kind === 'keyboard'); if (old) this.close(old); return this.add(new KeyboardWindow(this), { dist: 0.9, y: -0.2, scale: 1 }); }
   }
   // Bring every window back into a fan in front of the viewer.
@@ -1246,11 +1260,17 @@ export class WindowManager {
       w.update(dt, now);
       // Pinned to the view: the window glides to stay straight ahead at the same distance.
       if (w.headLock && w.kind !== 'model') {
-        const g = w.group, h = this.headLocal(), d = Math.max(0.8, g.position.distanceTo(h));
+        // Keep the distance and height it had when pinned (measured once), so it never drifts away.
+        const g = w.group, h = this.headLocal();
+        if (!w.pin) { const rel = g.position.clone().sub(h); w.pin = { d: Math.max(0.8, Math.hypot(rel.x, rel.z)), y: rel.y }; }
+        const yaw = this.forwardYaw();
+        const tx = h.x - Math.sin(yaw) * w.pin.d, tz = h.z - Math.cos(yaw) * w.pin.d, ty = h.y + w.pin.y;
+        const k = Math.min(1, dt * 6);
+        g.position.x += (tx - g.position.x) * k; g.position.y += (ty - g.position.y) * k; g.position.z += (tz - g.position.z) * k;
         const t = this._pinT || (this._pinT = new THREE.Object3D());
-        this.root.add(t); this.place(t, d, 0, false); this.root.remove(t);
-        g.position.lerp(t.position, Math.min(1, dt * 6)); g.quaternion.slerp(t.quaternion, Math.min(1, dt * 6));
-      }
+        t.position.copy(g.position); this.root.add(t); t.lookAt(h.x, g.position.y, h.z); this.root.remove(t);
+        g.quaternion.slerp(t.quaternion, k);
+      } else if (w.pin) w.pin = null;
     }
   }
 }
@@ -1308,6 +1328,7 @@ export class KeyboardWindow {
       [this.lang === 'en' ? 'ع' : 'EN', 0.8, () => { this.lang = this.lang === 'en' ? 'ar' : 'en'; this.panel.redraw(); }],
       ['.', 0.6, () => this.key('.')], ['/', 0.6, () => this.key('/')], ['.com', 1, () => this.key('.com')],
       ['مسافة', 2, () => this.key(' ')], ['⌫', 0.9, () => { this.text = this.text.slice(0, -1); this.panel.redraw(); }],
+      ['🎙', 0.8, () => this.mgr.app.listen('dictate')],
       ['حفظ', 1, () => this.save(), true], ['إرسال', 1.1, () => this.sendToPage(), true], ['فتح', 1.1, () => this.open(), true],
     ];
     const total = items.reduce((s, it) => s + it[1], 0), unit = (W - 48) / total;

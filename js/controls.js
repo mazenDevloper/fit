@@ -282,7 +282,10 @@ export class Controls {
     this.padPtr.down = !!b[0];
     if (edge(0)) this.rumble(gp, 0.25, 25);
     if (edge(1)) { const a = this.app; if (a.launcher.group.visible) a.launcher.close(); else if (a.calibration.group.visible) a.calibration.close(); else { const kb = a.windows.windows.find(w => w.kind === 'keyboard'); if (kb) a.windows.close(kb); else this.pointedWindow()?.goBack?.(); } }
-    if (edge(3)) this.app.windows.open({ kind: 'keyboard' });
+    // △: tap = keyboard, hold = voice command.
+    if (edge(3)) this.pad.triT = now;
+    if (b[3] && this.pad.triT && now - this.pad.triT > 600) { this.pad.triT = 0; this.rumble(gp, 0.3, 40); this.app.listen('command'); }
+    if (!b[3] && this.pad.prev[3] && this.pad.triT) { this.pad.triT = 0; this.app.windows.open({ kind: 'keyboard' }); }
     if (edge(2) || edge(10)) { this.reset(); this.app.recenter(); this.rumble(gp, 0.3, 60); }
     if (edge(9) || edge(16)) this.app.toggleLauncher();
     if (edge(8)) this.app.cycleEnvironment();

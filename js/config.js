@@ -18,6 +18,9 @@ export const DEFAULTS = {
   k1: 0.17, k2: 0.06,   // radial distortion
   ipd: 68,              // mm, eye separation used for virtual content
   restoreLayout: false,
+  myTeams: [],           // favourite teams (synced from cplay3): [{name, country}]
+  island: true,          // live match island at the top of the view
+  allGoals: false,
   vSkew: 0,             // mm, right lens higher (+) or lower (-) than the left one
   vOffset: -6,          // mm, vertical shift of lens centres (negative = lower, for a phone sitting high so the camera is clear)
   camera: 'wide',       // 'wide' | 'ultra'

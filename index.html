@@ -246,9 +246,18 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
     </form>
   </section>
 
+  <section class="card" aria-labelledby="sportTitle">
+    <h2 id="sportTitle">المباريات <small>جزيرة مباشرة لفرقك</small></h2>
+    <label class="hint" for="myTeams" style="margin:0">فرقي (افصل بفاصلة) — تُزامن تلقائياً من cplay3</label>
+    <input id="myTeams" type="text" placeholder="مثال: عمان، الهلال، ريال مدريد" autocomplete="off">
+    <div class="row2" style="margin-top:8px"><button id="teamsSave" class="add" type="button">حفظ</button><button id="teamsSync" class="ghost" type="button" style="margin:0">مزامنة من cplay3</button></div>
+    <label class="toggle"><span>جزيرة المباراة المباشرة<small>شريط صغير أعلى نظرك أثناء مباريات فرقك، مع تنبيه عند كل هدف</small></span><input type="checkbox" data-key="island"></label>
+    <p id="teamsMsg" class="hint" aria-live="polite"></p>
+  </section>
+
   <section class="card" aria-labelledby="libTitle">
     <h2 id="libTitle">مكتبتي
-      <label class="add">إضافة ملفات<input id="files" type="file" multiple></label>
+      <span class="row2" style="gap:6px"><label class="add">فتح مباشرة<input id="openNow" type="file" multiple accept="video/*,image/*,.glb,.gltf,.obj,.stl,.fbx,.usdz,.mkv,.webm"></label><label class="add">إضافة للمكتبة<input id="files" type="file" multiple></label></span>
     </h2>
     <p class="hint" style="margin-top:0">فيديو (MP4, MOV) · صور · مجسمات GLB, GLTF, OBJ, STL, FBX, USDZ. لملف GLTF أو OBJ اختر معه ملفاته (bin, mtl, الصور) في المرة نفسها.</p>
     <p id="libStatus" class="hint" aria-live="polite"></p>

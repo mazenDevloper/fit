@@ -14,6 +14,7 @@ import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
 import { LensAdjust } from './lens.js';
 import { DeviceHub } from './devices.js';
+import { Sports } from './sports.js';
 import { ScreenHost, ScreenViewer, qrSvg, AGENT_DOWNLOAD, lib } from './mirror.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
@@ -21,7 +22,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '34';
+export const APP_VERSION = '35';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -69,6 +70,7 @@ class App {
     this.launcher = new Launcher(this);
     this.calibration = new Calibration(this);
     this.lensAdjust = new LensAdjust(this);
+    this.sports = new Sports(this);
     this.toastUI = new Toast();
     this.renderer.scene.add(this.launcher.group, this.calibration.group);
     this.renderer.overlay.add(this.toastUI.mesh);
@@ -327,6 +329,18 @@ class App {
       hub.pair(fromHash).then(d => { $('#devMsg') && ($('#devMsg').textContent = 'أُضيف: ' + (d?.name || fromHash)); }).catch(() => {});
     }
   }
+  openLocalFiles(files) {
+    const models = files.filter(f => /\.(glb|gltf|obj|stl|fbx|usdz|bin|mtl|png|jpe?g)$/i.test(f.name) && files.some(m => /\.(glb|gltf|obj|stl|fbx|usdz)$/i.test(m.name)));
+    let opened = 0;
+    if (models.length) { this.windows.open({ kind: 'model', files: models, name: models[0].name }); opened++; }
+    for (const f of files) {
+      if (models.includes(f)) continue;
+      if (/^video\//.test(f.type) || /\.(mp4|m4v|mov|webm|mkv)$/i.test(f.name)) { this.windows.open({ kind: 'video', url: URL.createObjectURL(f), name: f.name }); opened++; }
+      else if (/^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|heic|avif)$/i.test(f.name)) { this.windows.open({ kind: 'image', file: f }); opened++; }
+    }
+    this.toast(opened ? 'فُتح ' + opened + ' ملف' : 'نوع الملف غير مدعوم', 2500);
+    this.log('فتح ملفات مباشرة: ' + files.map(f => f.name).join(', ').slice(0, 120));
+  }
   async pairDevice(code) {
     try { const d = await this.devices.pair(code); this.toast('أُضيف ' + (d?.name || code), 2500); } catch (e) { this.toast(e.message || 'تعذّر الاتصال', 3500); }
   }
@@ -434,6 +448,48 @@ class App {
     $('#mirCopy').addEventListener('click', () => { navigator.clipboard?.writeText(this.host.link).then(() => { $('#mirCopy').textContent = 'تم النسخ'; }).catch(() => {}); });
     const alertBox = m => { this.showError(m); };
   }
+  bindTeams() {
+    const inp = $('#myTeams'); if (!inp) return;
+    const show = () => { inp.value = (settings.myTeams || []).map(t => t.name).join('، '); };
+    show(); this.renderTeams = show;
+    $('#teamsSave').addEventListener('click', () => {
+      const names = inp.value.split(/[،,]/).map(s => s.trim()).filter(Boolean).slice(0, 30);
+      saveSettings({ myTeams: names.map(n => ({ name: n, country: '' })) });
+      $('#teamsMsg').textContent = 'حُفظت ' + names.length + ' فرق';
+    });
+    $('#teamsSync').addEventListener('click', () => {
+      $('#teamsMsg').textContent = 'جاري المزامنة من cplay3…';
+      const before = JSON.stringify(settings.myTeams || []);
+      this.sports.syncFavorites();
+      setTimeout(() => { show(); $('#teamsMsg').textContent = JSON.stringify(settings.myTeams || []) !== before ? 'تمت المزامنة ✓' : 'لم أجد فرقاً محفوظة في cplay3 على هذا الجهاز — اكتبها هنا'; }, 6000);
+    });
+  }
+  // Makkah: your own 360° video or photo of the Haram becomes the world around you.
+  async openMakkah() {
+    let items = []; try { items = await listItems(); } catch {}
+    const it = items.find(i => /مكة|مكه|الحرم|الكعبة|كعبة|makkah|mecca|kaaba|haram/i.test(i.name) && (i.type === 'video' || i.type === 'image'));
+    if (!it) {
+      this.toast('أضف فيديو أو صورة 360° لمكة إلى مكتبتك (اجعل اسمها يحتوي «مكة») أو أرسلها من جهاز آخر، ثم اختر «مكة المكرمة»', 7000);
+      return;
+    }
+    this.windows.windows.filter(w => w.sphere).forEach(w => this.windows.close(w));
+    const w = this.windows.open({ kind: it.type, itemId: it.id, name: it.name, proj: '360', fmt: /sbs|3d/i.test(it.name) ? 'sbsh' : null });
+    if (w) { w.group.scale.setScalar(0.5); }
+    this.toast('مكة المكرمة · 360° حولك — التفت حولك', 3500);
+    this.log('بيئة مكة: ' + it.name);
+  }
+  openGames() {
+    this.windows.open({ kind: 'game' });
+    if (settings.viewMode !== 'sbs') this.windows.open({ kind: 'web', url: new URL('emu.html', location.href).href, title: 'ألعاب كلاسيكية', direct: true });
+    else this.toast('للألعاب الكلاسيكية: افتح mazendevloper.github.io/fit/emu.html على التابلت أو اللابتوب واعرضه هنا بالميرور (جودة «ألعاب»)', 7000);
+  }
+  openMatches() {
+    let w = this.windows.windows.find(x => x.panelKind === 'matches');
+    if (!w) w = this.windows.open({ kind: 'panel', panel: 'matches' });
+    this.sports.refresh(true);
+    if (!this.sports.teams().length) this.sports.syncFavorites();
+    return w;
+  }
   openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay3.netlify.app/media', title: 'cplay3' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
@@ -448,6 +504,13 @@ class App {
   // ---------- Home screen ----------
   bindHome() {
     $('#enter').addEventListener('click', () => this.enter());
+    // Open files straight from the Files app (no copy into the library): they appear as windows on entering.
+    $('#openNow')?.addEventListener('change', async e => {
+      const files = [...e.target.files]; e.target.value = '';
+      if (!files.length) return;
+      try { await this.enter(); } catch {}
+      setTimeout(() => this.openLocalFiles(files), 700);
+    });
     // Preview and adjust the two lens images (move, zoom, height) straight from the home page.
     $('#lensPreview')?.addEventListener('click', async () => {
       if (settings.viewMode !== 'sbs') saveSettings({ viewMode: 'sbs' });
@@ -522,6 +585,7 @@ class App {
     this.bindMirror();
     this.bindDevices();
     if ($('#appVer')) $('#appVer').textContent = 'v' + APP_VERSION;
+    this.bindTeams();
     this.renderLibrary(); this.renderLinks(); this.renderSettings();
   }
 
@@ -610,6 +674,9 @@ class App {
     if (settings.walk) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
+    // Your teams from cplay3 (once a day), then matches for the live island.
+    if (!settings.myTeamsAt || Date.now() - settings.myTeamsAt > 864e5) { saveSettings({ myTeamsAt: Date.now() }); setTimeout(() => this.sports.syncFavorites(), 4000); }
+    setTimeout(() => this.sports.refresh(true), 6000);
     this.last = performance.now();
     this.renderer.renderer.setAnimationLoop(t => this.frame(t));
     setTimeout(() => this.toast(motionOk ? 'ضع الهاتف في النظارة · الكاميرا للخارج' : 'حساسات الحركة غير مفعّلة', 4500), 300);
@@ -776,6 +843,7 @@ class App {
     if (!this.active) return;
     try { audioContext()?.resume(); } catch {}
     this.windows.windows.forEach(w => w.userGesture?.());
+    if (this.voicePending) { const m = this.voicePending; this.voicePending = null; this.listen(m); return; }   // a tap grants the microphone
     if (!this.interaction.realTap()) this.toggleLauncher();
   }
 
@@ -795,23 +863,83 @@ class App {
     } catch (e) { console.warn(e); }
   }
   stopVoice() { const r = this.voice; this.voice = null; try { r?.stop(); } catch {} }
+  // ---- Voice: push-to-talk commands and dictation (Siri speech recognition in Safari) ----
+  // Hold △ on the controller, use «أمر صوتي» in the menu, or say commands continuously if «الأوامر الصوتية» is on.
+  listen(mode = 'command') {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { this.toast('التعرف على الصوت غير متاح في هذا المتصفح', 3000); return; }
+    this.stopVoice();
+    try {
+      const rec = new SR();
+      rec.lang = 'ar-SA'; rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 1;
+      let finalText = '';
+      rec.onresult = e => {
+        let txt = '';
+        for (const r of e.results) txt += r[0].transcript;
+        this.toast((mode === 'dictate' ? '✍️ ' : '🎙 ') + txt, 2500);
+        if (e.results[e.results.length - 1].isFinal) finalText = txt;
+      };
+      rec.onerror = e => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { this.voicePending = mode; this.toast('المس الشاشة مرة للسماح بالميكروفون', 3500); }
+        else if (e.error === 'no-speech') this.toast('لم أسمع شيئاً', 1500);
+      };
+      rec.onend = () => {
+        if (this.voice === rec) this.voice = null;
+        const t = finalText.trim(); if (!t) return;
+        if (mode === 'dictate') this.dictate(t); else this.voiceCommand(t);
+        if (settings.voice && this.active) setTimeout(() => this.startVoice(), 400);
+      };
+      rec.start();
+      this.voice = rec;
+      blip('open', settings.sounds);
+      this.toast(mode === 'dictate' ? '✍️ تكلم الآن… سأكتب ما تقول' : '🎙 تكلم الآن… مثل: «اعرض شاشة التابلت»', 3000);
+    } catch (e) { this.toast('تعذّر تشغيل الميكروفون', 2500); }
+  }
+  // Spoken text goes where typing would go: the keyboard, the controlled device, or the open page.
+  dictate(t) {
+    const kb = this.windows.windows.find(w => w.kind === 'keyboard');
+    if (kb) { kb.text += (kb.text && !kb.text.endsWith(' ') ? ' ' : '') + t; kb.panel.redraw(); this.toast('✍️ ' + t, 2000); return; }
+    const m = [...this.windows.windows].reverse().find(x => x.remote && x.control);
+    if (m) { m.typeText(t); this.toast('✍️ أُرسل إلى ' + (m.name || 'الجهاز'), 2000); return; }
+    const w = [...this.windows.windows].reverse().find(x => x.kind === 'web' && x.bridge);
+    if (w) { w.send({ type: 'text', value: t }); this.toast('✍️ كُتب في الصفحة', 2000); return; }
+    this.windows.openKeyboard(t);
+  }
   voiceCommand(t) {
+    t = t.trim();
     const has = (...w) => w.some(x => t.includes(x));
-    if (has('قائمة', 'القائمه', 'الرئيسية')) this.toggleLauncher();
-    else if (has('تمركز', 'منتصف')) this.recenter();
-    else if (has('ترتيب', 'رتب')) this.windows.arrange();
+    const after = (...w) => { for (const x of w) { const i = t.indexOf(x); if (i >= 0) return t.slice(i + x.length).trim(); } return ''; };
+    const pointed = () => this.controls.pointedWindow() || [...this.windows.windows].reverse().find(w => w.kind !== 'keyboard');
+    const devices = pairedDevices();
+    const dev = devices.find(d => t.includes(d.name)) || devices.find(d => (has('تابلت', 'التابلت') && d.kind === 'tablet') || (has('لابتوب', 'كمبيوتر') && d.kind === 'computer') || (has('تلفاز', 'التلفزيون', 'التلفاز') && d.kind === 'tv'));
+    if (has('اكتب', 'أكتب')) { const x = after('اكتب', 'أكتب'); if (x) this.dictate(x); else this.listen('dictate'); return; }
+    if (has('ابحث عن', 'إبحث عن', 'بحث عن')) { const q = after('ابحث عن', 'إبحث عن', 'بحث عن'); if (q) this.windows.open({ kind: 'web', url: 'https://www.google.com/search?q=' + encodeURIComponent(q), title: q }); }
+    else if (dev && has('شاشة', 'اعرض', 'افتح')) { if (dev.kind === 'tv') this.showOnDevice(dev.code, settings.mirrorCode); else this.connectMirror(dev.code); }
+    else if (has('مباريات', 'المباريات', 'مباراة')) this.openMatches?.();
+    else if (has('كبر', 'كبّر', 'تكبير')) pointed()?.scaleBy?.(1.25);
+    else if (has('صغر', 'صغّر', 'تصغير')) pointed()?.scaleBy?.(1 / 1.25);
+    else if (has('ثبت', 'ثبّت', 'تثبيت')) { const w = pointed(); if (w) { w.headLock = !w.headLock; } }
     else if (has('أغلق الكل', 'اغلق الكل', 'إغلاق الكل')) this.windows.closeAll();
+    else if (has('أغلق', 'اغلق', 'سكر')) { const w = pointed(); if (w) this.windows.close(w); }
+    else if (has('قائمة', 'القائمه', 'الرئيسية')) this.toggleLauncher();
+    else if (has('تمركز', 'منتصف', 'أمامي')) this.recenter();
+    else if (has('ترتيب', 'رتب')) this.windows.arrange();
+    else if (has('cplay', 'سي بلاي', 'كبلاي')) this.openCplay();
+    else if (has('كيبورد', 'لوحة المفاتيح')) this.windows.open({ kind: 'keyboard' });
     else if (has('ساعة', 'الساعه')) this.windows.open({ kind: 'panel', panel: 'clock' });
+    else if (has('مكة', 'الحرم', 'الكعبة')) this.openMakkah?.();
     else if (has('بيئة', 'البيئه')) this.cycleEnvironment();
     else if (has('معايرة', 'المعايره')) this.calibration.open();
     else if (has('خروج', 'اخرج')) this.exit();
     else if (has('أوقف', 'اوقف', 'إيقاف', 'ايقاف', 'شغل', 'تشغيل')) {
       const v = this.windows.windows.filter(w => w.kind === 'video');
-      v.forEach(w => (has('شغل', 'تشغيل') ? w.video.play().catch(() => {}) : w.video.pause()));
+      v.forEach(w => (has('شغل', 'تشغيل') ? (w.userPaused = false, w.video.play().catch(() => {})) : (w.userPaused = true, w.video.pause())));
     }
-    else return;
-    this.toast('🎙 ' + t.trim(), 1800);
+    else { this.toast('لم أفهم: «' + t + '»', 2500); return; }
+    this.toast('🎙 ' + t, 1800);
+    this.log('أمر صوتي: ' + t);
   }
+
 
   // ---------- Frame loop ----------
   frame(now) {
@@ -829,6 +957,7 @@ class App {
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
     this.toastUI.update(now, this.renderQ);
+    this.sports?.update(now, this.renderQ);
     if (this.launcher.group.visible) this.launcher.group.updateMatrixWorld();
     const ek = envKey(settings.environment);
     for (const k in this.envs) this.envs[k].visible = k === ek;

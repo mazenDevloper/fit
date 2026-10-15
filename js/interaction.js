@@ -70,12 +70,39 @@ export class Interaction {
   clickable(hit) {
     if (!hit) return false;
     const it = hit.object.userData.interact;
-    if (it.type === 'button') return true;
+    if (it.type === 'button' || it.type === 'resize') return true;
     if (it.type === 'panel') return it.panel.isButtonAt(hit);
     if (it.type === 'surface') return true;   // video, web page: gaze can tap them too
     return false;
   }
+  // Tap the corner circle (gaze, screen tap, quick press) → move the pointer to resize → tap again or hold still.
+  beginResizeMode(win) {
+    const p = this.pointers.find(x => x.active && x.hit) || this.pointers.find(x => x.active);
+    if (!p) return;
+    this.rm = { win, p, d0: p.dir.clone(), s0: win.group.scale.x, a0: win.aspect, t: performance.now(), still: performance.now(), moved: false, last: p.dir.clone() };
+    blip('grab', settings.sounds);
+    this.app.toast(win.canReshape ? 'حرّك المؤشر: يمين/يسار للعرض · أعلى/أسفل للارتفاع · انقر أو اثبت للإنهاء' : 'حرّك المؤشر للتكبير والتصغير · انقر أو اثبت للإنهاء', 3500);
+    return true;
+  }
+  updateResizeMode(now) {
+    const r = this.rm, p = r.p;
+    if (!p.active) { this.endResizeMode(); return; }
+    const ang = v => [Math.atan2(v.x, -v.z), Math.asin(THREE.MathUtils.clamp(v.y, -1, 1))];
+    const [y0, x0] = ang(r.d0), [y1, x1] = ang(p.dir);
+    const dx = -(y1 - y0), dy = x1 - x0;    // right = +dx, up = +dy
+    if (p.dir.angleTo(r.last) > 0.006) { r.still = now; r.last.copy(p.dir); if (p.dir.angleTo(r.d0) > 0.03) r.moved = true; }
+    const w = r.win;
+    if (w.canReshape) {
+      const W = r.s0 * Math.exp(dx * 2.2), H = (r.s0 / r.a0) * Math.exp(-dy * 2.2);
+      w.group.scale.setScalar(THREE.MathUtils.clamp(W, 0.25, 8));
+      w.setAspect(THREE.MathUtils.clamp(W / H, 0.5, 3.4));
+    } else w.group.scale.setScalar(THREE.MathUtils.clamp(r.s0 * Math.exp((dx + dy) * 2.2), 0.25, 8));
+    if ((r.moved && now - r.still > 1400) || (!r.moved && now - r.t > 6000)) this.endResizeMode();
+  }
+  endResizeMode() { const w = this.rm?.win; this.rm = null; if (w) { w.onDragEnd?.(); w.updateRadius?.(); this.app.windows.changed(); blip('close', settings.sounds); } }
+
   click(hit) {
+    if (this.rm) { this.endResizeMode(); return true; }   // a click finishes "tap the circle" resizing
     if (!hit) return false;
     const it = hit.object.userData.interact;
     const done = it.click ? it.click(hit) : false;
@@ -205,10 +232,15 @@ export class Interaction {
         }
         if (p.zoom) {
           const z = p.zoom, lim = z.win.kind === 'model' ? [0.1, 12] : [0.25, 8];
-          // Corner of a reshapeable window (web pages): sideways = width, up/down = height. Others scale evenly.
-          const reshape = false;
-          const f = reshape ? (s.tx - z.x0) * 2.6 : z.corner ? ((s.tx - z.x0) - (s.ty - z.y0)) * 2.6 : (s.ty - z.y0) * 3.2;
-          if (reshape) z.win.setAspect(THREE.MathUtils.clamp(z.a0 * Math.exp((s.ty - z.y0) * 2.6), 0.55, 3.2));
+          // Corner of pages and panels: sideways = width only, up/down = height only (like a desktop window).
+          // Videos and shared screens keep their picture's shape, so they scale evenly.
+          const reshape = z.corner && z.win.canReshape;
+          let f;
+          if (reshape) {
+            const W = z.s0 * Math.exp((s.tx - z.x0) * 2.4), H = (z.s0 / z.a0) * Math.exp(-(s.ty - z.y0) * 2.4);
+            f = Math.log(W / z.s0);
+            z.win.setAspect(THREE.MathUtils.clamp(W / H, 0.5, 3.4));
+          } else f = z.corner ? ((s.tx - z.x0) - (s.ty - z.y0)) * 2.6 : (s.ty - z.y0) * 3.2;
           const target = THREE.MathUtils.clamp(z.s0 * Math.exp(f), lim[0], lim[1]);
           z.win.group.scale.setScalar(z.win.group.scale.x + (target - z.win.group.scale.x) * 0.35);
           this.drawCursor(p, null, 1, true);
@@ -258,6 +290,7 @@ export class Interaction {
       this.drawCursor(p, hit, s.strength, pinch, hprog);
     }
 
+    if (this.rm) this.updateResizeMode(now);
     // Two empty-space pinches held together → recenter.
     const [h0, h1] = this.pointers;
     if (h0.active && h1.active && h0.wasPinch && h1.wasPinch && !h0.downObj && !h1.downObj && !h0.drag && !h1.drag) {

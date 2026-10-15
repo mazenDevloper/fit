@@ -82,8 +82,10 @@ export class Launcher {
 
     if (this.tab === 'apps') {
       const list = [
-        ['video', 'فيديو تجريبي', 'شاشة سينمائية', () => { a.windows.open({ kind: 'video', url: 'assets/sample.mp4' }); this.close(); }],
-        ['cube', 'مجسم تجريبي', 'خوذة GLB', () => { a.windows.open({ kind: 'model', url: 'assets/helmet.glb' }); this.close(); }],
+        ['clock', 'المباريات', 'فرقي ونتائج اليوم', () => { a.openMatches(); this.close(); }],
+        ['mic', 'أمر صوتي', 'أو اضغط △ مطوّلاً', () => { this.close(); a.listen('command'); }],
+        ['sun', 'مكة المكرمة', 'بيئة 360 حولك', () => { this.close(); a.openMakkah(); }],
+        ['cube', 'الألعاب', 'ثلاثية الأبعاد وكلاسيكية', () => { this.close(); a.openGames(); }],
         ['globe', 'cplay3', 'بالتابات واليد', () => { a.openCplay(); this.close(); }],
         ['grid', 'لوحة المفاتيح', 'رابط أو نص أو رمز', () => { a.windows.open({ kind: 'keyboard' }); this.close(); }],
         ['hand', 'دليل الإيماءات', 'كيف تتحكم', () => { a.windows.open({ kind: 'panel', panel: a.controls.pad.id ? 'pad' : 'guide' }); this.close(); }],
@@ -93,7 +95,10 @@ export class Launcher {
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['target', 'ضبط العدستين', 'تحريك وتكبير الصورتين', () => { this.close(); a.lensAdjust.open(); }],
       ];
-      list.forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'app' + i); });
+      const per = 10, pages = Math.ceil(list.length / per);
+      this.page = Math.min(this.page, pages - 1);
+      list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'app' + i); });
+      if (pages > 1) this.pager(ctx, p, W, H, pages);
     } else if (this.tab === 'devices') {
       this.drawDevices(ctx, W, H, p, top);
     } else if (this.tab === 'library') {
