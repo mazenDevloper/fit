@@ -327,15 +327,38 @@ class PicturePanel {
 }
 
 export class VideoWindow extends SpatialWindow {
-  constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null, fmt = null, proj = null }) {
+  constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null, fmt = null, proj = null, browser = false }) {
     super(mgr, 'video');
+    this.browser = browser; this.pageUrl = browser ? (url || '') : ''; this.pageTitle = '';
+    if (browser) this.canReshape = true;
     this.fmt = fmt || '2d'; this.proj = proj || 'flat'; this.fmtSet = !!fmt;
     this.stream = stream; this.remote = remote; this.control = false;
     this.itemId = itemId; this.url = url; this.name = name;
     this.video = mgr.app.media.acquire();
     this.mat.uniforms.uVideo.value = 1;
     this.tex = null;
-    if (remote) {
+    if (remote && browser) {
+      // Madar's built-in browser (running on a paired tablet): a real browser you can click anywhere,
+      // curve, view in 360°, and reshape (the page really gets wider or taller).
+      this.toolbar = new Toolbar([
+        { icon: 'chevR', action: () => this.key('back') },
+        { icon: 'chevL', action: () => this.remote.send({ type: 'input', a: 'forward' }) },
+        { icon: 'reload', action: () => this.remote.send({ type: 'input', a: 'reload' }) },
+        { icon: 'keyboard', action: () => this.mgr.openKeyboard(this.pageUrl) },
+        { icon: 'enter', action: () => this.key('enter') },
+        { icon: () => this.proj === '360' ? 'image' : 'globe', action: () => { this.setProjection(this.proj === '360' ? 'flat' : '360'); } },
+        { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
+        { icon: 'sliders', action: () => this.togglePicture() },
+        { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
+        { icon: 'plus', action: () => this.scaleBy(1.15) },
+      ]).install();
+      Object.assign(this.content.userData.interact, {
+        scroll: () => this.control,
+        toPx: uv => [uv.x * (this.video.videoWidth || 1280), (1 - uv.y) * (this.video.videoHeight || 800)],
+        scrollBy: (dx, dy, at) => this.scrollAt(dx, dy, at),
+      });
+      this.makeBrowserBar();
+    } else if (remote) {
       // A shared screen you can operate: click = mouse click / tap, pinch-drag or triggers = scroll.
       this.toolbar = new Toolbar([
         { icon: 'chevR', action: () => this.key('back') },
@@ -370,7 +393,7 @@ export class VideoWindow extends SpatialWindow {
     this.layout();
     this.lastBar = 0;
     { const pic = picture(); this.mat.uniforms.uDim.value = pic.bright; this.mat.uniforms.uPic.value.set(pic.contrast, pic.sat, pic.sharp, pic.green); }
-    if (remote) this.togglePicture(true);   // shared screens show their picture controls on the right
+    if (remote && !browser) this.togglePicture(true);   // shared screens show their picture controls on the right
     this.load();
   }
   async load() {
@@ -484,7 +507,29 @@ export class VideoWindow extends SpatialWindow {
     super.layout();
     if (this.opts) this.opts.mesh.position.set(0, -this.h / 2 - 0.23, 0.004);
     if (this.pic) this.pic.mesh.position.set(0.5 + 0.23, 0, 0.004);
+    if (this.bbar) this.bbar.mesh.position.set(0, this.h / 2 + 0.065, 0.004);
   }
+  // Address bar of the built-in browser: shows the page; pointing + click opens the keyboard to go elsewhere.
+  makeBrowserBar() {
+    this.bbar = new CanvasPanel(0.96, 0.075, (ctx, W, H, p) => {
+      glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
+      if (p.isHover('url')) { roundRect(ctx, 8, 8, W - 16, H - 16, (H - 16) / 2); ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fill(); }
+      roundRect(ctx, W - H * 3.3, 8, H * 3.2, H - 16, (H - 16) / 2); ctx.fillStyle = 'rgba(124,196,255,0.28)'; ctx.fill();
+      text(ctx, this.loading ? 'يُحمّل…' : 'متصفح مدار', W - H * 1.7, H / 2 + 2, H * 0.3, { weight: 800 });
+      const shown = (this.pageTitle ? this.pageTitle + ' — ' : '') + (this.pageUrl || '').replace(/^https?:\/\/(www\.)?/, '');
+      text(ctx, shown || 'اكتب عنواناً أو بحثاً', W / 2 - H * 0.8, H / 2 + 2, H * 0.34, { weight: 700, dir: 'auto', maxWidth: W - H * 5.6, color: COLORS.text });
+      icon(ctx, 'keyboard', H * 0.6, H / 2, H * 0.5, COLORS.dim);
+      p.region(0, 0, W, H, () => { blip('tap', settings.sounds); this.mgr.openKeyboard(this.pageUrl); }, 'url');
+    }, { pxPerM: 1500 });
+    this.group.add(this.bbar.mesh);
+  }
+  onPage(s) {
+    if (!s) return;
+    if (s.url != null) this.pageUrl = s.url; if (s.title != null) this.pageTitle = s.title; if (s.loading != null) this.loading = s.loading;
+    this.name = this.pageTitle || this.name;
+    this.bbar?.redraw();
+  }
+  navigate(url) { this.remote?.send({ type: 'input', a: 'nav', url }); this.pageUrl = url; this.loading = true; this.bbar?.redraw(); }
   togglePicture(force) {
     if (!this.pic) this.pic = new PicturePanel(this);
     const show = force ?? !this.pic.mesh.parent;
@@ -550,7 +595,15 @@ export class VideoWindow extends SpatialWindow {
     const v = this.video;
     // Live streams may report their size late or skip 'loadedmetadata': set up the texture once frames exist.
     if (!this.tex && v.readyState >= 2 && v.videoWidth) { if (!this.guessed) { this.guessed = true; this.guessFormat(); } this.setAspect(this.dispAspect()); this.setupTexture(); }
-    if (this.tex && v.videoWidth && Math.abs(this.dispAspect() - this.aspect) > 0.01) this.setAspect(this.dispAspect());
+    // Built-in browser: while you reshape it, keep your shape; then ask the browser for that page size.
+    // (keep the asked shape until the browser's picture arrives in that shape, at most 8 s)
+    const waiting = this.browser && this.wantAspect && Math.abs(this.dispAspect() - this.wantAspect) > 0.03 && now - this.wantAt < 8000;
+    const reshaping = this.browser && (now - (this.reshapeAt || 0) < 1500 || waiting);
+    if (this.tex && v.videoWidth && !reshaping && Math.abs(this.dispAspect() - this.aspect) > 0.01) this.setAspect(this.dispAspect());
+    if (this.browser && this.reshapeAt && now - this.reshapeAt > 400 && now - this.reshapeAt < 3000 && Math.abs((this.sentAspect || 0) - this.aspect) > 0.01) {
+      this.sentAspect = this.aspect; this.wantAspect = this.aspect; this.wantAt = now;
+      this.remote?.send({ type: 'input', a: 'resize', aspect: +this.aspect.toFixed(3) });
+    }
     if (this.sphere) this.sphere.position.copy(this.mgr.headLocal());
     this.mat.uniforms.uHas.value = v.readyState >= 2 && this.tex ? 1 : 0;
     if (this.canvas && v.readyState >= 2 && v.currentTime !== this.lastFrameTime) {
@@ -579,7 +632,8 @@ export class VideoWindow extends SpatialWindow {
   dispose() {
     this.disposed = true;
     if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; }
-    this.opts?.dispose(); this.pic?.dispose();
+    this.opts?.dispose(); this.pic?.dispose(); this.bbar?.dispose();
+    if (this.browser) { try { this.remote?.close(); } catch {} }
     super.dispose();
     this.video.onpause = null;
     this.video.pause(); this.video.srcObject = null; this.video.removeAttribute('src'); this.video.load();
@@ -1194,6 +1248,8 @@ export class WindowManager {
     if (k === 'video') return this.add(new VideoWindow(this, spec), { dist: 2.3, scale: 1.7, y: 0.05 });
     if (k === 'image') return this.add(new ImageWindow(this, spec), { dist: 1.9, scale: 1.25 });
     if (k === 'web') {
+      // In the headset, sites open in a paired tablet's built-in browser when one is available.
+      if (!spec.direct && this.app.useBuiltinBrowser?.(spec.url)) { this.app.openBrowser(spec.url); return null; }
       // Each site runs twice (one copy per eye), so keep a single web window to stay within iPhone memory.
       const old = this.windows.filter(w => w.kind === 'web');
       if (old.length) { old.forEach(w => this.close(w)); this.app.toast('أُغلق الموقع السابق لتوفير الذاكرة'); }
@@ -1337,6 +1393,8 @@ export class KeyboardWindow {
   }
   open() {
     if (/^\d{6}$/.test(this.text.trim())) { this.mgr.app.connectMirror(this.text.trim()); return; }   // laptop screen code
+    const b = [...this.mgr.windows].reverse().find(x => x.browser && x.remote);
+    if (b && this.text.trim()) { b.navigate(this.text.trim()); this.mgr.app.toast('فتح في متصفح مدار', 1500); return; }
     const u = this.url(); if (!u) return;
     this.mgr.open({ kind: 'web', url: u, title: u.replace(/^https?:\/\//, '').slice(0, 40) });
   }

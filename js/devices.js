@@ -28,7 +28,7 @@ export class DeviceHub {
   emit() { this.listeners.forEach(f => { try { f(); } catch {} }); }
   hello() {
     const s = this.app.shareState?.() || {};
-    return { type: 'hello', code: this.me.code, name: this.me.name, kind: this.me.kind, sharing: !!s.sharing, canShare: !!s.canShare };
+    return { type: 'hello', code: this.me.code, name: this.me.name, kind: this.me.kind, sharing: !!s.sharing, canShare: !!s.canShare, browser: !!window.MadarAndroid?.hasBrowser };
   }
 
   async start() {
@@ -40,6 +40,8 @@ export class DeviceHub {
     window.addEventListener('online', () => { this.reconnect(); this.roomP = this.joinRoom(true); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.reconnect(); });
     setInterval(() => this.reconnect(), 20000);
+    // Refresh what paired tablets/phones can do (e.g. the built-in browser of a newer Madar app).
+    setTimeout(() => pairedDevices().filter(d => d.kind === 'tablet' || d.kind === 'phone').forEach(d => this.probe(d.code).then(() => this.emit()).catch(() => {})), 4000);
   }
   openMain(tries = 0) {
     const p = new window.peerjs.Peer(DEV + this.me.code, rtc);
@@ -109,6 +111,7 @@ export class DeviceHub {
     if (!this.known(from.code)) { c.send({ type: 'refused' }); return; }   // only paired devices may send things
     if (d.type === 'link') this.app.receiveLink?.(d, from);
     else if (d.type === 'share-request') this.app.receiveShareRequest?.(from);
+    else if (d.type === 'browser-open') this.app.receiveBrowserOpen?.(d, from);
     else if (d.type === 'watch' && /^\d{6}$/.test(d.code)) this.app.receiveWatch?.(d.code, from);
     else if (d.type === 'text') this.app.receiveText?.(d, from);
     else if (d.type === 'file-start') this.incoming.set(d.id, { meta: d, parts: [], got: 0, from });
@@ -143,6 +146,7 @@ export class DeviceHub {
   async sendLink(code, url, title) { const c = await this.open(code); c.send({ type: 'link', url, title }); setTimeout(() => c.close(), 1500); }
   // What a device can do right now (sharing its screen? able to?).
   async probe(code) { const c = await this.open(code); const w = c.who; setTimeout(() => c.close(), 800); return w; }
+  async requestBrowser(code, url, w, h) { const c = await this.open(code); c.send({ type: 'browser-open', url, w, h }); setTimeout(() => c.close(), 1500); return c.who; }
   async requestShare(code) { const c = await this.open(code); c.send({ type: 'share-request' }); setTimeout(() => c.close(), 1500); }
   // Ask a device (e.g. the TV) to show another device's screen.
   async sendWatch(code, screenCode) { const c = await this.open(code); c.send({ type: 'watch', code: screenCode }); setTimeout(() => c.close(), 1500); }

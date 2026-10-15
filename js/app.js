@@ -15,14 +15,14 @@ import { GazeTracker } from './gaze.js';
 import { LensAdjust } from './lens.js';
 import { DeviceHub } from './devices.js';
 import { Sports } from './sports.js';
-import { ScreenHost, ScreenViewer, qrSvg, AGENT_DOWNLOAD, lib } from './mirror.js';
+import { ScreenHost, ScreenViewer, WebHost, qrSvg, AGENT_DOWNLOAD, lib } from './mirror.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '36';
+export const APP_VERSION = '37';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -71,6 +71,7 @@ class App {
     this.calibration = new Calibration(this);
     this.lensAdjust = new LensAdjust(this);
     this.sports = new Sports(this);
+    this.webHost = window.MadarAndroid?.hasBrowser ? new WebHost(this) : null;   // this device can serve the built-in browser
     this.toastUI = new Toast();
     this.renderer.scene.add(this.launcher.group, this.calibration.group);
     this.renderer.overlay.add(this.toastUI.mesh);
@@ -477,6 +478,53 @@ class App {
     if (w) { w.group.scale.setScalar(0.5); }
     this.toast('مكة المكرمة · 360° حولك — التفت حولك', 3500);
     this.log('بيئة مكة: ' + it.name);
+  }
+  // ---------- Built-in browser (served by a paired Madar Android app) ----------
+  browserDevice() {
+    const l = pairedDevices().filter(d => d.browser);
+    if (!l.length) return null;
+    const near = this.devices ? [...this.devices.nearby.keys()] : [];
+    return l.find(d => near.includes(d.code)) || l.find(d => d.code === settings.browserCode) || l[0];
+  }
+  useBuiltinBrowser(url) {
+    if (settings.builtinBrowser === false || settings.viewMode !== 'sbs' || !this.browserDevice()) return false;
+    try { return /^https?:/i.test(url) && !new URL(url).hostname.endsWith('mazendevloper.github.io'); } catch { return false; }
+  }
+  async openBrowser(url = '', attempt = 0) {
+    const dev = this.browserDevice();
+    if (!dev) { this.toast('المتصفح المدمج يحتاج تطبيق مدار مفتوحاً على التابلت ومضافاً في «أجهزتي»', 5000); return null; }
+    const existing = [...this.windows.windows].reverse().find(w => w.browser && w.remote);
+    if (existing && attempt === 0) { if (url) existing.navigate(url); return existing; }
+    if (attempt === 0) { this.toast('فتح متصفح مدار على ' + dev.name + '…', 2500); this.log('المتصفح المدمج: ' + dev.code + ' ' + url); }
+    try { await this.devices.requestBrowser(dev.code, url, 1280, 800); }
+    catch (e) { this.toast((e.message || 'تعذّر الاتصال') + ' — افتح تطبيق مدار على ' + dev.name, 5000); return null; }
+    const viewer = new ScreenViewer('madar-web-');
+    let win = null;
+    const connect = async (n) => {
+      try {
+        const stream = await viewer.connect(dev.code, {
+          onEnd: () => { if (win && this.windows.windows.includes(win)) { this.toast('انقطع المتصفح — إعادة الاتصال…', 2000); setTimeout(() => connect(0), 1200); } },
+          onCaps: c => win?.setControl(c),
+          onPage: s => win?.onPage(s),
+        });
+        if (win && this.windows.windows.includes(win)) { win.setStream(stream); return; }
+        win = this.windows.open({ kind: 'video', stream, name: 'متصفح مدار', remote: viewer, browser: true, url });
+        win.setControl(viewer.caps || { control: true, kind: 'browser' });
+        if (viewer.page) win.onPage(viewer.page);
+        this.log('المتصفح المدمج: متصل');
+      } catch (e) {
+        if (n < 6) setTimeout(() => connect(n + 1), 1500);
+        else this.toast('تعذّر فتح المتصفح المدمج: ' + (e.message || ''), 5000);
+      }
+    };
+    setTimeout(() => connect(0), 900);   // give the tablet a moment to start its browser
+    return null;
+  }
+  // Another device asked this tablet to run its built-in browser.
+  async receiveBrowserOpen(d, from) {
+    if (!this.webHost) return;
+    this.log('المتصفح المدمج: طلب من ' + (from?.name || from?.code));
+    await this.webHost.ensure(d.url || '', { w: d.w, h: d.h });
   }
   openGames() {
     this.windows.open({ kind: 'game' });

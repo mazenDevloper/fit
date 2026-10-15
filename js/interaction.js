@@ -95,6 +95,7 @@ export class Interaction {
     if (w.canReshape) {
       const W = r.s0 * Math.exp(dx * 2.2), H = (r.s0 / r.a0) * Math.exp(-dy * 2.2);
       w.group.scale.setScalar(THREE.MathUtils.clamp(W, 0.25, 8));
+      w.reshapeAt = performance.now();
       w.setAspect(THREE.MathUtils.clamp(W / H, 0.5, 3.4));
     } else w.group.scale.setScalar(THREE.MathUtils.clamp(r.s0 * Math.exp((dx + dy) * 2.2), 0.25, 8));
     if ((r.moved && now - r.still > 1400) || (!r.moved && now - r.t > 6000)) this.endResizeMode();
@@ -239,6 +240,7 @@ export class Interaction {
           if (reshape) {
             const W = z.s0 * Math.exp((s.tx - z.x0) * 2.4), H = (z.s0 / z.a0) * Math.exp(-(s.ty - z.y0) * 2.4);
             f = Math.log(W / z.s0);
+            z.win.reshapeAt = performance.now();
             z.win.setAspect(THREE.MathUtils.clamp(W / H, 0.5, 3.4));
           } else f = z.corner ? ((s.tx - z.x0) - (s.ty - z.y0)) * 2.6 : (s.ty - z.y0) * 3.2;
           const target = THREE.MathUtils.clamp(z.s0 * Math.exp(f), lim[0], lim[1]);

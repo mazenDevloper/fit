@@ -18,6 +18,7 @@ export const DEFAULTS = {
   k1: 0.17, k2: 0.06,   // radial distortion
   ipd: 68,              // mm, eye separation used for virtual content
   restoreLayout: false,
+  builtinBrowser: true,  // in the headset, open sites in a paired tablet's built-in browser (click anywhere, curve, 360)
   myTeams: [],           // favourite teams (synced from cplay3): [{name, country}]
   island: true,          // live match island at the top of the view
   allGoals: false,
@@ -152,7 +153,7 @@ export function savePaired(list) { safeSet(PAIRED_KEY, JSON.stringify(list)); }
 export function addPaired(dev) {
   if (!dev || !/^\d{6}$/.test(dev.code) || dev.code === deviceIdentity().code) return false;
   const l = pairedDevices(), i = l.findIndex(x => x.code === dev.code);
-  const rec = { code: dev.code, name: dev.name || ('جهاز ' + dev.code), kind: dev.kind || 'computer', added: Date.now() };
-  if (i >= 0) l[i] = Object.assign(l[i], { name: dev.name || l[i].name, kind: dev.kind || l[i].kind }); else l.push(rec);
+  const rec = { code: dev.code, name: dev.name || ('جهاز ' + dev.code), kind: dev.kind || 'computer', added: Date.now(), browser: !!dev.browser };
+  if (i >= 0) l[i] = Object.assign(l[i], { name: dev.name || l[i].name, kind: dev.kind || l[i].kind }, dev.browser != null ? { browser: !!dev.browser } : {}); else l.push(rec);
   savePaired(l); return true;
 }

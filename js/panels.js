@@ -86,6 +86,7 @@ export class Launcher {
         ['mic', 'أمر صوتي', 'أو اضغط △ مطوّلاً', () => { this.close(); a.listen('command'); }],
         ['sun', 'مكة المكرمة', 'بيئة 360 حولك', () => { this.close(); a.openMakkah(); }],
         ['cube', 'الألعاب', 'ثلاثية الأبعاد وكلاسيكية', () => { this.close(); a.openGames(); }],
+        ['globe', 'متصفح مدار', a.browserDevice() ? 'عبر ' + a.browserDevice().name + ' · تقويس و360' : 'يحتاج التابلت في «أجهزتي»', () => { this.close(); a.browserDevice() ? a.openBrowser('https://www.google.com') : a.windows.open({ kind: 'keyboard' }); }],
         ['globe', 'cplay3', 'بالتابات واليد', () => { a.openCplay(); this.close(); }],
         ['grid', 'لوحة المفاتيح', 'رابط أو نص أو رمز', () => { a.windows.open({ kind: 'keyboard' }); this.close(); }],
         ['hand', 'دليل الإيماءات', 'كيف تتحكم', () => { a.windows.open({ kind: 'panel', panel: a.controls.pad.id ? 'pad' : 'guide' }); this.close(); }],

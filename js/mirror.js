@@ -43,11 +43,61 @@ export function qrSvg(text, size = 220) {
 // with __madarFrame(); they become a video track. Frames are pushed by the app (not pulled by
 // timers) so sharing keeps flowing while you use other apps.
 export const isAndroidApp = () => !!window.MadarAndroid;
+// JPEG pictures from the Android app → a live video track (MediaStreamTrackGenerator when available, else a canvas).
+// Pictures carry their capture time, so the encoder sees evenly paced frames (smoother than arrival time).
+class FrameTrack {
+  constructor() {
+    this.useGen = typeof window.MediaStreamTrackGenerator === 'function' && typeof window.VideoFrame === 'function';
+    this.busy = false; this.t0 = performance.now(); this.lastTs = -1;
+    if (this.useGen) { this.track = new MediaStreamTrackGenerator({ kind: 'video' }); this.writer = this.track.writable.getWriter(); }
+    else {
+      this.canvas = document.createElement('canvas'); this.canvas.width = 1280; this.canvas.height = 720; this.ctx = this.canvas.getContext('2d');
+      const st = this.canvas.captureStream(0); this.track = st.getVideoTracks()[0];
+    }
+  }
+  async push(u, ts) {
+    if (this.busy) return;               // newest frame wins; never queue
+    this.busy = true;
+    try {
+      const bmp = await createImageBitmap(new Blob([u], { type: 'image/jpeg' }));
+      if (this.useGen) {
+        let us = ts != null ? ts * 1000 : Math.round((performance.now() - this.t0) * 1000);
+        if (us <= this.lastTs) us = this.lastTs + 1000;
+        this.lastTs = us;
+        const f = new VideoFrame(bmp, { timestamp: us });
+        await this.writer.write(f); f.close?.();
+      } else {
+        if (this.canvas.width !== bmp.width || this.canvas.height !== bmp.height) { this.canvas.width = bmp.width; this.canvas.height = bmp.height; }
+        this.ctx.drawImage(bmp, 0, 0); this.track.requestFrame?.();
+      }
+      bmp.close?.();
+    } catch {}
+    this.busy = false;
+  }
+  stop() { try { this.track.stop(); } catch {} }
+}
+const b64bytes = b64 => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+// Raw bytes from the app: "MDR" + kind (1 picture, 2 sound, 3 browser picture + time, 4 screen picture + time).
+if (typeof window !== 'undefined' && !window.__madarBin) {
+  window.__madarBin = true;
+  window.addEventListener('message', e => {
+    const d = e.data; if (!(d instanceof ArrayBuffer) || d.byteLength < 5) return;
+    const h = new Uint8Array(d, 0, 4); if (h[0] !== 77 || h[1] !== 68 || h[2] !== 82) return;
+    const k = h[3];
+    if (k === 1) { window.__madarBinFrame?.(new Uint8Array(d, 4)); try { window.__madarTick?.(); } catch {} }
+    else if (k === 2) window.__madarBinAudio?.(new Int16Array(d.slice(4)));
+    else if (k === 3 || k === 4) {
+      const ts = new DataView(d, 4, 4).getUint32(0, true), u = new Uint8Array(d, 8);
+      if (k === 4) { window.__madarBinFrame?.(u, ts); try { window.__madarTick?.(); } catch {} }
+      else { window.__madarWebBin?.(u, ts); try { window.__madarTick?.(); } catch {} }
+    }
+  });
+}
+
 function androidStream(onEnded) {
   const A = window.MadarAndroid;
   return new Promise((res, rej) => {
-    let track = null, writer = null, canvas = null, ctx = null, busy = false, t0 = performance.now(), started = false;
-    const useGen = typeof window.MediaStreamTrackGenerator === 'function' && typeof window.VideoFrame === 'function';
+    let ft = null, started = false;
     // Tablet sound: 40 ms PCM chunks (48 kHz stereo 16-bit) from the app, played into an audio track.
     let ac = null, dest = null, at = 0;
     try { ac = new AudioContext({ sampleRate: 48000 }); dest = ac.createMediaStreamDestination(); ac.resume?.(); } catch { ac = null; }
@@ -63,52 +113,15 @@ function androidStream(onEnded) {
         src.start(at); at += buf.duration;
       } catch {}
     };
-    const b64bytes = b64 => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
     window.__madarAudio = b64 => { const u = b64bytes(b64); playPcm(new Int16Array(u.buffer, 0, u.length >> 1)); };
-    const draw = async u => {
-      if (busy) return; busy = true;
-      try {
-        const bmp = await createImageBitmap(new Blob([u], { type: 'image/jpeg' }));
-        if (useGen) {
-          const f = new VideoFrame(bmp, { timestamp: Math.round((performance.now() - t0) * 1000) });
-          await writer.write(f); f.close?.();
-        } else {
-          if (canvas.width !== bmp.width || canvas.height !== bmp.height) { canvas.width = bmp.width; canvas.height = bmp.height; }
-          ctx.drawImage(bmp, 0, 0); track.requestFrame?.();
-        }
-        bmp.close?.();
-      } catch {}
-      busy = false;
-    };
-    window.__madarFrame = b64 => { if (started) draw(b64bytes(b64)); try { window.__madarTick?.(); } catch {} };
-    // Fast path (newer Android WebView): raw bytes arrive as messages — no text encoding, much less work.
-    // Header "MDR" + 1 = JPEG picture, 2 = PCM sound.
-    if (!window.__madarBin) {
-      window.__madarBin = true;
-      window.addEventListener('message', e => {
-        const d = e.data; if (!(d instanceof ArrayBuffer) || d.byteLength < 5) return;
-        const h = new Uint8Array(d, 0, 4); if (h[0] !== 77 || h[1] !== 68 || h[2] !== 82) return;
-        if (h[3] === 1) { window.__madarBinFrame?.(new Uint8Array(d, 4)); try { window.__madarTick?.(); } catch {} }
-        else if (h[3] === 2) window.__madarBinAudio?.(new Int16Array(d.slice(4)));
-      });
-    }
-    window.__madarBinFrame = u => { if (started) draw(u); };
+    window.__madarFrame = b64 => { if (started) ft.push(b64bytes(b64)); try { window.__madarTick?.(); } catch {} };
+    window.__madarBinFrame = (u, ts) => { if (started) ft.push(u, ts); };
     window.__madarBinAudio = pcm => playPcm(pcm);
     window.__madarCapture = state => {
       if (state === 'started' && !started) {
         started = true;
-        let stream;
-        if (useGen) {
-          track = new MediaStreamTrackGenerator({ kind: 'video' });
-          writer = track.writable.getWriter();
-          stream = new MediaStream([track, ...(dest ? dest.stream.getAudioTracks() : [])]);
-        } else {
-          canvas = document.createElement('canvas'); canvas.width = 1280; canvas.height = 720;
-          ctx = canvas.getContext('2d');
-          stream = canvas.captureStream(0); track = stream.getVideoTracks()[0];
-          if (dest) dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
-        }
-        res(stream);
+        ft = new FrameTrack();
+        res(new MediaStream([ft.track, ...(dest ? dest.stream.getAudioTracks() : [])]));
       } else if (state === 'denied') { rej(new Error('أُلغيت المشاركة أو لم يُسمح بها')); }
       else if (state === 'stopped') { started = false; try { ac?.close(); } catch {} onEnded?.(); }
     };
@@ -270,12 +283,98 @@ export class ScreenHost {
   }
 }
 
+// ---------- Built-in browser host (Madar Android app) ----------
+// The app runs a real browser on an invisible screen; this streams it to viewers and feeds their taps,
+// scrolls and typing straight into it. Started remotely from the headset — no prompt on the tablet.
+const WEB_PREFIX = 'madar-web-';
+export class WebHost {
+  constructor(app) { this.app = app; this.peer = null; this.viewers = new Set(); this.calls = new Set(); this.state = {}; this.ft = null; }
+  get available() { return !!window.MadarAndroid?.hasBrowser; }
+  async ensure(url, size) {
+    const A = window.MadarAndroid; if (!A?.browserStart) return false;
+    if (this.ft && this.peer && !this.peer.destroyed) { if (url) A.browserInput(JSON.stringify({ a: 'nav', url })); return true; }
+    this.ft = new FrameTrack();
+    this.stream = new MediaStream([this.ft.track]);
+    window.__madarWebBin = (u, ts) => this.ft?.push(u, ts);
+    window.__madarWebFrame = b64 => this.ft?.push(b64bytes(b64));
+    window.__madarWebState = s => { this.state = s || {}; this.viewers.forEach(v => { try { v.send({ type: 'page', ...this.state }); } catch {} }); };
+    A.browserStart(url || '', size?.w || 1280, size?.h || 800);
+    await lib();
+    const code = deviceIdentity().code;
+    for (let tries = 0; tries < 6 && !this.peer; tries++) {
+      try {
+        this.peer = await new Promise((res, rej) => { const p = new window.peerjs.Peer(WEB_PREFIX + code, rtc); p.once('open', () => res(p)); p.once('error', e => { try { p.destroy(); } catch {} rej(e); }); });
+      } catch (e) { if (e.type !== 'unavailable-id') break; await new Promise(r => setTimeout(r, 2000)); }
+    }
+    if (!this.peer) { this.stop(); return false; }
+    this.peer.on('connection', c => this.accept(c));
+    this.peer.on('disconnected', () => setTimeout(() => { try { if (this.peer && !this.peer.destroyed) this.peer.reconnect(); } catch {} }, 1000));
+    this.app?.log?.('المتصفح المدمج: يعمل');
+    return true;
+  }
+  accept(conn) {
+    conn.on('open', () => {
+      this.viewers.add(conn); clearTimeout(this.idleT);
+      conn.send({ type: 'caps', control: true, kind: 'browser' });
+      conn.send({ type: 'page', ...this.state });
+      const call = this.peer.call(conn.peer, this.stream);
+      this.tune(call);
+      conn.on('close', () => { this.viewers.delete(conn); call?.close(); this.idle(); });
+    });
+    conn.on('data', d => { if (d && d.type === 'input') this.input(d); else if (d && d.type === 'quality') this.quality(d.level); });
+  }
+  input(m) {
+    const A = window.MadarAndroid; if (!A) return;
+    if (m.a === 'move') return;
+    if (m.a === 'scroll') {   // many small scroll steps → one smooth swipe
+      const acc = this.acc || (this.acc = { x: m.x, y: m.y, dx: 0, dy: 0 });
+      acc.dx += m.dx; acc.dy += m.dy;
+      if (!this.accT) this.accT = setTimeout(() => { this.accT = 0; const a = this.acc; this.acc = null; A.browserInput(JSON.stringify({ a: 'scroll', x: a.x, y: a.y, dx: a.dx, dy: a.dy })); }, 90);
+      return;
+    }
+    if (m.a === 'resize') {
+      const w = m.aspect >= 1 ? 1280 : Math.round(900 * m.aspect), h = Math.round(w / m.aspect);
+      A.browserInput(JSON.stringify({ a: 'resize', w, h })); return;
+    }
+    A.browserInput(JSON.stringify(m));
+  }
+  quality(level) {
+    const Q = { game: [72, 30], low: [62, 24], medium: [74, 30], high: [82, 30], max: [90, 30] }[level];
+    if (Q) window.MadarAndroid?.browserQuality?.(Q[0], Q[1]);
+    this.level = level; this.calls.forEach(c => this.tune(c));
+  }
+  tune(call) {
+    const pc = call && call.peerConnection; if (!pc) return;
+    this.calls.add(call);
+    const apply = () => pc.getSenders().forEach(snd => {
+      if (!snd.track || snd.track.kind !== 'video') return;
+      try {
+        const p = snd.getParameters(); p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
+        p.encodings[0].maxBitrate = this.level === 'low' ? 1500000 : 5000000; p.encodings[0].maxFramerate = 30;
+        p.degradationPreference = 'maintain-resolution';   // text stays sharp; motion may drop frames first
+        snd.setParameters(p).catch(() => {});
+      } catch {}
+    });
+    pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') apply(); if (pc.connectionState === 'closed') this.calls.delete(call); });
+    if (pc.connectionState === 'connected') apply();
+  }
+  // Nobody watching for 2 minutes: close the browser to save the tablet's battery.
+  idle() { clearTimeout(this.idleT); if (!this.viewers.size) this.idleT = setTimeout(() => { if (!this.viewers.size) this.stop(); }, 120000); }
+  stop() {
+    try { window.MadarAndroid?.browserStop(); } catch {}
+    this.ft?.stop(); this.ft = null;
+    try { this.peer?.destroy(); } catch {} this.peer = null;
+    this.viewers.clear(); this.calls.clear();
+  }
+}
+
 // ---------- Phone side ----------
 export class ScreenViewer {
-  constructor() { this.peer = null; this.gen = 0; }
+  // prefix: 'madar-scr-' (shared screens) or 'madar-web-' (a device's built-in browser).
+  constructor(prefix = PREFIX) { this.peer = null; this.gen = 0; this.prefix = prefix; }
   // Resolves with the remote MediaStream; onEnd is called when the laptop stops sharing.
   send(m) { try { if (this.conn && this.conn.open) this.conn.send(m); } catch {} }
-  async connect(code, { onEnd, onLinks, onCaps } = {}) {
+  async connect(code, { onEnd, onLinks, onCaps, onPage } = {}) {
     await lib();
     this.close();
     const gen = this.gen;
@@ -287,17 +386,23 @@ export class ScreenViewer {
     return new Promise((res, rej) => {
       const timer = setTimeout(() => rej(new Error('لم يتم العثور على الجهاز — تأكد من الرقم وأن المشاركة تعمل عليه')), 15000);
       peer.on('error', e => { clearTimeout(timer); rej(new Error(e.type === 'peer-unavailable' ? 'الرمز غير صحيح أو انتهت المشاركة' : (e.message || e.type))); });
-      const conn = this.conn = peer.connect(PREFIX + code, { reliable: true });
+      const conn = this.conn = peer.connect(this.prefix + code, { reliable: true });
       conn.on('open', () => conn.send({ type: 'links', links: loadLinks() }));
       conn.on('data', d => {
         if (!d || gen !== this.gen) return;
         if (d.type === 'links') onLinks?.(mergeLinks(d.links));
         else if (d.type === 'caps') { this.caps = d; onCaps?.(d); }
+        else if (d.type === 'page') { this.page = d; onPage?.(d); }
       });
       conn.on('close', () => end('closed'));
       peer.on('call', call => {
         call.answer();
-        call.on('stream', s => { clearTimeout(timer); res(s); });
+        call.on('stream', s => {
+          clearTimeout(timer);
+          // A small steady buffer evens out Wi-Fi hiccups (smoother picture, ~0.1 s later).
+          try { call.peerConnection.getReceivers().forEach(r => { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 100; }); } catch {}
+          res(s);
+        });
         call.on('close', () => end('closed'));
         // Network trouble: 'disconnected' often heals by itself within seconds; 'failed' never does.
         const pc = this.pc = call.peerConnection;
