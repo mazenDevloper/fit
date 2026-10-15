@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Madar for Android: the web app in a full-screen WebView, plus what browsers can't do —
  * sharing this device's real screen (MediaProjection) with the 6-digit code.
  */
-public class MainActivity extends Activity implements CaptureService.Listener {
+public class MainActivity extends Activity implements CaptureService.Listener, OffscreenBrowser.Listener {
     static final String HOME = "https://mazendevloper.github.io/fit/";
     static final String HOST = "mazendevloper.github.io";
     private static final int REQ_CAPTURE = 1, REQ_FILE = 2, REQ_PERMS = 3, REQ_NOTIF = 4;
@@ -125,13 +125,14 @@ public class MainActivity extends Activity implements CaptureService.Listener {
     protected void onPause() {
         super.onPause();
         // While sharing, the page must keep sending this screen even when another app is in front.
-        if (!CaptureService.running) web.onPause();
+        if (!CaptureService.running && (browser == null || !browser.running)) web.onPause();
     }
 
     @Override
     protected void onDestroy() {
         if (CaptureService.listener == this) CaptureService.listener = null;
         if (CaptureService.running) stopService(new Intent(this, CaptureService.class));
+        if (browser != null) browser.stop();
         web.destroy();
         super.onDestroy();
     }
@@ -213,10 +214,14 @@ public class MainActivity extends Activity implements CaptureService.Listener {
         return binary;
     }
     private static final android.net.Uri ORIGIN = android.net.Uri.parse("https://mazendevloper.github.io");
-    private void postBytes(int kind, byte[] data, int len) {
-        byte[] msg = new byte[len + 4];
+    // Header: "MDR", kind (1 picture, 2 sound, 3 browser picture + time, 4 screen picture + time), [uint32 capture ms].
+    private void postBytes(int kind, byte[] data, int len) { postBytes(kind, data, len, -1); }
+    private void postBytes(int kind, byte[] data, int len, long ts) {
+        int head = ts >= 0 ? 8 : 4;
+        byte[] msg = new byte[len + head];
         msg[0] = 'M'; msg[1] = 'D'; msg[2] = 'R'; msg[3] = (byte) kind;
-        System.arraycopy(data, 0, msg, 4, len);
+        if (ts >= 0) { int t = (int) ts; msg[4] = (byte) t; msg[5] = (byte) (t >> 8); msg[6] = (byte) (t >> 16); msg[7] = (byte) (t >> 24); }
+        System.arraycopy(data, 0, msg, head, len);
         main.post(() -> {
             try { androidx.webkit.WebViewCompat.postWebMessage(web, new androidx.webkit.WebMessageCompat(msg), ORIGIN); }
             catch (Throwable t) { binary = false; }
@@ -224,8 +229,8 @@ public class MainActivity extends Activity implements CaptureService.Listener {
     }
 
     @Override
-    public void onFrame(byte[] jpeg) {
-        if (binary()) { if (!framePending.compareAndSet(false, true)) return; postBytes(1, jpeg, jpeg.length); main.post(() -> framePending.set(false)); return; }
+    public void onFrame(byte[] jpeg, long ts) {
+        if (binary()) { postBytes(4, jpeg, jpeg.length, ts); return; }   // paced by FramePump (newest frame wins)
         if (!framePending.compareAndSet(false, true)) return;   // drop frames while the page is busy
         String b64 = android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP);
         main.post(() -> web.evaluateJavascript("window.__madarFrame&&__madarFrame('" + b64 + "')", v -> framePending.set(false)));
@@ -246,6 +251,21 @@ public class MainActivity extends Activity implements CaptureService.Listener {
             if (list.isEmpty()) { audioPending.set(false); return; }
             web.evaluateJavascript("window.__madarAudio&&[" + list + "].forEach(function(a){__madarAudio(a)})", v -> audioPending.set(false));
         });
+    }
+
+    // ---- Built-in browser (OffscreenBrowser) ----
+    private OffscreenBrowser browser;
+    private final AtomicBoolean webPending = new AtomicBoolean(false);
+    @Override
+    public void onWebFrame(byte[] jpeg, long ts) {
+        if (binary()) { postBytes(3, jpeg, jpeg.length, ts); return; }
+        if (!webPending.compareAndSet(false, true)) return;
+        String b64 = android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP);
+        main.post(() -> web.evaluateJavascript("window.__madarWebFrame&&__madarWebFrame('" + b64 + "')", v -> webPending.set(false)));
+    }
+    @Override
+    public void onWebState(String json) {
+        main.post(() -> web.evaluateJavascript("window.__madarWebState&&__madarWebState(" + json + ")", null));
     }
 
     @Override
@@ -386,6 +406,15 @@ public class MainActivity extends Activity implements CaptureService.Listener {
             runOnUiThread(() -> { if (CaptureService.running) stopService(new Intent(MainActivity.this, CaptureService.class)); });
         }
         @JavascriptInterface public boolean isCapturing() { return CaptureService.running; }
+        // Built-in browser: runs on an invisible screen inside Madar, streamed to the headset.
+        @JavascriptInterface public boolean hasBrowser() { return true; }
+        @JavascriptInterface public void browserStart(String url, int w, int h) {
+            runOnUiThread(() -> { if (browser == null) browser = new OffscreenBrowser(MainActivity.this, MainActivity.this); browser.start(url, w, h); });
+        }
+        @JavascriptInterface public void browserInput(String json) { OffscreenBrowser b = browser; if (b != null) b.input(json); }
+        @JavascriptInterface public void browserQuality(int q, int fps) { runOnUiThread(() -> { if (browser != null) browser.setQuality(q, fps); }); }
+        @JavascriptInterface public boolean browserRunning() { OffscreenBrowser b = browser; return b != null && b.running; }
+        @JavascriptInterface public void browserStop() { runOnUiThread(() -> { if (browser != null) browser.stop(); }); }
         @JavascriptInterface public void setQuality(int edge, int jpeg) { CaptureService.setQuality(edge, jpeg); }
         @JavascriptInterface public void setFps(int fps) { CaptureService.setFps(fps); }
         // Remote control of this tablet (see ControlService).

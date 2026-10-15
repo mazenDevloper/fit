@@ -35,7 +35,7 @@ import java.nio.ByteBuffer;
  * Runs as a foreground service so sharing continues while other apps are open.
  */
 public class CaptureService extends Service {
-    interface Listener { void onFrame(byte[] jpeg); void onState(String state); void onAudio(byte[] pcm, int len); }
+    interface Listener { void onFrame(byte[] jpeg, long captureMs); void onState(String state); void onAudio(byte[] pcm, int len); }
 
     static final String EXTRA_CODE = "code", EXTRA_DATA = "data", ACTION_STOP = "com.madar.app.STOP";
     static volatile Listener listener;
@@ -47,7 +47,7 @@ public class CaptureService extends Service {
     static volatile int maxEdge = 1600;                 // long edge of the shared picture
     static volatile int jpegQuality = 80;
     static volatile CaptureService self;
-    static volatile long frameMs = 33;                  // ~30 fps (games), settable from the headset
+    static volatile int fps = 30;                       // settable from the headset
     private static final long KEEPALIVE_MS = 1000;      // resend the last frame when the screen is still
 
     private MediaProjection projection;
@@ -57,10 +57,7 @@ public class CaptureService extends Service {
     private HandlerThread thread;
     private Handler handler;
     private int width, height, dpi;
-    private long lastFrame;
-    private byte[] lastJpeg;
-    private Bitmap bitmap;
-    private final ByteArrayOutputStream jpeg = new ByteArrayOutputStream(256 * 1024);
+    private FramePump pump;
 
     @Override public IBinder onBind(Intent i) { return null; }
 
@@ -86,9 +83,11 @@ public class CaptureService extends Service {
         }
         if (projection == null) { notifyState("denied"); stopSelf(); return START_NOT_STICKY; }
 
-        thread = new HandlerThread("madar-capture");
+        thread = new HandlerThread("madar-capture", android.os.Process.THREAD_PRIORITY_DISPLAY);
         thread.start();
         handler = new Handler(thread.getLooper());
+        pump = new FramePump("madar-screen", (jpeg, ts) -> { Listener l = listener; if (l != null) l.onFrame(jpeg, ts); });
+        pump.setQuality(jpegQuality); pump.setFps(fps);
         // Required before createVirtualDisplay on Android 14+; also tells us when the system stops sharing.
         projection.registerCallback(new MediaProjection.Callback() {
             @Override public void onStop() { stopSelf(); }
@@ -123,7 +122,7 @@ public class CaptureService extends Service {
     private final Runnable keepAlive = new Runnable() {
         @Override public void run() {
             if (!running) return;
-            if (lastJpeg != null && SystemClock.uptimeMillis() - lastFrame >= KEEPALIVE_MS) send(lastJpeg);
+            if (pump != null) pump.keepAlive(KEEPALIVE_MS);
             handler.postDelayed(this, KEEPALIVE_MS);
         }
     };
@@ -146,8 +145,8 @@ public class CaptureService extends Service {
     }
 
     private ImageReader newReader() {
-        ImageReader r = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
-        r.setOnImageAvailableListener(this::onImage, handler);
+        ImageReader r = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3);
+        r.setOnImageAvailableListener(rr -> { if (pump != null) pump.onImage(rr); }, handler);
         return r;
     }
 
@@ -165,7 +164,6 @@ public class CaptureService extends Service {
             display.resize(width, height, dpi);
             display.setSurface(reader.getSurface());
             old.close();
-            bitmap = null;
         });
     }
 
@@ -173,6 +171,7 @@ public class CaptureService extends Service {
     static void setQuality(int edge, int q) {
         maxEdge = Math.max(640, Math.min(2560, edge)); jpegQuality = Math.max(40, Math.min(95, q));
         CaptureService s = self;
+        if (s != null && s.pump != null) s.pump.setQuality(jpegQuality);
         if (s != null && s.handler != null) s.handler.post(s::resizeCapture);
     }
     private void resizeCapture() {
@@ -185,7 +184,6 @@ public class CaptureService extends Service {
         display.resize(width, height, dpi);
         display.setSurface(reader.getSurface());
         old.close();
-        bitmap = null;
     }
 
     // ---- Tablet sound: what apps play (videos, games) is captured and sent with the picture (Android 10+). ----
@@ -230,40 +228,7 @@ public class CaptureService extends Service {
         audio = null;
     }
 
-    private void onImage(ImageReader r) {
-        Image img = null;
-        try {
-            img = r.acquireLatestImage();
-            if (img == null) return;
-            long now = SystemClock.uptimeMillis();
-            if (now - lastFrame < frameMs) return;
-            Image.Plane p = img.getPlanes()[0];
-            ByteBuffer buf = p.getBuffer();
-            int pixelStride = p.getPixelStride(), rowStride = p.getRowStride();
-            int bw = rowStride / pixelStride, w = img.getWidth(), h = img.getHeight();
-            if (bitmap == null || bitmap.getWidth() != bw || bitmap.getHeight() != h) {
-                bitmap = Bitmap.createBitmap(bw, h, Bitmap.Config.ARGB_8888);
-            }
-            buf.rewind();
-            bitmap.copyPixelsFromBuffer(buf);
-            Bitmap out = bw == w ? bitmap : Bitmap.createBitmap(bitmap, 0, 0, w, h);
-            jpeg.reset();
-            out.compress(Bitmap.CompressFormat.JPEG, jpegQuality, jpeg);
-            if (out != bitmap) out.recycle();
-            lastFrame = now;
-            lastJpeg = jpeg.toByteArray();
-            send(lastJpeg);
-        } catch (Exception ignored) {
-        } finally {
-            if (img != null) img.close();
-        }
-    }
-
-    static void setFps(int fps) { frameMs = Math.max(16, 1000 / Math.max(5, Math.min(60, fps))); }
-    private void send(byte[] b64) {
-        Listener l = listener;
-        if (l != null) l.onFrame(b64);
-    }
+    static void setFps(int f) { fps = f; CaptureService s = self; if (s != null && s.pump != null) s.pump.setFps(f); }
 
     private void notifyState(String s) {
         Listener l = listener;
@@ -306,6 +271,8 @@ public class CaptureService extends Service {
         try { if (reader != null) reader.close(); } catch (Exception ignored) { }
         try { if (projection != null) projection.stop(); } catch (Exception ignored) { }
         if (thread != null) thread.quitSafely();
+        if (pump != null) pump.release();
+        pump = null;
         display = null; reader = null; projection = null;
         stopForeground(STOP_FOREGROUND_REMOVE);
         if (was) notifyState("stopped");
