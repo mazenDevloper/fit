@@ -87,7 +87,10 @@ class Island {
     const m = live[this.idx % live.length];
     glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2, true);
     ctx.beginPath(); ctx.arc(W - H * 0.5, H / 2, H * 0.12, 0, 7); ctx.fillStyle = '#ff4d5e'; ctx.fill();
-    const score = (m.score.home ?? 0) + ' - ' + (m.score.away ?? 0);
+    const score = (m.score.away ?? 0) + ' - ' + (m.score.home ?? 0);   // home on the right
+    logoSports = this.sports;
+    drawLogo(ctx, m.home.logo, W * 0.86, H / 2, H * 0.6);
+    drawLogo(ctx, m.away.logo, W * 0.06 + H * 0.9, H / 2, H * 0.6);
     text(ctx, m.home.name, W * 0.68, H / 2 + 2, H * 0.34, { weight: 800, maxWidth: W * 0.28, dir: 'auto' });
     text(ctx, score, W * 0.45, H / 2 + 2, H * 0.44, { weight: 900, dir: 'ltr', color: '#ffffff' });
     text(ctx, m.away.name, W * 0.22, H / 2 + 2, H * 0.34, { weight: 800, maxWidth: W * 0.24, dir: 'auto' });
@@ -102,8 +105,29 @@ class Island {
   }
 }
 
+// Team logos (365Scores images allow use in other sites); loaded once, panels redraw when they arrive.
+const LOGOS = new Map();
+let logoSports = null;
+function logo(url) {
+  if (!url) return null;
+  let e = LOGOS.get(url);
+  if (!e) {
+    const img = new Image(); img.crossOrigin = 'anonymous'; img.decoding = 'async';
+    e = { img, ok: false }; LOGOS.set(url, e);
+    img.onload = () => { e.ok = true; if (logoSports) { logoSports.version++; logoSports.island?.redraw(); } };
+    img.src = url;
+  }
+  return e.ok ? e.img : null;
+}
+function drawLogo(ctx, url, x, y, size) {
+  const img = logo(url); if (!img) return;
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, size / 2 + 4, 0, 7); ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
+  ctx.drawImage(img, x - size * 0.4, y - size * 0.4, size * 0.8, size * 0.8); ctx.restore();
+}
+
 // Draws the matches list onto a panel window's canvas.
 export function drawMatches(ctx, W, H, sports) {
+  logoSports = sports;
   const d = sports?.data;
   text(ctx, 'المباريات', W - 70, 92, 72, { align: 'right', weight: 800 });
   const teams = sports?.teams() || [];
@@ -117,7 +141,10 @@ export function drawMatches(ctx, W, H, sports) {
     roundRect(ctx, 50, y + 6, W - 100, rh - 12, 26);
     ctx.fillStyle = live ? 'rgba(255,77,94,0.16)' : mine ? 'rgba(124,196,255,0.12)' : 'rgba(255,255,255,0.04)'; ctx.fill();
     const cy = y + rh / 2;
-    const mid = live || m.status === 'finished' ? (m.score.home ?? 0) + ' - ' + (m.score.away ?? 0) : m.omanTime;
+    // Home team sits on the right, so its goals are written on the right too.
+    const mid = live || m.status === 'finished' ? (m.score.away ?? 0) + ' - ' + (m.score.home ?? 0) : m.omanTime;
+    drawLogo(ctx, m.home.logo, W * 0.86, cy - 8, rh * 0.5);
+    drawLogo(ctx, m.away.logo, W * 0.08 + 20, cy - 8, rh * 0.5);
     text(ctx, m.home.name, W * 0.66, cy - 8, rh * 0.3, { weight: 800, maxWidth: W * 0.27, dir: 'auto' });
     text(ctx, mid, W * 0.47, cy - 8, rh * 0.36, { weight: 900, dir: 'ltr', color: live ? '#ff8a96' : '#ffffff' });
     text(ctx, m.away.name, W * 0.28, cy - 8, rh * 0.3, { weight: 800, maxWidth: W * 0.27, dir: 'auto' });
