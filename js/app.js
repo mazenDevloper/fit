@@ -23,7 +23,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '44';
+export const APP_VERSION = '45';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -1006,11 +1006,11 @@ class App {
     if (settings.cool && this.lastQ) {
       const moving = this.lastQ.angleTo(this.renderQ) > 0.004;
       if (moving) this.movingAt = now;
-      if (now - (this.movingAt || 0) > 250 && now - this.last < 28) return;
+      if ((settings.coolMax || now - (this.movingAt || 0) > 250) && now - this.last < 28) return;
     }
     (this.lastQ ||= new THREE.Quaternion()).copy(this.renderQ);
     const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
-    if (!settings.cool || now - (this.movingAt || 0) < 250) this.renderer.adapt(dt);   // half-rate still frames aren't slowness
+    if (!settings.cool || (!settings.coolMax && now - (this.movingAt || 0) < 250)) this.renderer.adapt(dt);   // half-rate still frames aren't slowness
     this.headForward.set(0, 0, -1).applyQuaternion(this.renderQ);
     const touching = this.controls.applyTouches(now);
     if (settings.handsEnabled && !touching) this.hands.update(this.camVideo, now, (x, y) => { const [sx, sy] = this.renderer.imageToStage(x, y); return this.renderer.stageToTan(sx, sy); });

@@ -153,6 +153,7 @@ export class Launcher {
         ['hand', 'الإصبع كفأرة', settings.handDwell ? 'ثبّته ثانيتين للنقر' : 'متوقف', () => { saveSettings({ handDwell: !settings.handDwell }); this.panel.redraw(); }],
         ['target', 'مثبّت المؤشر', settings.stabilizer ? 'مفعّل' : 'متوقف', () => { saveSettings({ stabilizer: !settings.stabilizer }); this.panel.redraw(); }],
         ['target', 'حارس الغرفة', settings.roomGuard ? 'مفعّل · يخفي النوافذ إذا وقف شخص أمامك' : 'متوقف', async () => { saveSettings({ roomGuard: !settings.roomGuard }); if (settings.roomGuard) { try { await a.room.load(); } catch { a.toast('تعذّر تحميل التعرف'); } } this.panel.redraw(); }],
+        ['sun', 'التبريد الأقصى', settings.coolMax ? 'مفعّل · 30 إطاراً وأقل حرارة' : 'متوقف', () => { saveSettings({ coolMax: !settings.coolMax, cool: settings.cool || !settings.coolMax }); a.renderer.resize(); this.panel.redraw(); }],
         ['sun', 'وضع التبريد', settings.cool ? 'مفعّل · حرارة أقل' : 'متوقف · أعلى جودة', () => { saveSettings({ cool: !settings.cool }); a.renderer.resize(); a.toast(settings.cool ? 'وضع التبريد: يعمل بالكامل بعد الدخول التالي' : 'الجودة القصوى: حرارة أعلى', 3000); this.panel.redraw(); }],
         ['target', 'المشي (تجريبي)', settings.walk ? 'مفعّل' : 'متوقف', () => { a.toggleWalk(); this.panel.redraw(); }],
         ['exit', 'الخروج', 'للشاشة الرئيسية', () => { this.close(); a.exit(); }],

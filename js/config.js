@@ -4,19 +4,19 @@ const LAYOUT_KEY = 'madar.layout.v1';
 const LINKS_KEY = 'madar.links.v1';
 
 export const VIEWER_PRESETS = {
-  vrbox:     { label: 'علبة VR عامة',      lensSep: 63,   screenToLens: 39.5, k1: 0.22, k2: 0.10 },
-  cardboard: { label: 'Cardboard v2',       lensSep: 64,   screenToLens: 39.3, k1: 0.34, k2: 0.55 },
-  light:     { label: 'عدسات خفيفة',       lensSep: 62,   screenToLens: 45,   k1: 0.10, k2: 0.00 },
-  myglasses: { label: 'مع نظارتي الطبية',   lensSep: 63,   screenToLens: 40,   k1: 0.17, k2: 0.06 },
-  none:      { label: 'بدون تصحيح عدسات',  lensSep: 62,   screenToLens: 45,   k1: 0.00, k2: 0.00 },
+  vrbox:     { label: 'علبة VR عامة',      lensSep: 70,   screenToLens: 39.5, k1: 0.22, k2: 0.10 },
+  cardboard: { label: 'Cardboard v2',       lensSep: 70,   screenToLens: 39.3, k1: 0.34, k2: 0.55 },
+  light:     { label: 'عدسات خفيفة',       lensSep: 70,   screenToLens: 45,   k1: 0.10, k2: 0.00 },
+  myglasses: { label: 'مع نظارتي الطبية',   lensSep: 70,   screenToLens: 40,   k1: 0.17, k2: 0.06 },
+  none:      { label: 'بدون تصحيح عدسات',  lensSep: 70,   screenToLens: 45,   k1: 0.00, k2: 0.00 },
 };
 
 export const DEFAULTS = {
   preset: 'myglasses',
-  lensSep: 63,          // mm between lens centres
+  lensSep: 70,          // mm between lens centres
   screenToLens: 40,     // mm, sets the field of view (smaller = bigger image)
   k1: 0.17, k2: 0.06,   // radial distortion
-  ipd: 68,              // mm, eye separation used for virtual content
+  ipd: 70,              // mm, eye separation used for virtual content
   restoreLayout: false,
   webOneSource: true,    // web pages in the headset: one copy drawn for both eyes (identical eyes, cooler iPhone)
   builtinBrowser: true,  // in the headset, open sites in a paired tablet's built-in browser (click anywhere, curve, 360)
@@ -43,6 +43,7 @@ export const DEFAULTS = {
   handDwellMs: 2000,
   stabilizer: true,      // filters small head tremors out of the pointers
   cool: true,            // cooler iPhone: 30 fps camera, lighter rendering
+  coolMax: true,         // maximum cooling: always 30 fps drawing, lighter resolution and hand tracking
   moveEnabled: true,    // walk around the environment (sticks, keys, hand drag)
   eyeTrack: false,      // laptop mode: eye tracking with the front camera
   blinkClick: true,     // long blink = click
@@ -80,6 +81,8 @@ if (settings.v < 5) {
 }
 // v6: 2 s clicks, hand-hold click, stabiliser and cool mode on.
 if (settings.v < 6) { Object.assign(settings, { dwellMs: 2000, handDwell: true, handDwellMs: 2000, stabilizer: true, cool: true, v: 6 }); safeSet(KEY, JSON.stringify(settings)); }
+// v7: 7 cm between lenses, maximum cooling on.
+if (settings.v < 7) { Object.assign(settings, { lensSep: 70, ipd: 70, cool: true, coolMax: true, v: 7 }); safeSet(KEY, JSON.stringify(settings)); }
 
 const listeners = new Set();
 export function onSettings(fn) { listeners.add(fn); return () => listeners.delete(fn); }
