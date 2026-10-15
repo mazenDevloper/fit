@@ -11,6 +11,7 @@ import { Launcher, Calibration, Toast } from './panels.js';
 import { Slam } from './slam.js';
 import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
+import { LensAdjust } from './lens.js';
 import { ScreenHost, ScreenViewer, qrSvg, AGENT_DOWNLOAD } from './mirror.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
@@ -64,6 +65,7 @@ class App {
     this.windows = new WindowManager(this);
     this.launcher = new Launcher(this);
     this.calibration = new Calibration(this);
+    this.lensAdjust = new LensAdjust(this);
     this.toastUI = new Toast();
     this.renderer.scene.add(this.launcher.group, this.calibration.group);
     this.renderer.overlay.add(this.toastUI.mesh);

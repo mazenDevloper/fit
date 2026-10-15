@@ -16,7 +16,12 @@ function lib() {
   ]);
   return libP;
 }
-const rtc = { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] } };
+// STUN finds a direct path; the public TURN relay carries the picture when the two networks can't
+// reach each other directly (e.g. phone on 4G, laptop behind a strict router).
+const rtc = { config: { iceServers: [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+] } };
 
 export function mergeLinks(incoming) {
   const mine = loadLinks();

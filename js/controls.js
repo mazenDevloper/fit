@@ -263,6 +263,7 @@ export class Controls {
     const now = performance.now();
     const any = b.some(Boolean) || ax.some(v => Math.abs(v) > 0.3);
     if (any) this.padPtr.last = now;
+    if (this.app.lensAdjust?.isOpen) { const e = i => b[i] && !this.pad.prev[i]; this.app.lensAdjust.pad(ax, val, e, dt); this.pad.prev = b; set([0, 0], [0, 0]); return; }
     // Movement and look
     let rx = dz(ax[2] || 0), ry = dz(ax[3] || 0);
     if (!this.direct) {

@@ -40,7 +40,7 @@ const HAND_FRAG = /* glsl */`
 const DIST_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const DIST_FRAG = /* glsl */`
   uniform sampler2D tL; uniform sampler2D tR;
-  uniform vec2 uRes; uniform float uPx; uniform float uSep; uniform float uVOff; uniform float uS2L;
+  uniform vec2 uRes; uniform float uPx; uniform float uSep; uniform float uVOff; uniform float uVSkew; uniform float uS2L;
   uniform vec2 uK; uniform float uTanMax; uniform float uTex; uniform vec3 uSL; uniform vec3 uSR; varying vec2 vUv;
   // Per-eye sharpening: isotropic unsharp mask plus a directional term along the eye's
   // astigmatic blur meridian (x = amount, y = directional amount, z = angle).
@@ -58,7 +58,7 @@ const DIST_FRAG = /* glsl */`
     vec2 p = vUv * uRes;
     float halfW = uRes.x * 0.5;
     bool right = p.x >= halfW;
-    vec2 c = vec2(halfW + (right ? 1.0 : -1.0) * uSep * 0.5 * uPx, uRes.y * 0.5 + uVOff * uPx);
+    vec2 c = vec2(halfW + (right ? 1.0 : -1.0) * uSep * 0.5 * uPx, uRes.y * 0.5 + (uVOff + (right ? 0.5 : -0.5) * uVSkew) * uPx);
     vec2 o = (p - c) / uPx / uS2L;
     float r2 = dot(o, o);
     vec2 d = o * (1.0 + uK.x * r2 + uK.y * r2 * r2);
@@ -72,6 +72,9 @@ const DIST_FRAG = /* glsl */`
     gl_FragColor = vec4(col.rgb * k, 1.0 - k * (1.0 - col.a));
     #include <colorspace_fragment>
   }`;
+
+// Which eye is being drawn (0 left / 1 right): stereo videos and photos show each eye its own half.
+export const EYE = { value: 0 };
 
 export class StereoRenderer {
   constructor(stage, canvas, orientation) {
@@ -121,7 +124,7 @@ export class StereoRenderer {
     this.distMat = new THREE.ShaderMaterial({
       uniforms: {
         tL: { value: null }, tR: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uPx: { value: pxPerMm() },
-        uSep: { value: 63 }, uVOff: { value: 0 }, uS2L: { value: 42 }, uK: { value: new THREE.Vector2() }, uTanMax: { value: TAN_MAX }, uTex: { value: 1 / 1024 }, uSL: { value: new THREE.Vector3() }, uSR: { value: new THREE.Vector3() },
+        uSep: { value: 63 }, uVOff: { value: 0 }, uVSkew: { value: 0 }, uS2L: { value: 42 }, uK: { value: new THREE.Vector2() }, uTanMax: { value: TAN_MAX }, uTex: { value: 1 / 1024 }, uSL: { value: new THREE.Vector3() }, uSR: { value: new THREE.Vector3() },
       },
       vertexShader: DIST_VERT, fragmentShader: DIST_FRAG, depthTest: false, depthWrite: false,
     });
@@ -180,6 +183,7 @@ export class StereoRenderer {
     u.uPx.value = pxPerMm();
     u.uSep.value = settings.lensSep;
     u.uVOff.value = settings.vOffset;
+    u.uVSkew.value = settings.vSkew || 0;
     u.uS2L.value = settings.screenToLens;
     u.uK.value.set(settings.k1, settings.k2);
     // Prescription → sharpening per eye. Axis is TABO (examiner's view); converted to the wearer's screen view.
@@ -211,7 +215,7 @@ export class StereoRenderer {
       holder.style.width = halfW + 'px';
       holder.style.height = height + 'px';
       const cx = (i ? 1 : -1) * settings.lensSep * 0.5 * px + halfW - (i ? halfW : 0);
-      const cy = height / 2 - settings.vOffset * px;
+      const cy = height / 2 - (settings.vOffset + (i ? 0.5 : -0.5) * (settings.vSkew || 0)) * px;
       const el = this.cssRenderers[i].domElement;
       this.cssRenderers[i].setSize(size, size);
       el.style.position = 'absolute';
@@ -243,7 +247,7 @@ export class StereoRenderer {
     const { width, height } = this.orientation;
     const px = pxPerMm(), k = settings.screenToLens * px, halfW = width / 2;
     const cx = (i ? 1 : -1) * settings.lensSep * 0.5 * px + halfW - (i ? halfW : 0);
-    const cy = height / 2 - settings.vOffset * px;
+    const cy = height / 2 - (settings.vOffset + (i ? 0.5 : -0.5) * (settings.vSkew || 0)) * px;
     return [cx + tx * k, cy - ty * k];
   }
 
@@ -382,6 +386,7 @@ export class StereoRenderer {
       cam.quaternion.copy(headQ);
       cam.position.set((i ? 0.5 : -0.5) * ipd, 0, 0).applyQuaternion(headQ);
       cam.updateMatrixWorld();
+      EYE.value = i;
       r.setRenderTarget(this.rts[i]);
       r.setClearColor(0x05060a, 1);
       r.clear(true, true, true);
@@ -392,6 +397,7 @@ export class StereoRenderer {
       r.clearDepth();
       r.render(this.overlay, cam);
     }
+    EYE.value = 0;
     r.setRenderTarget(null);
     r.setClearColor(0x000000, 1);
     r.clear(true, true, true);

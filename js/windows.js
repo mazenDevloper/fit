@@ -5,11 +5,13 @@ import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, rounded
 import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem } from './db.js';
 import { settings, loadLinks, saveLinks } from './config.js';
-import { CSS_K } from './render.js';
+import { CSS_K, EYE } from './render.js';
 
+const BROWSE_ORIGIN = 'https://cplay3.netlify.app';
 const CONTENT_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const CONTENT_FRAG = /* glsl */`
   uniform sampler2D map; uniform float uVideo; uniform float uHas; uniform vec2 uSize; uniform float uRadius; uniform float uDim; uniform float uHole;
+  uniform vec4 uL; uniform vec4 uR; uniform float uEye;
   varying vec2 vUv;
   vec3 dec(vec3 s){ return mix(s * 0.0773993808, pow(s * 0.9478672986 + 0.0521327014, vec3(2.4)), step(0.04045, s)); }
   void main(){
@@ -23,7 +25,8 @@ const CONTENT_FRAG = /* glsl */`
       if (max(e.x, e.y) < 0.0) { gl_FragColor = vec4(0.0); return; }
       gl_FragColor = vec4(0.06, 0.07, 0.1, 1.0); return;
     }
-    vec3 s = texture2D(map, vUv).rgb;
+    vec4 R = uEye > 0.5 ? uR : uL;
+    vec3 s = texture2D(map, R.xy + vUv * R.zw).rgb;
     vec3 c = uVideo > 0.5 ? dec(s) : s;
     c = mix(vec3(0.035, 0.04, 0.055), c, uHas) * uDim;
     gl_FragColor = vec4(c, 1.0);
@@ -31,7 +34,8 @@ const CONTENT_FRAG = /* glsl */`
 
 function contentMaterial() {
   return new THREE.ShaderMaterial({
-    uniforms: { map: { value: null }, uHole: { value: 0 }, uVideo: { value: 0 }, uHas: { value: 0 }, uSize: { value: new THREE.Vector2(1, 0.5625) }, uRadius: { value: 0.028 }, uDim: { value: 1 } },
+    uniforms: { map: { value: null }, uHole: { value: 0 }, uVideo: { value: 0 }, uHas: { value: 0 }, uSize: { value: new THREE.Vector2(1, 0.5625) }, uRadius: { value: 0.028 }, uDim: { value: 1 },
+      uL: { value: new THREE.Vector4(0, 0, 1, 1) }, uR: { value: new THREE.Vector4(0, 0, 1, 1) }, uEye: EYE },
     vertexShader: CONTENT_VERT, fragmentShader: CONTENT_FRAG, side: THREE.DoubleSide,
   });
 }
@@ -208,8 +212,9 @@ class SpatialWindow {
 }
 
 export class VideoWindow extends SpatialWindow {
-  constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null }) {
+  constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null, fmt = null, proj = null }) {
     super(mgr, 'video');
+    this.fmt = fmt || '2d'; this.proj = proj || 'flat'; this.fmtSet = !!fmt;
     this.stream = stream; this.remote = remote; this.control = false;
     this.itemId = itemId; this.url = url; this.name = name;
     this.video = mgr.app.media.acquire();
@@ -240,6 +245,7 @@ export class VideoWindow extends SpatialWindow {
       'progress',
       { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
       { icon: 'cast', action: () => this.cast() },
+      { icon: 'sliders', action: () => this.toggleOptions() },
       { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
@@ -266,7 +272,7 @@ export class VideoWindow extends SpatialWindow {
     // anything the user didn't pause is resumed right away.
     v.onpause = () => { if (!this.userPaused && !this.disposed) setTimeout(() => this.resume(), 250); };
     this.watchFrames();
-    v.onloadedmetadata = () => { this.setAspect(v.videoWidth / v.videoHeight); this.setupTexture(); };
+    v.onloadedmetadata = () => { if (!this.guessed) { this.guessed = true; this.guessFormat(); } this.setAspect(this.dispAspect()); this.setupTexture(); };
     this.mgr.app.log('فتح فيديو: ' + (this.name || this.url));
     try { await v.play(); } catch { v.muted = true; try { await v.play(); this.mgr.app.toast('الصوت مكتوم — اضغط زر الصوت'); } catch {} }
   }
@@ -303,6 +309,79 @@ export class VideoWindow extends SpatialWindow {
       if (v.remote && v.remote.prompt) { v.remote.prompt().catch(e => this.mgr.app.toast('لم يُعثر على جهاز عرض: ' + (e.message || ''), 3500)); return; }
     } catch {}
     this.mgr.app.toast('هذا المتصفح لا يدعم الإرسال للتلفاز', 3500);
+  }
+  // ---- Player options (like Play'A / VR Station): 3D formats, 180°/360°, speed, brightness, lock to view ----
+  dispAspect() {
+    const v = this.video, w = v.videoWidth || 16, h = v.videoHeight || 9;
+    return { sbs: w / 2 / h, ou: w / (h / 2) }[this.fmt] || w / h;   // half-width formats (sbsh/ouh) keep the full shape
+  }
+  // Guess the format from the file name: "SBS", "3D", "_LR", "OU", "TB", "180", "360".
+  guessFormat() {
+    if (this.fmtSet || this.stream) { this.applyFormat(); return; }
+    const n = (this.name || this.url || '').toLowerCase();
+    if (/(^|[^a-z])(ou|tb|top.?bottom|over.?under)([^a-z]|$)/.test(n)) this.fmt = 'ouh';
+    else if (/(^|[^a-z])(sbs|3d|lr|side.?by.?side)([^a-z]|$)/.test(n)) this.fmt = 'sbsh';
+    if (/360/.test(n)) this.proj = '360'; else if (/180/.test(n)) { this.proj = '180'; if (this.fmt === '2d') this.fmt = 'sbsh'; }
+    this.applyFormat();
+  }
+  applyFormat() {
+    const u = this.mat.uniforms, L = u.uL.value, R = u.uR.value;
+    if (this.fmt === 'sbs' || this.fmt === 'sbsh') { L.set(0, 0, 0.5, 1); R.set(0.5, 0, 0.5, 1); }
+    else if (this.fmt === 'ou' || this.fmt === 'ouh') { L.set(0, 0.5, 1, 0.5); R.set(0, 0, 1, 0.5); }
+    else { L.set(0, 0, 1, 1); R.set(0, 0, 1, 1); }
+    if (this.video.videoWidth) this.setAspect(this.dispAspect());
+    this.setProjection(this.proj);
+    this.opts?.redraw();
+  }
+  // Immersive 180°/360° video: a sphere around you, the window stays as the remote control.
+  setProjection(p) {
+    this.proj = p;
+    if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; }
+    if (p === 'flat') { this.content.visible = true; return; }
+    const g = p === '180' ? new THREE.SphereGeometry(12, 64, 48, Math.PI, Math.PI) : new THREE.SphereGeometry(12, 96, 48);
+    g.scale(-1, 1, 1);
+    const m = contentMaterial(), u = this.mat.uniforms;
+    ['map', 'uVideo', 'uHas', 'uL', 'uR', 'uDim'].forEach(k => { m.uniforms[k] = u[k]; });
+    m.uniforms.uSize.value.set(1, 1); m.uniforms.uRadius.value = 0;
+    m.side = THREE.FrontSide; m.depthWrite = false;
+    const sp = new THREE.Mesh(g, m);
+    sp.renderOrder = -10; sp.frustumCulled = false;
+    sp.rotation.y = this.mgr.forwardYaw() + (p === '360' ? -Math.PI / 2 : 0);
+    this.mgr.root.add(sp); this.sphere = sp;
+    this.content.visible = false;
+    this.mgr.app.toast(p === '180' ? 'فيديو 180° حولك · النافذة للتحكم' : 'فيديو 360° حولك · النافذة للتحكم', 2500);
+  }
+  toggleOptions() {
+    if (!this.opts) {
+      const FMT = { '2d': '2D', sbs: 'SBS كامل', sbsh: 'SBS', ou: 'OU كامل', ouh: 'OU' }, PROJ = { flat: 'شاشة', '180': '180°', '360': '360°' };
+      this.opts = new CanvasPanel(1, 0.11, (ctx, W, H, p) => {
+        glass(ctx, 2, 2, W - 4, H - 4, 36);
+        const v = this.video;
+        const items = [
+          ['الصيغة', FMT[this.fmt], () => { const o = Object.keys(FMT); this.fmt = o[(o.indexOf(this.fmt) + 1) % o.length]; this.fmtSet = true; this.applyFormat(); }],
+          ['العرض', PROJ[this.proj], () => { const o = Object.keys(PROJ); this.setProjection(o[(o.indexOf(this.proj) + 1) % o.length]); this.mgr.changed(); }],
+          ['السرعة', (v.playbackRate || 1) + '×', () => { const o = [1, 1.25, 1.5, 2, 0.5, 0.75]; v.playbackRate = o[(o.indexOf(v.playbackRate) + 1) % o.length]; }],
+          ['الإضاءة', Math.round(this.mat.uniforms.uDim.value * 100) + '%', () => { const o = [1, 1.15, 1.3, 0.7, 0.85]; const u = this.mat.uniforms.uDim; u.value = o[(o.indexOf(u.value) + 1) % o.length]; }],
+          ['التكرار', v.loop ? 'مفعّل' : 'متوقف', () => { v.loop = !v.loop; }],
+          ['أمام العين', this.headLock ? 'مثبتة' : 'حرة', () => { this.headLock = !this.headLock; }],
+        ];
+        const cw = (W - 20) / items.length;
+        items.forEach(([l, val, act], i) => {
+          const x = W - 10 - (i + 1) * cw, id = 'o' + i, hov = p.isHover(id);
+          if (hov) { roundRect(ctx, x + 6, 10, cw - 12, H - 20, 26); ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fill(); }
+          text(ctx, l, x + cw / 2, H * 0.34, H * 0.2, { color: COLORS.dim, weight: 600 });
+          text(ctx, val, x + cw / 2, H * 0.68, H * 0.27, { weight: 800, dir: 'auto' });
+          p.region(x, 0, cw, H, () => { blip('tap', settings.sounds); act(); this.opts.redraw(); }, id);
+        });
+      }, { pxPerM: 1500 });
+    }
+    const m = this.opts.mesh;
+    if (m.parent) this.group.remove(m); else this.group.add(m);
+    this.layout(); this.opts.redraw(); this.mgr.refreshTargets();
+  }
+  layout() {
+    super.layout();
+    if (this.opts) this.opts.mesh.position.set(0, -this.h / 2 - 0.23, 0.004);
   }
   togglePlay() {
     const v = this.video;
@@ -361,8 +440,9 @@ export class VideoWindow extends SpatialWindow {
   update(dt, now) {
     const v = this.video;
     // Live streams may report their size late or skip 'loadedmetadata': set up the texture once frames exist.
-    if (!this.tex && v.readyState >= 2 && v.videoWidth) { this.setAspect(v.videoWidth / v.videoHeight); this.setupTexture(); }
-    if (this.tex && v.videoWidth && Math.abs(v.videoWidth / v.videoHeight - this.aspect) > 0.01) this.setAspect(v.videoWidth / v.videoHeight);
+    if (!this.tex && v.readyState >= 2 && v.videoWidth) { if (!this.guessed) { this.guessed = true; this.guessFormat(); } this.setAspect(this.dispAspect()); this.setupTexture(); }
+    if (this.tex && v.videoWidth && Math.abs(this.dispAspect() - this.aspect) > 0.01) this.setAspect(this.dispAspect());
+    if (this.sphere) this.sphere.position.copy(this.mgr.headLocal());
     this.mat.uniforms.uHas.value = v.readyState >= 2 && this.tex ? 1 : 0;
     if (this.canvas && v.readyState >= 2 && v.currentTime !== this.lastFrameTime) {
       this.lastFrameTime = v.currentTime;
@@ -386,9 +466,17 @@ export class VideoWindow extends SpatialWindow {
       }
     }
   }
-  ref() { return this.stream ? null : this.itemId ? { item: this.itemId } : { url: this.url }; }
+  ref() {
+    if (this.stream) return null;
+    const r = this.itemId ? { item: this.itemId } : { url: this.url };
+    if (this.fmt !== '2d') r.fmt = this.fmt;
+    if (this.proj !== 'flat') r.proj = this.proj;
+    return r;
+  }
   dispose() {
     this.disposed = true;
+    if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; }
+    this.opts?.dispose();
     super.dispose();
     this.video.onpause = null;
     this.video.pause(); this.video.srcObject = null; this.video.removeAttribute('src'); this.video.load();
@@ -525,7 +613,7 @@ export function youtubeId(url) {
 }
 
 export class WebWindow extends SpatialWindow {
-  constructor(mgr, { url, title = '' }) {
+  constructor(mgr, { url, title = '', direct = false }) {
     super(mgr, 'web');
     this.url = url; this.title = title;
     mgr.app.log('فتح موقع: ' + url);
@@ -545,6 +633,10 @@ export class WebWindow extends SpatialWindow {
     let host = ''; try { host = new URL(url).hostname; } catch {}
     this.cplay = (host === 'cplay3.netlify.app' || host === 'cplay2.netlify.app');
     this.base = (() => { try { return new URL(url).origin; } catch { return ''; } })();
+    // Internal browser: ordinary sites open through Madar's page service so the pointer can click in them.
+    this.direct = direct;
+    this.proxied = !this.cplay && !this.yt && !direct && settings.browseProxy !== false && /^https?:/i.test(url);
+    if (this.proxied) this.base = BROWSE_ORIGIN;
     this.bridge = false; this.path = '';
     // Pages that include madar-bridge.js (cplay2) accept taps and scrolls from the hands.
     Object.assign(this.content.userData.interact, {
@@ -553,7 +645,7 @@ export class WebWindow extends SpatialWindow {
       scrollBy: (dx, dy, at) => { this.lastAt = at; this.send({ type: 'scroll', dx, dy, x: at[0], y: at[1] }); },
     });
     const items = [];
-    if (this.cplay) items.push({ icon: 'chevR', action: () => this.send({ type: 'back' }) });
+    if (this.cplay || this.proxied) items.push({ icon: 'chevR', action: () => this.send({ type: 'back' }) });
     items.push({ icon: 'reload', action: () => this.reload() });
     if (this.yt) items.push(
       { icon: () => this.ytState.playing ? 'pause' : 'play', action: () => this.ytToggle() },
@@ -587,16 +679,27 @@ export class WebWindow extends SpatialWindow {
     }, { pxPerM: 1500 });
     this.group.add(this.tabPanel.mesh);
   }
+  // Switch between Madar's browser (clickable from the headset) and opening the site directly.
+  setDirect(on) {
+    if (this.cplay || this.yt) return;
+    this.direct = on; this.proxied = !on;
+    this.base = on ? (() => { try { return new URL(this.url).origin; } catch { return ''; } })() : BROWSE_ORIGIN;
+    this.bridge = false; this.tabPanel?.redraw(); this.reload();
+    this.mgr.app.toast(on ? 'فتح مباشر: يعمل اللمس فقط في وضع الهاتف' : 'متصفح مدار: النقر والتمرير بالمؤشر', 3000);
+  }
   // Address bar like a browser: shows the site; pointing + click opens the keyboard to type another address.
   makeAddress() {
     this.tabPanel = new CanvasPanel(0.96, 0.075, (ctx, W, H, p) => {
       glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
       const hov = p.isHover('url');
       if (hov) { roundRect(ctx, 8, 8, W - 16, H - 16, (H - 16) / 2); ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fill(); }
-      icon(ctx, 'globe', W - H * 0.6, H / 2, H * 0.5);
-      text(ctx, this.url.replace(/^https?:\/\/(www\.)?/, ''), W / 2, H / 2 + 2, H * 0.36, { weight: 700, dir: 'ltr', maxWidth: W - H * 2.6, color: COLORS.text });
+      const hg = p.isHover('mode');
+      roundRect(ctx, W - H * 2.9, 8, H * 2.8, H - 16, (H - 16) / 2); ctx.fillStyle = hg ? 'rgba(255,255,255,0.3)' : this.proxied ? 'rgba(124,196,255,0.28)' : 'rgba(255,255,255,0.1)'; ctx.fill();
+      text(ctx, this.proxied ? 'متصفح مدار' : 'مباشر', W - H * 1.5, H / 2 + 2, H * 0.3, { weight: 800 });
+      text(ctx, this.url.replace(/^https?:\/\/(www\.)?/, ''), W / 2 - H * 0.6, H / 2 + 2, H * 0.36, { weight: 700, dir: 'ltr', maxWidth: W - H * 5.4, color: COLORS.text });
       icon(ctx, 'keyboard', H * 0.6, H / 2, H * 0.5, COLORS.dim);
-      p.region(0, 0, W, H, () => { blip('tap', settings.sounds); this.mgr.openKeyboard(this.url); }, 'url');
+      p.region(0, 0, W - H * 3, H, () => { blip('tap', settings.sounds); this.mgr.openKeyboard(this.url); }, 'url');
+      p.region(W - H * 3, 0, H * 3, H, () => { blip('tap', settings.sounds); this.setDirect(this.proxied); }, 'mode');
     }, { pxPerM: 1500 });
     this.group.add(this.tabPanel.mesh);
   }
@@ -654,7 +757,7 @@ export class WebWindow extends SpatialWindow {
       const now = performance.now();
       if (!this.warned || now - this.warned > 8000) {
         this.warned = now;
-        this.mgr.app.toast(this.cplay ? 'cplay3 لم يتصل بعد — أعد تحميل النافذة' : 'هذا الموقع لا يقبل النقر بالعين أو اليد — المسه مباشرة في وضع الهاتف/اللابتوب', 4500);
+        this.mgr.app.toast(this.cplay ? 'cplay3 لم يتصل بعد — أعد تحميل النافذة' : this.proxied ? 'الصفحة ما زالت تتحمّل…' : 'هذا الموقع لا يقبل النقر بالعين أو اليد — المسه مباشرة في وضع الهاتف/اللابتوب', 4500);
         this.mgr.app.log('نقر على موقع بلا جسر: ' + this.url);
       }
       return false;
@@ -666,6 +769,7 @@ export class WebWindow extends SpatialWindow {
     return true;
   }
   src(eye) {
+    if (this.proxied) return BROWSE_ORIGIN + '/api/madar-browse?url=' + encodeURIComponent(this.url);
     if (this.yt) {
       const p = new URLSearchParams({ playsinline: '1', autoplay: '1', mute: '1', enablejsapi: '1', rel: '0', modestbranding: '1', origin: location.origin, controls: '1' });
       return `https://www.youtube.com/embed/${this.yt}?${p}`;
@@ -740,6 +844,7 @@ export class WebWindow extends SpatialWindow {
     if (e.origin === this.base && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
       if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay3: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
       if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }
+      if (e.data.url && this.proxied && this.css[0].f.contentWindow === e.source && e.data.url !== this.url) { this.url = e.data.url; this.tabPanel?.redraw(); this.mgr.changed(); }
       return;
     }
     if (!this.yt || !String(e.origin).includes('youtube.com')) return;
@@ -769,7 +874,7 @@ export class WebWindow extends SpatialWindow {
       this.toolbar.redraw();
     }
   }
-  ref() { return { url: this.url, title: this.title }; }
+  ref() { return this.direct ? { url: this.url, title: this.title, direct: true } : { url: this.url, title: this.title }; }
   dispose() {
     this.disposed = true; clearTimeout(this.eyeTimer);
     this.mgr.webClosedAt = performance.now();
