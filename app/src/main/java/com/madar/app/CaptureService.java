@@ -35,7 +35,7 @@ import java.nio.ByteBuffer;
  * Runs as a foreground service so sharing continues while other apps are open.
  */
 public class CaptureService extends Service {
-    interface Listener { void onFrame(String b64); void onState(String state); }
+    interface Listener { void onFrame(String b64); void onState(String state); void onAudio(String b64); }
 
     static final String EXTRA_CODE = "code", EXTRA_DATA = "data", ACTION_STOP = "com.madar.app.STOP";
     static volatile Listener listener;
@@ -43,7 +43,10 @@ public class CaptureService extends Service {
 
     private static final String CHANNEL = "share";
     private static final int NOTIF_ID = 7;
-    private static final int MAX_EDGE = 1280;          // long edge of the shared picture
+    // Picture quality, changeable from the headset while sharing.
+    static volatile int maxEdge = 1600;                 // long edge of the shared picture
+    static volatile int jpegQuality = 80;
+    static volatile CaptureService self;
     private static final long FRAME_MS = 66;            // ~15 fps
     private static final long KEEPALIVE_MS = 1000;      // resend the last frame when the screen is still
 
@@ -110,6 +113,8 @@ public class CaptureService extends Service {
             w.acquire(6 * 60 * 60 * 1000L);
             wake = w;
         } catch (Exception ignored) { }
+        self = this;
+        startAudio();
         notifyState("started");
         handler.postDelayed(keepAlive, KEEPALIVE_MS);
         return START_NOT_STICKY;
@@ -134,7 +139,7 @@ public class CaptureService extends Service {
             wm.getDefaultDisplay().getRealMetrics(m);
             w = m.widthPixels; h = m.heightPixels;
         }
-        float k = Math.min(1f, MAX_EDGE / (float) Math.max(w, h));
+        float k = Math.min(1f, maxEdge / (float) Math.max(w, h));
         width = Math.max(2, Math.round(w * k) & ~1);
         height = Math.max(2, Math.round(h * k) & ~1);
         dpi = Math.max(120, Math.round(getResources().getDisplayMetrics().densityDpi * k));
@@ -164,6 +169,67 @@ public class CaptureService extends Service {
         });
     }
 
+    /** Quality change from the headset: rebuild the capture at the new size. */
+    static void setQuality(int edge, int q) {
+        maxEdge = Math.max(640, Math.min(2560, edge)); jpegQuality = Math.max(40, Math.min(95, q));
+        CaptureService s = self;
+        if (s != null && s.handler != null) s.handler.post(s::resizeCapture);
+    }
+    private void resizeCapture() {
+        if (!running || display == null) return;
+        int ow = width, oh = height;
+        measure();
+        if (ow == width && oh == height) return;
+        ImageReader old = reader;
+        reader = newReader();
+        display.resize(width, height, dpi);
+        display.setSurface(reader.getSurface());
+        old.close();
+        bitmap = null;
+    }
+
+    // ---- Tablet sound: what apps play (videos, games) is captured and sent with the picture (Android 10+). ----
+    private android.media.AudioRecord audio;
+    private Thread audioThread;
+    private void startAudio() {
+        if (Build.VERSION.SDK_INT < 29 || projection == null) return;
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) return;
+        try {
+            android.media.AudioPlaybackCaptureConfiguration cfg = new android.media.AudioPlaybackCaptureConfiguration.Builder(projection)
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_GAME)
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_UNKNOWN)
+                    .build();
+            android.media.AudioFormat fmt = new android.media.AudioFormat.Builder()
+                    .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(48000)
+                    .setChannelMask(android.media.AudioFormat.CHANNEL_IN_STEREO)
+                    .build();
+            final int chunk = 48000 * 2 * 2 / 25;   // 40 ms of stereo 16-bit
+            audio = new android.media.AudioRecord.Builder()
+                    .setAudioFormat(fmt)
+                    .setBufferSizeInBytes(chunk * 8)
+                    .setAudioPlaybackCaptureConfig(cfg)
+                    .build();
+            audio.startRecording();
+            audioThread = new Thread(() -> {
+                byte[] buf = new byte[chunk];
+                while (running && audio != null) {
+                    int n = 0;
+                    while (n < chunk && running) { int r = audio.read(buf, n, chunk - n); if (r <= 0) break; n += r; }
+                    if (n <= 0) continue;
+                    Listener l = listener;
+                    if (l != null) l.onAudio(Base64.encodeToString(buf, 0, n, Base64.NO_WRAP));
+                }
+            }, "madar-audio");
+            audioThread.start();
+        } catch (Exception e) { audio = null; }
+    }
+    private void stopAudio() {
+        try { if (audio != null) { audio.stop(); audio.release(); } } catch (Exception ignored) { }
+        audio = null;
+    }
+
     private void onImage(ImageReader r) {
         Image img = null;
         try {
@@ -182,7 +248,7 @@ public class CaptureService extends Service {
             bitmap.copyPixelsFromBuffer(buf);
             Bitmap out = bw == w ? bitmap : Bitmap.createBitmap(bitmap, 0, 0, w, h);
             jpeg.reset();
-            out.compress(Bitmap.CompressFormat.JPEG, 72, jpeg);
+            out.compress(Bitmap.CompressFormat.JPEG, jpegQuality, jpeg);
             if (out != bitmap) out.recycle();
             lastFrame = now;
             lastB64 = Base64.encodeToString(jpeg.toByteArray(), Base64.NO_WRAP);
@@ -230,6 +296,8 @@ public class CaptureService extends Service {
     public void onDestroy() {
         boolean was = running;
         running = false;
+        self = null;
+        stopAudio();
         try { if (wake != null && wake.isHeld()) wake.release(); } catch (Exception ignored) { }
         wake = null;
         if (handler != null) handler.removeCallbacksAndMessages(null);

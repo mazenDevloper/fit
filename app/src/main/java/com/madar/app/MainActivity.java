@@ -181,8 +181,12 @@ public class MainActivity extends Activity implements CaptureService.Listener {
     // ---------- Screen sharing ----------
     private void startCapture() {
         if (CaptureService.running) { js("window.__madarCapture&&__madarCapture('started')"); return; }
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
+        // Notifications (the stop button) and sound capture (the tablet's audio goes with the picture).
+        List<String> need = new ArrayList<>();
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.POST_NOTIFICATIONS);
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) need.add(Manifest.permission.RECORD_AUDIO);
+        if (!need.isEmpty()) {
+            requestPermissions(need.toArray(new String[0]), REQ_NOTIF);
             return;   // continues in onRequestPermissionsResult
         }
         askCapture();
@@ -201,6 +205,21 @@ public class MainActivity extends Activity implements CaptureService.Listener {
     public void onFrame(String b64) {
         if (!framePending.compareAndSet(false, true)) return;   // drop frames while the page is busy
         main.post(() -> web.evaluateJavascript("window.__madarFrame&&__madarFrame('" + b64 + "')", v -> framePending.set(false)));
+    }
+
+    private final AtomicBoolean audioPending = new AtomicBoolean(false);
+    private final StringBuilder audioQueue = new StringBuilder();
+    @Override
+    public void onAudio(String b64) {
+        // Audio chunks are never dropped; if the page is busy they are sent together next time.
+        synchronized (audioQueue) { if (audioQueue.length() > 0) audioQueue.append(','); audioQueue.append('\'').append(b64).append('\''); }
+        if (!audioPending.compareAndSet(false, true)) return;
+        main.post(() -> {
+            String list;
+            synchronized (audioQueue) { list = audioQueue.toString(); audioQueue.setLength(0); }
+            if (list.isEmpty()) { audioPending.set(false); return; }
+            web.evaluateJavascript("window.__madarAudio&&[" + list + "].forEach(function(a){__madarAudio(a)})", v -> audioPending.set(false));
+        });
     }
 
     @Override
@@ -341,6 +360,7 @@ public class MainActivity extends Activity implements CaptureService.Listener {
             runOnUiThread(() -> { if (CaptureService.running) stopService(new Intent(MainActivity.this, CaptureService.class)); });
         }
         @JavascriptInterface public boolean isCapturing() { return CaptureService.running; }
+        @JavascriptInterface public void setQuality(int edge, int jpeg) { CaptureService.setQuality(edge, jpeg); }
         // Remote control of this tablet (see ControlService).
         @JavascriptInterface public String controlState() { return ControlService.on() ? "on" : "off"; }
         @JavascriptInterface public void input(String json) { ControlService.handle(json); }
