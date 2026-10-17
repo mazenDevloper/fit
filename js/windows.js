@@ -9,7 +9,7 @@ import { CSS_K, EYE } from './render.js';
 import { drawMatches } from './sports.js';
 import { BalloonGame } from './games.js';
 
-const BROWSE_ORIGIN = 'https://cplay3.netlify.app';
+const BROWSE_ORIGIN = 'https://cplay2.netlify.app';
 const CONTENT_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const CONTENT_FRAG = /* glsl */`
   uniform sampler2D map; uniform float uVideo; uniform float uHas; uniform vec2 uSize; uniform float uRadius; uniform float uDim; uniform float uHole;
@@ -1063,7 +1063,7 @@ export class WebWindow extends SpatialWindow {
     this.ytState = { playing: true, muted: true, times: [0, 0] };
     this.mat.uniforms.uHole.value = 1;
     let host = ''; try { host = new URL(url).hostname; } catch {}
-    this.cplay = (host === 'cplay3.netlify.app' || host === 'cplay2.netlify.app');
+    this.cplay = (host === 'cplay2.netlify.app' || host === 'cplay2.netlify.app');
     this.base = (() => { try { return new URL(url).origin; } catch { return ''; } })();
     // Internal browser: ordinary sites open through Madar's page service so the pointer can click in them.
     this.direct = direct;
@@ -1341,7 +1341,7 @@ export class WebWindow extends SpatialWindow {
       const now = performance.now();
       if (!this.warned || now - this.warned > 8000) {
         this.warned = now;
-        this.mgr.app.toast(this.cplay ? 'cplay3 لم يتصل بعد — أعد تحميل النافذة' : this.proxied ? 'الصفحة ما زالت تتحمّل…' : 'هذا الموقع لا يقبل النقر بالعين أو اليد — المسه مباشرة في وضع الهاتف/اللابتوب', 4500);
+        this.mgr.app.toast(this.cplay ? 'cplay2 لم يتصل بعد — أعد تحميل النافذة' : this.proxied ? 'الصفحة ما زالت تتحمّل…' : 'هذا الموقع لا يقبل النقر بالعين أو اليد — المسه مباشرة في وضع الهاتف/اللابتوب', 4500);
         this.mgr.app.log('نقر على موقع بلا جسر: ' + this.url);
       }
       return false;
@@ -1445,7 +1445,7 @@ export class WebWindow extends SpatialWindow {
   handleMessage(e) {
     if ((e.origin === this.base || window.MadarIOS) && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
       if (e.data.type === 'snap') { if (this.css[0].f.contentWindow === e.source) this.onSnap(e.data); return; }
-      if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay3: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
+      if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay2: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
       if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }
       if (e.data.url && this.proxied && this.css[0].f.contentWindow === e.source && e.data.url !== this.url) { this.url = e.data.url; this.tabPanel?.redraw(); this.mgr.changed(); }
       return;
@@ -1707,7 +1707,7 @@ export class WindowManager {
       try {
         const spec = Object.assign({ kind: s.kind }, s.ref);
         if (s.ref.item) spec.itemId = s.ref.item;
-        if (spec.url) spec.url = spec.url.replace(/cplay2\.(netlify|vercel)\.app/, 'cplay3.netlify.app');
+        if (spec.url) spec.url = spec.url.replace(/cplay[23]\.(netlify|vercel)\.app/, 'cplay2.netlify.app');
         let win;
         if (s.kind === 'video') win = new VideoWindow(this, spec);
         else if (s.kind === 'image') win = new ImageWindow(this, spec);

@@ -1,11 +1,11 @@
 // Matches in Madar: today's matches (your teams first), a live "island" at the top of your view for your
-// teams' live matches (like the DriveCast APK islands), and goal alerts. Data comes from cplay3's match service.
+// teams' live matches (like the DriveCast APK islands), and goal alerts. Data comes from cplay2's match service.
 import * as THREE from 'three';
 import { CanvasPanel, glass, text, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
 import { drawIsland, islandWidth, drawWidget, drawGoal, goalDuration, drawClock, setLogoListener } from './matchart.js';
 
-export const SPORTS_ORIGIN = 'https://cplay3.netlify.app';
+export const SPORTS_ORIGIN = 'https://cplay2.netlify.app';
 const MADAR = location.origin;
 
 export class Sports {
@@ -19,7 +19,7 @@ export class Sports {
     setLogoListener(() => { this.version++; this.island.redraw(); });
   }
   teams() { return settings.myTeams || []; }
-  // Your favourite teams from cplay3 (same list as the APK) — read once from cplay3's own storage via a tiny page.
+  // Your favourite teams from cplay2 (same list as the APK) — read once from cplay2's own storage via a tiny page.
   syncFavorites() {
     if (this.syncing) return; this.syncing = true;
     const f = document.createElement('iframe');

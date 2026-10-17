@@ -20,7 +20,7 @@ export const DEFAULTS = {
   restoreLayout: false,
   webOneSource: true,    // web pages in the headset: one copy drawn for both eyes (identical eyes, cooler iPhone)
   builtinBrowser: true,  // in the headset, open sites in a paired tablet's built-in browser (click anywhere, curve, 360)
-  myTeams: [],           // favourite teams (synced from cplay3): [{name, country}]
+  myTeams: [],           // favourite teams (synced from cplay2): [{name, country}]
   island: true,          // live match island at the top of the view
   allGoals: false,
   vSkew: 0,             // mm, right lens higher (+) or lower (-) than the left one
@@ -104,15 +104,15 @@ export function loadLayout() { try { return JSON.parse(safeGet(LAYOUT_KEY) || 'n
 export function saveLayout(l) { safeSet(LAYOUT_KEY, JSON.stringify(l)); }
 
 export const DEFAULT_LINKS = [
-  { id: 'cplay3', title: 'cplay3', url: 'https://cplay3.netlify.app/media' },
+  { id: 'cplay2', title: 'cplay2', url: 'https://cplay2.netlify.app/media' },
   { id: 'l1', title: 'فيديو تجريبي من يوتيوب', url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ' },
 ];
 export function loadLinks() {
   try {
     const v = JSON.parse(safeGet(LINKS_KEY) || 'null');
     if (!Array.isArray(v)) return DEFAULT_LINKS.slice();
-    v.forEach(l => { l.url = l.url.replace('cplay2.netlify.app', 'cplay3.netlify.app'); });
-    if (!v.some(l => /cplay3\.netlify\.app/.test(l.url))) v.unshift(DEFAULT_LINKS[0]);
+    v.forEach(l => { l.url = l.url.replace('cplay3.netlify.app', 'cplay2.netlify.app'); });
+    if (!v.some(l => /cplay2\.netlify\.app/.test(l.url))) v.unshift(DEFAULT_LINKS[0]);
     return v;
   }
   catch { return DEFAULT_LINKS.slice(); }
