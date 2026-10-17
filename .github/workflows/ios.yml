@@ -1,0 +1,80 @@
+name: Madar iPhone app
+
+# Builds Madar's iPhone app (ios-app/, XcodeGen), runs its unit tests on the iOS simulator, and publishes an
+# unsigned Madar.ipa as the "ios-latest" release. Install it with iloader / Sideloadly / AltStore (they sign it
+# with your Apple ID; a free Apple ID needs re-signing every 7 days).
+on:
+  push:
+    branches: [ios]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Generate the Xcode project
+        working-directory: ios-app
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -version
+
+      - name: Unit tests (simulator)
+        working-directory: ios-app
+        run: |
+          set -o pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k in sorted(d, reverse=True) if 'iOS' in k for x in d[k] if x['name'].startswith('iPhone')))")
+          echo "Simulator $UDID"
+          xcodebuild test -project Madar.xcodeproj -scheme MadarTests -destination "id=$UDID" CODE_SIGNING_ALLOWED=NO 2>&1 | tee test.log | grep -E "Test Case|error:|TEST (SUCCEEDED|FAILED)|Executed" || true
+          grep -q "TEST SUCCEEDED" test.log
+
+      - name: Build (unsigned)
+        working-directory: ios-app
+        run: |
+          set -o pipefail
+          xcodebuild -project Madar.xcodeproj -target Madar -configuration Release -sdk iphoneos \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" SYMROOT="$PWD/build" build 2>&1 | tee build.log | grep -E "error:|warning: .*(deprecated|never)|BUILD" || true
+          test -d build/Release-iphoneos/Madar.app
+
+      - name: Package the IPA
+        working-directory: ios-app
+        run: |
+          APP=build/Release-iphoneos/Madar.app
+          codesign --force --sign - "$APP"
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qry Madar.ipa Payload
+          ls -la Madar.ipa
+
+      - name: Publish the logs (on failure)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: ios-app
+        run: |
+          (grep -n -B2 -A8 "error:" build.log test.log 2>/dev/null | head -400) > errors.txt || true
+          (grep -n -A12 "failed\|XCTAssert" test.log 2>/dev/null | head -200) >> errors.txt || true
+          tail -c 120000 build.log > build-tail.txt 2>/dev/null || touch build-tail.txt
+          tail -c 120000 test.log > test-tail.txt 2>/dev/null || touch test-tail.txt
+          gh release delete ios-build-log --yes --cleanup-tag || true
+          gh release create ios-build-log errors.txt build-tail.txt test-tail.txt --target "$GITHUB_SHA" --prerelease --title "iOS build failed" --notes "see errors.txt"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: ios-app
+        run: |
+          gh release delete ios-latest --yes --cleanup-tag || true
+          gh release create ios-latest Madar.ipa test.log --target "$GITHUB_SHA" --prerelease \
+            --title "مدار للآيفون (build ${{ github.run_number }})" \
+            --notes "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Unsigned: install with iloader, Sideloadly or AltStore (iOS 17+, iPhone XS or newer)."
