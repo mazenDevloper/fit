@@ -50,5 +50,6 @@
     window.dispatchEvent(new CustomEvent('madar-file', { detail: file }));
   };
 
-  document.documentElement.classList.add('ios-native');
+  var mark = function () { if (document.documentElement) document.documentElement.classList.add('ios-native'); };
+  if (document.documentElement) mark(); else document.addEventListener('readystatechange', mark, { once: true });
 })();
