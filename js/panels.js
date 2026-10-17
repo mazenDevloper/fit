@@ -85,6 +85,13 @@ export class Launcher {
         ['clock', 'المباريات', 'فرقي ونتائج اليوم', () => { a.openMatches(); this.close(); }],
         ['mic', 'أمر صوتي', 'أو اضغط △ مطوّلاً', () => { this.close(); a.listen('command'); }],
         ['sun', 'مكة المكرمة', 'بيئة 360 حولك', () => { this.close(); a.openMakkah(); }],
+        ['grid', 'التطبيقات', 'يوتيوب، شاهد، نتفليكس…', () => { this.close(); a.windows.open({ kind: 'panel', panel: 'store' }); }],
+        ['stack', settings.guest ? 'إنهاء وضع الضيف' : 'وضع الضيف', settings.guest ? 'العودة لمساحتك' : 'لشخص آخر — مساحتك محفوظة', () => { this.close(); a.toggleGuest(); }],
+        ...(window.MadarIOS ? [
+          ['video', a.recording ? 'إيقاف التسجيل' : 'تسجيل', 'سجّل ما تراه في الصور', () => { this.close(); window.MadarIOS.send(a.recording ? 'recordStop' : 'recordStart'); }],
+          ['image', 'صورة مجسّمة', 'حوّل صورة عادية إلى ثلاثية الأبعاد', () => { this.close(); window.MadarIOS.send('pickDepth'); }],
+          ['keyboard', 'لوحة المفاتيح الحقيقية', a.deskHole ? 'ظاهرة' : 'رؤيتها داخل البيئة', () => { this.close(); a.toggleDeskHole(); }],
+        ] : []),
         ...(window.MadarIOS ? [
           ['image', 'صور الآيفون', 'صورك وفيديوهاتك من المكتبة', () => { this.close(); window.MadarIOS.send('pickMedia', { spatial: false }); }],
           ['video', 'فيديو مكاني', 'فيديو صوّرته بالآيفون ثلاثي الأبعاد', () => { this.close(); window.MadarIOS.send('pickMedia', { spatial: true }); }],
@@ -106,6 +113,9 @@ export class Launcher {
       this.page = Math.min(this.page, pages - 1);
       list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'app' + i); });
       if (pages > 1) this.pager(ctx, p, W, H, pages);
+    } else if (settings.guest && ['devices', 'library', 'links'].includes(this.tab)) {
+      text(ctx, '👤 وضع الضيف', W / 2, H * 0.45, 52, { weight: 800 });
+      text(ctx, 'المكتبة والأجهزة والتطبيقات الخاصة مخفية', W / 2, H * 0.56, 30, { color: COLORS.dim });
     } else if (this.tab === 'devices') {
       this.drawDevices(ctx, W, H, p, top);
     } else if (this.tab === 'library') {

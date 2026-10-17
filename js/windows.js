@@ -156,6 +156,16 @@ function homography(w, h, [p0, p1, p2, p3]) {
 }
 
 let glowTex = null, glowCv = null, glowCtx = null;
+// Websites that work like apps inside Madar: [name, url, letter, colour].
+export const WEB_APPS = [
+  ['يوتيوب', 'https://m.youtube.com/', 'Y', '#ff0033'], ['شاهد', 'https://shahid.mbc.net/ar', 'ش', '#14b8a6'],
+  ['نتفليكس', 'https://www.netflix.com/', 'N', '#e50914'], ['سبوتيفاي', 'https://open.spotify.com/', 'S', '#1db954'],
+  ['إكس', 'https://x.com/', 'X', '#111111'], ['إنستغرام', 'https://www.instagram.com/', 'I', '#d62976'],
+  ['تيك توك', 'https://www.tiktok.com/', 'T', '#25f4ee'], ['خرائط', 'https://www.google.com/maps', 'M', '#4285f4'],
+  ['Gmail', 'https://mail.google.com/', 'G', '#ea4335'], ['ChatGPT', 'https://chatgpt.com/', 'C', '#10a37f'],
+  ['Claude', 'https://claude.ai/', 'C', '#d97757'], ['القرآن', 'https://quran.com/ar', 'ق', '#0f766e'],
+  ['ويكيبيديا', 'https://ar.wikipedia.org/', 'W', '#555555'], ['تويتش', 'https://m.twitch.tv/', 'T', '#9146ff'], ['أخبار', 'https://news.google.com/?hl=ar', 'أ', '#1a73e8'],
+];
 class SpatialWindow {
   constructor(mgr, kind) {
     this.mgr = mgr; this.kind = kind; this.id = ++winId;
@@ -832,9 +842,10 @@ export class VideoWindow extends SpatialWindow {
 }
 
 export class ImageWindow extends SpatialWindow {
-  constructor(mgr, { itemId, file = null, proj = null }) {
+  constructor(mgr, { itemId, file = null, proj = null, depth = null }) {
     super(mgr, 'image');
     this.itemId = itemId; this.file = file; this.proj = proj || 'flat';
+    this.depthSrc = depth;   // spatial photo: a depth map (PNG, bright = near) from the iPhone app
     this.toolbar = new Toolbar([
       { icon: () => this.proj === '360' ? 'image' : 'globe', action: () => { this.setProjection(this.proj === '360' ? 'flat' : '360'); this.mgr.changed(); } },
       { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
@@ -868,9 +879,41 @@ export class ImageWindow extends SpatialWindow {
       this.tex = t;
       this.setAspect(c.width / c.height);
       const r = c.width / c.height;
+      if (this.depthSrc) await this.loadDepth();
       if (this.proj && this.proj !== 'flat') this.setProjection(this.proj);
       else if (/360|panorama|بانوراما|مكة|مكه|الحرم/i.test(item.name || '') && Math.abs(r - 2) < 0.15) this.setProjection('360');
     } catch { this.mgr.app.toast('تعذّر فتح الصورة'); }
+  }
+  // Spatial photo: the picture becomes a relief — near things come towards you, so each eye sees real depth.
+  async loadDepth() {
+    try {
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = this.depthSrc.startsWith('data:') ? this.depthSrc : 'data:image/png;base64,' + this.depthSrc; });
+      const c = document.createElement('canvas'); c.width = 160; c.height = Math.max(2, Math.round(160 * img.height / img.width));
+      const g = c.getContext('2d'); g.filter = 'blur(1.5px)'; g.drawImage(img, 0, 0, c.width, c.height);
+      this.depth = { w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data };
+      this.depthAmount = 0.2;
+      this.layout(); this.mgr.app.toast('🧊 صورة مجسّمة — حرّك رأسك لترى العمق', 2500);
+    } catch { this.mgr.app.toast('تعذّر قراءة عمق الصورة'); }
+  }
+  layout() {
+    super.layout();
+    if (!this.depth || this.curved) return;
+    const h = this.h, sx = 120, sy = Math.max(2, Math.round(120 * h));
+    const geo = new THREE.PlaneGeometry(1, h, sx, sy), pos = geo.attributes.position, uv = geo.attributes.uv, D = this.depth;
+    for (let i = 0; i < pos.count; i++) {
+      const u = uv.getX(i), v = uv.getY(i);
+      const x = Math.min(D.w - 1, Math.round(u * (D.w - 1))), y = Math.min(D.h - 1, Math.round((1 - v) * (D.h - 1)));
+      const d = D.d[(y * D.w + x) * 4] / 255;
+      pos.setZ(i, (d - 0.5) * this.depthAmount);
+    }
+    pos.needsUpdate = true; geo.computeBoundingSphere();
+    this.content.geometry.dispose(); this.content.geometry = geo;
+  }
+  moreItems() {
+    const base = super.moreItems();
+    if (!this.depth) return base;
+    return [...base, ['العمق', Math.round(this.depthAmount * 500) + '%', () => { const o = [0.2, 0.3, 0.4, 0.1]; this.depthAmount = o[(o.indexOf(this.depthAmount) + 1) % o.length]; this.layout(); }]];
   }
   ref() { return this.file ? null : this.proj !== 'flat' ? { item: this.itemId, proj: this.proj } : { item: this.itemId }; }
   update() { if (this.sphere) this.sphere.position.copy(this.mgr.headLocal()); }
@@ -883,7 +926,7 @@ export class PanelWindow extends SpatialWindow {
     super(mgr, 'panel');
     this.panelKind = panel;
     this.canCurve = false;
-    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42], pad: [1, 0.86], matches: [1, 0.8] };
+    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42], pad: [1, 0.86], matches: [1, 0.8], store: [1, 0.7] };
     const [w, h] = specs[panel] || [1, 0.6];
     this.aspect = w / h;
     this.cv = canvasTexture(1400, Math.round(1400 * h / w));
@@ -897,6 +940,39 @@ export class PanelWindow extends SpatialWindow {
     this.draw();
   }
   layout() { super.layout(); this.frame.visible = false; }
+  // «تطبيقات»: websites that work like apps, one tap opens them; ＋ adds them to «مواقعي» (your own apps).
+  drawStore(ctx, W, H) {
+    text(ctx, 'التطبيقات', W - 60, 70, 56, { align: 'right', weight: 800 });
+    text(ctx, 'اضغط لفتح التطبيق · ＋ لإضافته إلى تطبيقاتك', W - 60, 125, 28, { align: 'right', color: '#aab4c8' });
+    const cols = 5, rows = Math.ceil(WEB_APPS.length / cols), top = 165, gw = (W - 80) / cols, gh = (H - top - 30) / rows;
+    const mine = new Set(loadLinks().map(l => l.url));
+    this.storeCells = [];
+    WEB_APPS.forEach((a, i) => {
+      const c = i % cols, r = Math.floor(i / cols), x = W - 40 - (c + 1) * gw, y = top + r * gh, cx = x + gw / 2, cy = y + gh * 0.4, rad = Math.min(gw, gh) * 0.26;
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 7); ctx.fillStyle = a[3]; ctx.fill();
+      text(ctx, a[2], cx, cy + 2, rad * 0.95, { weight: 900, color: '#fff', dir: 'auto' });
+      text(ctx, a[0], cx, y + gh * 0.82, 30, { weight: 700, dir: 'auto', maxWidth: gw - 10 });
+      const added = mine.has(a[1]);
+      ctx.beginPath(); ctx.arc(cx + rad * 0.85, cy - rad * 0.85, rad * 0.32, 0, 7); ctx.fillStyle = added ? '#34d399' : 'rgba(255,255,255,0.85)'; ctx.fill();
+      text(ctx, added ? '✓' : '+', cx + rad * 0.85, cy - rad * 0.85 + 2, rad * 0.42, { weight: 900, color: added ? '#fff' : '#141824' });
+      this.storeCells.push({ x, y, w: gw, h: gh, app: a, plus: [cx + rad * 0.85, cy - rad * 0.85, rad * 0.45] });
+    });
+  }
+  onContentClick(hit) {
+    if (this.panelKind !== 'store' || !hit?.uv || !this.storeCells) return false;
+    const { canvas } = this.cv, px = hit.uv.x * canvas.width, py = (1 - hit.uv.y) * canvas.height;
+    const cell = this.storeCells.find(c => px >= c.x && px <= c.x + c.w && py >= c.y && py <= c.y + c.h);
+    if (!cell) return false;
+    blip('tap', settings.sounds);
+    const [name, url] = cell.app, [qx, qy, qr] = cell.plus;
+    if (Math.hypot(px - qx, py - qy) < qr * 1.6) {
+      const l = loadLinks();
+      if (!l.some(x => x.url === url)) { l.unshift({ id: 'l' + Date.now(), title: name, url }); saveLinks(l); this.mgr.app.toast('أُضيف «' + name + '» إلى تطبيقاتك', 2000); }
+      this.draw(); return true;
+    }
+    this.mgr.open({ kind: 'web', url, title: name });
+    return true;
+  }
   draw() {
     const { ctx, canvas, texture } = this.cv;
     const W = canvas.width, H = canvas.height;
@@ -907,6 +983,7 @@ export class PanelWindow extends SpatialWindow {
     ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, 0, W, H * 0.02);
     const k = this.panelKind;
     if (k === 'matches') { drawMatches(ctx, W, H, this.mgr.app.sports); this.drawnV = this.mgr.app.sports?.version; texture.needsUpdate = true; return; }
+    if (k === 'store') { this.drawStore(ctx, W, H); texture.needsUpdate = true; return; }
     if (k === 'clock') {
       const now = new Date();
       const t = now.toLocaleTimeString('ar-OM-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -1115,6 +1192,11 @@ export class WebWindow extends SpatialWindow {
     const base = super.moreItems();
     const z = this.zoom || 1;
     return [...base,
+      ['تطبيقاتي', loadLinks().some(l => l.url === this.url) ? 'مضاف ✓' : 'أضف', () => {
+        const l = loadLinks(); if (l.some(x => x.url === this.url)) return;
+        let t = this.title; try { t = t || new URL(this.url).hostname.replace(/^www\./, ''); } catch {}
+        l.unshift({ id: 'l' + Date.now(), title: t || this.url, url: this.url }); saveLinks(l); this.mgr.app.toast('أُضيف إلى تطبيقاتك', 1800);
+      }],
       ['حجم النص', Math.round(z * 100) + '%', () => { const o = [1, 1.15, 1.3, 1.5, 0.85]; this.zoom = o[(o.indexOf(z) + 1) % o.length]; this.send({ type: 'zoom', value: this.zoom }); }],
       ['الوضع الليلي', this.night ? 'مفعّل' : 'إيقاف', () => { this.night = !this.night; this.send({ type: 'night', on: this.night }); }],
       ['قراءة تلقائية', this.autoScroll ? 'مفعّلة' : 'إيقاف', () => { this.autoScroll = !this.autoScroll; this.mgr.app.toast(this.autoScroll ? 'الصفحة تتمرّر ببطء — اضغط مجدداً للإيقاف' : 'توقف التمرير', 2200); }],

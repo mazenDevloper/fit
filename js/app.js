@@ -17,14 +17,14 @@ import { DeviceHub } from './devices.js';
 import { Sports } from './sports.js';
 import { ScreenHost, ScreenViewer, WebHost, qrSvg, AGENT_DOWNLOAD, lib } from './mirror.js';
 import { Room } from './room.js';
-import { IOS, NativeHead, NativeSlam, setupNative } from './native.js';
+import { IOS, NativeHead, NativeSlam, setupNative, toggleDeskHole } from './native.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '49';
+export const APP_VERSION = '50';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -553,7 +553,25 @@ class App {
     this.renderEnvChoices?.();
   }
   applySettings() { this.renderer.applySettings(); this.renderer.resize(); }
-  persistLayout() { if (this.windows && this.active) saveLayout({ windows: this.windows.serialize() }); }
+  persistLayout() { if (this.windows && this.active && !settings.guest) saveLayout({ windows: this.windows.serialize() }); }
+  toggleDeskHole() { toggleDeskHole(this); }
+  // Guest mode: someone else uses Madar — your windows, teams, devices and library stay private and untouched.
+  toggleGuest() {
+    if (!settings.guest) {
+      try { localStorage.setItem('madar.owner', JSON.stringify({ settings: { ...settings }, windows: this.windows.serialize() })); } catch {}
+      this.windows.closeAll();
+      saveSettings({ guest: true, island: false, mirrorCode: '' });
+      this.toast('👤 وضع الضيف: مساحة جديدة — اضبط العدستين لعينيك', 3500);
+      setTimeout(() => this.lensAdjust?.open?.(), 1200);
+    } else {
+      let o = null; try { o = JSON.parse(localStorage.getItem('madar.owner') || 'null'); } catch {}
+      this.windows.closeAll();
+      if (o?.settings) saveSettings({ ...o.settings, guest: false }); else saveSettings({ guest: false });
+      this.renderer.resize();
+      if (o?.windows?.length) setTimeout(() => this.windows.restore(o.windows), 300);
+      this.toast('عدت إلى مساحتك', 2000);
+    }
+  }
 
   // ---------- Home screen ----------
   bindHome() {

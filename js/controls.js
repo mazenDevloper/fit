@@ -180,6 +180,14 @@ export class Controls {
     }, { passive: false });
     window.addEventListener('keydown', e => {
       if (!this.app.active) return;
+      // A real keyboard (Bluetooth) types into the website you are pointing at (headset mode).
+      if (settings.viewMode !== 'desktop' && !e.metaKey && !e.ctrlKey) {
+        const w = this.pointedWindow();
+        if (w && w.kind === 'web' && w.bridge && w.send) {
+          if (e.key.length === 1) { w.send({ type: 'text', value: e.key }); e.preventDefault(); return; }
+          if (e.key === 'Backspace' || e.key === 'Enter' || e.key === 'Tab') { w.send({ type: 'key', key: e.key }); e.preventDefault(); return; }
+        }
+      }
       const k = e.key.toLowerCase();
       this.keys.add(k);
       if (k === ' ' || k === 'enter') { e.preventDefault(); this.app.onRealTap(); }
