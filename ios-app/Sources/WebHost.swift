@@ -38,7 +38,7 @@ final class WebHost: UIView, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
-        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.isScrollEnabled = true    // the home page scrolls; inside Madar it is turned off
         webView.scrollView.bounces = false
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.allowsBackForwardNavigationGestures = false

@@ -15,6 +15,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        .landscape
+        .allButUpsideDown   // each screen decides (home: any way; inside Madar: landscape)
     }
 }

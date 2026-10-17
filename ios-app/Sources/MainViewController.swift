@@ -15,7 +15,18 @@ final class MainViewController: UIViewController {
 
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
-    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+    /// Home screen: portrait or landscape. Inside Madar (headset): landscape only.
+    var inMR = false
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { inMR ? .landscape : .allButUpsideDown }
+    func setMR(_ on: Bool) {
+        guard on != inMR else { return }
+        inMR = on
+        setNeedsUpdateOfSupportedInterfaceOrientations()
+        if on, let scene = view.window?.windowScene, !scene.interfaceOrientation.isLandscape {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight)) { _ in }
+        }
+        web.webView.scrollView.isScrollEnabled = !on
+    }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
 
     override func viewDidLoad() {
@@ -77,6 +88,7 @@ final class MainViewController: UIViewController {
 
     func handle(_ cmd: String, _ d: [String: Any], frame: WKFrameInfo) {
         switch cmd {
+        case "mr": setMR((d["on"] as? Bool) ?? false)
         case "lens":
             passthrough.lens = MadarMath.Lens(json: d)
             if let fps = (d["fps"] as? NSNumber)?.intValue { passthrough.wantFps = fps }
