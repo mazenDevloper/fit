@@ -57,6 +57,26 @@ export class HandTracker {
     this.error = '';
     this.delegate = '';
   }
+  // iPhone app: Apple Vision finds the hands (Neural Engine) and sends the 21 joints in camera-picture
+  // coordinates; distances come from the hand's own size (palm ≈ 9 cm) instead of MediaPipe's 3D points.
+  useNative() { this.state = 'ready'; this.delegate = 'ANE'; this.native = true; this.emit(); }
+  ingestNative(list, now, mapper) {
+    if (!settings.handsEnabled) return;
+    const PALM = 0.09;
+    const found = [];
+    for (const h of list || []) {
+      const f = h.p; if (!f || f.length < 42) continue;
+      const pts = []; for (let i = 0; i < 21; i++) pts.push(mapper(f[i * 2], f[i * 2 + 1]));
+      const img = i => [f[i * 2], f[i * 2 + 1]];
+      const d2 = (a, b) => Math.hypot(img(a)[0] - img(b)[0], img(a)[1] - img(b)[1]);
+      const palmImg = Math.max(1e-4, d2(0, 9));
+      const palmAng = Math.max(1e-4, Math.hypot(pts[0][0] - pts[9][0], pts[0][1] - pts[9][1]));
+      const depth = Math.min(1.2, Math.max(0.15, PALM / palmAng));
+      const pinchDist = d2(4, 8) / palmImg * PALM;
+      found.push({ px: (pts[4][0] + pts[8][0]) / 2, py: (pts[4][1] + pts[8][1]) / 2, depth, pinchDist, pts, score: h.s ?? 1 });
+    }
+    this.assign(found, now);
+  }
   newSlot(i) {
     return { i, active: false, seen: 0, fx: new OneEuro(), fy: new OneEuro(), fd: new OneEuro(0.8, 0.6), tx: 0, ty: 0, depth: 0.45, pinch: false, pinchDist: 1, strength: 0, tips: [], conf: 0 };
   }
@@ -90,7 +110,7 @@ export class HandTracker {
   // Run detection on the newest camera frame (throttled). `mapper` converts landmarks to head-local tan space.
   update(video, now, mapper) {
     for (const s of this.slots) if (s.active && now - s.seen > 260) { s.active = false; s.pinch = false; s.fx.reset(); s.fy.reset(); s.fd.reset(); }
-    if (this.state !== 'ready' || !video || video.readyState < 2) return;
+    if (this.native || this.state !== 'ready' || !video || video.readyState < 2) return;
     if (video.currentTime === this.lastVideoTime) return;
     const interval = settings.coolMax ? (this.delegate === 'GPU' ? 60 : 80) : settings.cool ? (this.delegate === 'GPU' ? 45 : 60) : (this.delegate === 'GPU' ? 38 : 50);   // ~25 Hz is enough for gestures and saves GPU
     if (now - this.lastDetect < interval) return;
@@ -116,7 +136,11 @@ export class HandTracker {
       const px = (pts[4][0] + pts[8][0]) / 2, py = (pts[4][1] + pts[8][1]) / 2;
       found.push({ px, py, depth, pinchDist, pts, score });
     }
-    // Assign detections to slots by proximity so each hand keeps its identity.
+    this.assign(found, now);
+  }
+  // Give each detection a slot by proximity so each hand keeps its identity.
+  assign(found, now) {
+    for (const s of this.slots) if (s.active && now - s.seen > 260) { s.active = false; s.pinch = false; s.fx.reset(); s.fy.reset(); s.fd.reset(); }
     const used = new Set();
     for (const f of found) {
       let best = null, bd = 0.35;

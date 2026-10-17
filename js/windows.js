@@ -276,12 +276,12 @@ class SpatialWindow {
       ['فوق رأسك', this.overhead ? 'مفعّل' : 'إيقاف', () => this.setOverhead(!this.overhead)],
       ['أمام عينيك', this.headLock ? 'يتبعك' : 'ثابتة', () => { this.headLock = !this.headLock; if (this.headLock) this.pin = null; }],
       ['لقطة', 'حفظ', () => this.snapshot()],
-      ['على التلفاز', app.room?.tv() ? 'ضع هنا' : 'امسح الغرفة', () => this.onTv()],
+      [window.MadarIOS ? 'على الجدار' : 'على التلفاز', (app.room?.tv() || app.room?.wallAhead?.()) ? 'ضع هنا' : 'امسح الغرفة', () => this.onTv()],
     ];
   }
   // Put this window exactly over your real TV (found by «مسح الغرفة»).
   onTv() {
-    const app = this.mgr.app, tv = app.room?.tv();
+    const app = this.mgr.app, tv = app.room?.tv() || app.room?.wallAhead?.();
     if (!tv) { app.room?.scan(); return; }
     const g = this.group, root = this.mgr.root;
     root.updateMatrixWorld();
@@ -291,7 +291,7 @@ class SpatialWindow {
     g.lookAt(new THREE.Vector3(0, world.y, 0));
     g.scale.setScalar(Math.max(0.4, tv.width));
     this.headLock = false; this.pin = null; this.updateRadius?.(); this.layout(); this.mgr.changed();
-    app.toast('📺 النافذة الآن فوق تلفازك', 2200);
+    app.toast(tv.key === 'wall' ? '🧱 النافذة الآن على الجدار' : '📺 النافذة الآن فوق تلفازك', 2200);
   }
   toggleMore() {
     if (!this.more) {
@@ -994,7 +994,8 @@ export class WebWindow extends SpatialWindow {
     // A site you switched to «مباشر» stays direct next time.
     const hostKey = host.replace(/^www\./, '');
     const directHost = (settings.directHosts || []).includes(hostKey);
-    this.proxied = !this.cplay && !this.yt && !direct && !directHost && settings.viewMode === 'sbs' && settings.browseProxy !== false && /^https?:/i.test(url);
+    // In the iPhone app every page already gets Madar's bridge: no proxy server needed.
+    this.proxied = !window.MadarIOS && !this.cplay && !this.yt && !direct && !directHost && settings.viewMode === 'sbs' && settings.browseProxy !== false && /^https?:/i.test(url);
     this.direct = !this.proxied && !this.cplay && !this.yt;
     if (this.proxied) this.base = BROWSE_ORIGIN;
     this.bridge = false; this.path = '';
@@ -1081,7 +1082,7 @@ export class WebWindow extends SpatialWindow {
   // Curved screen and 360° for web pages. A live page (iframe) can only be shown flat, so in these modes
   // the page keeps running hidden and its picture is redrawn several times a second onto a curved
   // screen or onto the whole sphere around you; pointing, clicking and scrolling still reach the page.
-  canSnap() { return this.cplay || this.proxied; }
+  canSnap() { return this.cplay || this.proxied || (!!window.MadarIOS && !this.yt); }
   ensureSnap(quiet) {
     if (this.snap) return true;
     if (this.yt) { this.mgr.app.toast('فيديو يوتيوب: استخدم نافذة الفيديو للتقويس و360°', 3500); return false; }
@@ -1242,7 +1243,9 @@ export class WebWindow extends SpatialWindow {
   send(msg) {
     if (!this.bridge || !this.css) return;
     msg.madar = 1;
-    (this.snap ? [this.css[0]] : this.css).forEach(c => { try { c.f.contentWindow.postMessage(msg, this.base); } catch {} });
+    // iPhone app: the page may have moved to another site inside the window; the frame is still ours.
+    const target = window.MadarIOS ? '*' : this.base;
+    (this.snap ? [this.css[0]] : this.css).forEach(c => { try { c.f.contentWindow.postMessage(msg, target); } catch {} });
     if (msg.type !== 'snap') this.poke();
   }
   navTo(path) {
@@ -1338,7 +1341,7 @@ export class WebWindow extends SpatialWindow {
     const at = f.getAttribute('src');
     if (!at || at === 'about:blank' || this.disposed) return;
     if (eye === 0) { this.mgr.app.log('اكتمل تحميل الصفحة'); if (this.css[1].pending) { clearTimeout(this.eyeTimer); this.eyeTimer = setTimeout(() => this.loadEye1(), 1200); } }
-    if (this.base && !this.yt) { try { f.contentWindow.postMessage({ madar: 1, type: 'hello' }, this.base); } catch {} }
+    if (this.base && !this.yt) { try { f.contentWindow.postMessage({ madar: 1, type: 'hello' }, window.MadarIOS ? '*' : this.base); } catch {} }
     if (!this.yt) return;
     const post = o => { try { f.contentWindow.postMessage(JSON.stringify(o), 'https://www.youtube.com'); } catch {} };
     post({ event: 'listening', id: 'madar' + this.id + '-' + eye, channel: 'widget' });
@@ -1348,7 +1351,7 @@ export class WebWindow extends SpatialWindow {
   ytToggle() { const p = !this.ytState.playing; this.ytState.playing = p; [0, 1].forEach(e => this.cmd(e, p ? 'playVideo' : 'pauseVideo')); }
   ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
   handleMessage(e) {
-    if (e.origin === this.base && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
+    if ((e.origin === this.base || window.MadarIOS) && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
       if (e.data.type === 'snap') { if (this.css[0].f.contentWindow === e.source) this.onSnap(e.data); return; }
       if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay3: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
       if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }

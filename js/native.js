@@ -1,0 +1,108 @@
+// Madar inside its iPhone app (window.MadarIOS from the app's bootstrap): the app does what Safari can't —
+// ARKit gives the head's real position and rotation (6DoF) and the room's planes, the camera picture is drawn
+// natively under this page (so the page draws no camera), Apple Vision tracks the hands on the Neural Engine,
+// speech is recognised on the iPhone, and every website in a window can be clicked, curved and shown in 360°.
+import * as THREE from 'three';
+import { settings, saveSettings } from './config.js';
+
+export const IOS = typeof window !== 'undefined' && !!window.MadarIOS;
+const N = () => window.MadarIOS;
+const Y = new THREE.Vector3(0, 1, 0);
+
+// ---------- Head: ARKit pose (rotation + position), smoothed to the display rate ----------
+export class NativeHead {
+  constructor() {
+    this.hasData = false;
+    this.yawOffset = 0;
+    this.q = new THREE.Quaternion(); this.prevQ = new THREE.Quaternion();
+    this.p = new THREE.Vector3();
+    this.at = 0; this.prevAt = 0;
+    this.raw = this.q;
+    window.__madarPose = (qx, qy, qz, qw, px, py, pz) => {
+      const now = performance.now();
+      this.prevQ.copy(this.q); this.prevAt = this.at;
+      this.q.set(qx, qy, qz, qw); this.p.set(px, py, pz); this.at = now;
+      if (!this.hasData) { this.prevQ.copy(this.q); this.hasData = true; }
+    };
+    try { this.yawOffset = +localStorage.getItem('madar.ios.yaw') || 0; } catch {}
+  }
+  // ARKit sends 30 poses a second; the display runs faster: continue the turn a little (max 40 ms) for smoothness.
+  pose(delayMs, out) {
+    let q = this.q;
+    const dtPose = this.at - this.prevAt, ahead = Math.min(40, performance.now() - this.at);
+    if (dtPose > 5 && dtPose < 100 && ahead > 0) q = this.prevQ.clone().slerp(this.q, 1 + ahead / dtPose);
+    const yq = new THREE.Quaternion().setFromAxisAngle(Y, -this.yawOffset);
+    return out.copy(yq).multiply(q);
+  }
+  // Head position in Madar's world (the same yaw turn applied).
+  position(out) { return out.copy(this.p).applyAxisAngle(Y, -this.yawOffset); }
+  currentYaw() { const f = new THREE.Vector3(0, 0, -1).applyQuaternion(this.q); return Math.atan2(-f.x, -f.z); }
+  recenter(force) {
+    // With a saved room (world map) the old orientation is kept, so windows stay on the walls where you left them.
+    if (!force && N()?.last.world?.state === 'relocalizing') return;
+    this.yawOffset = this.currentYaw();
+    try { localStorage.setItem('madar.ios.yaw', String(this.yawOffset)); } catch {}
+  }
+}
+
+// ---------- Walking: always on (ARKit). Same interface as the experimental web SLAM ----------
+export class NativeSlam {
+  constructor(app) { this.app = app; this.pos = new THREE.Vector3(); this.state = 'tracking'; }
+  get on() { return true; }
+  start() {} stop() {}
+  update() { this.app.head.position(this.pos); }
+}
+
+// ---------- Setup ----------
+export function setupNative(app) {
+  const M = N();
+  let lensKey = '';
+  // The camera picture drawn by the app must match this page's lens settings exactly.
+  app.renderer.nativeCam = true;
+  app.renderer.afterRender = (prev => () => {
+    prev?.();
+    const r = app.renderer, t = r.camTan(), m = r.monoTan(), env = app.envModeNow || 'passthrough';
+    const L = {
+      sbs: settings.viewMode === 'sbs', sep: settings.lensSep, vOff: settings.vOffset, vSkew: settings.vSkew || 0,
+      s2l: settings.screenToLens, k1: settings.k1, k2: settings.k2, px: r.distMat.uniforms.uPx.value, tanMax: r.distMat.uniforms.uTanMax.value,
+      tx: t.x, ty: t.y, mx: m.x, my: m.y, bright: env === 'dim' ? 0.32 : 1, show: env !== 'immersive' && app.active,
+      fps: settings.coolMax ? 30 : 60,
+    };
+    const k = JSON.stringify(L);
+    if (k !== lensKey) { lensKey = k; M.send('lens', L); }
+  })(app.renderer.afterRender);
+
+  M.on('camera', c => { app.renderer.nativeTan = { x: c.tx, y: c.ty }; app.log(`كاميرا ARKit: ${c.w}×${c.h}`); });
+  M.on('thermal', p => {
+    app.thermal = p.level;
+    if (p.level >= 2 && !settings.coolMax) { settings.coolMax = true; app.renderer.resize(); }
+    if (p.level >= 2 && !app.hotWarned) { app.hotWarned = true; app.toast(p.level >= 3 ? '🌡 الآيفون ساخن جداً — خفّفت كل شيء، يُفضّل استراحة قصيرة' : '🌡 الآيفون يسخن — تبريد تلقائي', 4000); }
+    if (p.level < 2) app.hotWarned = false;
+    app.log('حرارة الآيفون: ' + ['طبيعية', 'معتدلة', 'مرتفعة', 'حرجة'][p.level]);
+  });
+  M.on('tracking', p => {
+    const msg = { dark: 'المكان مظلم — التتبع ضعيف', fast: 'حركة سريعة — ببطء قليلاً', relocalizing: 'أتعرّف على غرفتك…', interrupted: 'توقف التتبع مؤقتاً' }[p.state];
+    if (msg && app.active) app.toast(msg, 2500);
+    app.log('ARKit: ' + p.state);
+  });
+  M.on('world', p => {
+    if (p.state === 'relocalized') { app.toast('✅ تعرّفت على غرفتك — النوافذ في أماكنها', 3000); app.log('ARKit: الغرفة معروفة'); }
+  });
+  M.on('hands', p => app.hands.ingestNative?.(p.hands, performance.now(), (x, y) => { const [sx, sy] = app.renderer.imageToStage(x, y); return app.renderer.stageToTan(sx, sy); }));
+  M.on('openUrl', p => { if (app.active && p.url) app.windows.open({ kind: 'web', url: p.url }); });
+  M.on('files', p => {
+    if (p.state === 'loading') app.toast(`جاري نقل ${p.count} ملف…`, 2500);
+    else if (p.state === 'converting') app.toast('🎬 تحويل الفيديو المكاني إلى ثلاثي الأبعاد…', 6000);
+    else if (p.state === 'notSpatial') app.toast('هذا الفيديو ليس مكانياً — سيُفتح عادياً', 3000);
+  });
+  window.addEventListener('madar-file', async e => {
+    const f = e.detail;
+    try { const { importFiles } = await import('./db.js'); await importFiles([f]); app.renderLibrary?.(); } catch {}
+    if (app.active) app.openLocalFiles([f]); else app.toast('أُضيف إلى المكتبة: ' + f.name, 2500);
+  });
+  // Hand tracking settings follow the page's settings.
+  const sendHands = () => M.send('hands', { on: settings.handsEnabled !== false, every: settings.coolMax ? 60 : settings.cool ? 45 : 35 });
+  sendHands(); setInterval(sendHands, 5000);
+  M.send('guard', { on: !!settings.roomGuard });
+  app.log('تطبيق مدار للآيفون: ARKit + Vision + Metal');
+}

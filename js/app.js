@@ -17,13 +17,14 @@ import { DeviceHub } from './devices.js';
 import { Sports } from './sports.js';
 import { ScreenHost, ScreenViewer, WebHost, qrSvg, AGENT_DOWNLOAD, lib } from './mirror.js';
 import { Room } from './room.js';
+import { IOS, NativeHead, NativeSlam, setupNative } from './native.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
 import { listItems, importFiles, deleteItem, formatSize } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '46';
+export const APP_VERSION = '47';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -63,7 +64,7 @@ class App {
     this.media = new MediaPool(4);
     this.hands = new HandTracker();
     this.orientation = new StageOrientation(this.stage);
-    this.head = new HeadTracker(this.orientation);
+    this.head = IOS ? new NativeHead() : new HeadTracker(this.orientation);
     this.renderer = new StereoRenderer(this.stage, $('#gl'), this.orientation);
     setMaxAniso(Math.min(8, this.renderer.maxAniso));
     this.setupScene();
@@ -78,11 +79,12 @@ class App {
     this.renderer.scene.add(this.launcher.group, this.calibration.group);
     this.renderer.overlay.add(this.toastUI.mesh);
     this.interaction = new Interaction(this);
-    this.slam = new Slam(this);
+    this.slam = IOS ? new NativeSlam(this) : new Slam(this);
     this.controls = new Controls(this);
     this.gaze = new GazeTracker(this);
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
+    if (IOS) setupNative(this);
     this.interaction.setTargets();
     this.debugYaw = 0; this.debugPitch = 0;
     this.bindHome();
@@ -92,7 +94,7 @@ class App {
     window.addEventListener('error', e => { this.log('خطأ: ' + (e.message || e.error)); if (this.active) this.toast('حدث خطأ: ' + String(e.message || '').slice(0, 60)); });
     window.addEventListener('unhandledrejection', e => { this.log('خطأ: ' + String(e.reason && e.reason.message || e.reason).slice(0, 120)); });
     this.hands.onChange(() => this.renderStatus());
-    this.hands.load();
+    if (IOS) this.hands.useNative(); else this.hands.load();
     this.renderStatus();
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) { this.persistLayout(); }
@@ -489,6 +491,7 @@ class App {
     return l.find(d => near.includes(d.code)) || l.find(d => d.code === settings.browserCode) || l[0];
   }
   useBuiltinBrowser(url) {
+    if (window.MadarIOS) return false;   // the iPhone app opens every site with full control already
     if (settings.builtinBrowser === false || settings.viewMode !== 'sbs' || !this.browserDevice()) return false;
     try { return /^https?:/i.test(url) && !new URL(url).hostname.endsWith('mazendevloper.github.io'); } catch { return false; }
   }
@@ -710,7 +713,7 @@ class App {
     btn.disabled = false; btn.textContent = 'ادخل إلى مدار';
     if (!camOk) { this.showError('لا يمكن تشغيل الواقع المختلط بدون الكاميرا. من الإعدادات ← Safari ← الكاميرا اختر «سماح» ثم أعد المحاولة.'); return; }
     this.requestWakeLock();
-    document.body.classList.add('in-mr');
+    document.body.classList.add('in-mr'); document.documentElement.classList.add('mr');
     this.stage.hidden = false;
     this.orientation.layout();
     this.renderer.resize();
@@ -722,7 +725,7 @@ class App {
     if (this.host?.stream) setTimeout(() => this.showLocalScreen(), 1500);   // already sharing on this computer: show it here too
     else if (settings.mirrorCode) setTimeout(() => this.connectMirror(settings.mirrorCode), 2000);
     if (settings.viewMode === 'desktop') { setTimeout(() => this.toast('WASD للتحرك · الأسهم أو السحب للنظر · M القائمة · F ملء الشاشة', 6000), 2500); }
-    if (settings.walk) setTimeout(() => this.slam.start(), 1500);
+    if (settings.walk && !IOS) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
     // Your teams from cplay3 (once a day), then matches for the live island.
@@ -786,12 +789,13 @@ class App {
     this.stopVoice();
     try { this.wakeLock?.release(); } catch {}
     this.stage.hidden = true;
-    document.body.classList.remove('in-mr');
+    document.body.classList.remove('in-mr'); document.documentElement.classList.remove('mr');
     this.renderLibrary();
     this.renderLog();
   }
 
   async requestMotion() {
+    if (IOS) return true;   // ARKit
     try {
       const reqs = [];
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') reqs.push(DeviceOrientationEvent.requestPermission());
@@ -803,6 +807,7 @@ class App {
   }
 
   async startCamera() {
+    if (IOS) { this.renderer.setVideo(null); return true; }   // the iPhone app draws the camera itself
     if (!navigator.mediaDevices?.getUserMedia) return false;
     // Cool mode: 30 fps camera is plenty for passthrough and roughly halves the camera's heat.
     const roomShown = !isImmersive(settings.environment);
@@ -1028,7 +1033,8 @@ class App {
     const around = this.windows.windows.some(w => w.sphere), cinema = !!this.windows.cinema;
     for (const k in this.envs) this.envs[k].visible = !around && !cinema && k === ek;
     this.renderer.updateHandMask(settings.handsEnabled && this.hands.state === 'ready' ? this.hands.slots : null, now);
-    this.renderer.render(this.renderQ, cinema ? 'immersive' : isImmersive(ek) ? 'immersive' : ek);
+    this.envModeNow = cinema ? 'immersive' : isImmersive(ek) ? 'immersive' : ek;
+    this.renderer.render(this.renderQ, this.envModeNow);
   }
 }
 

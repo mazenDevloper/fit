@@ -116,6 +116,18 @@ export class StereoRenderer {
     this.handScene = new THREE.Scene();
     const hm = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.handMat); hm.frustumCulled = false;
     this.handScene.add(hm);
+    // iPhone app: the camera is underneath the page, so real hands show through holes cut in the virtual layer.
+    this.holeMat = new THREE.ShaderMaterial({
+      uniforms: { mask: { value: this.maskTex }, uExtent: this.bgMat.uniforms.uExtent },
+      vertexShader: BG_VERT,
+      fragmentShader: `uniform sampler2D mask; varying vec2 vUv; void main(){ float a = smoothstep(0.02, 0.6, texture2D(mask, vUv).r); if (a < 0.01) discard; gl_FragColor = vec4(0.0, 0.0, 0.0, a); }`,
+      depthTest: false, depthWrite: false, transparent: true,
+      blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
+      blendSrc: THREE.ZeroFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+    });
+    this.holeScene = new THREE.Scene();
+    const ho = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.holeMat); ho.frustumCulled = false;
+    this.holeScene.add(ho);
     // Cursors and toasts draw on top of everything, including hands.
     this.overlay = new THREE.Scene();
 
@@ -274,6 +286,7 @@ export class StereoRenderer {
 
   // Half-extents (tan) of the passthrough image as drawn, in stage orientation.
   camTan() {
+    if (this.nativeTan) return { x: this.nativeTan.x * settings.worldScale, y: this.nativeTan.y * settings.worldScale };
     const v = this.video;
     let aspect = 16 / 9;
     if (v && v.videoWidth) { const w = v.videoWidth, h = v.videoHeight; aspect = Math.max(w, h) / Math.min(w, h); }
@@ -356,12 +369,13 @@ export class StereoRenderer {
     u.uExtent.value.set(t.x / m.x, t.y / m.y);
     this.eyes.forEach(e => { e.quaternion.copy(cam.quaternion); e.position.set(0, 0, 0); e.updateMatrixWorld(); });
     r.setRenderTarget(null);
-    r.setClearColor(0x05060a, 1);
+    r.setClearColor(0x05060a, this.nativeCam && envMode !== 'immersive' ? 0 : 1);
     r.clear(true, true, true);
-    if (envMode !== 'immersive') r.render(this.bgScene, this.bgCam);
+    if (envMode !== 'immersive' && !this.nativeCam) r.render(this.bgScene, this.bgCam);
     r.clearDepth();
     r.render(this.scene, cam);
     if (this.maskOn && u.uHas.value > 0) r.render(this.handScene, this.bgCam);
+    else if (this.maskOn && this.nativeCam && envMode !== 'immersive') r.render(this.holeScene, this.bgCam);
     r.clearDepth();
     r.render(this.overlay, cam);
     this.afterRender?.();
@@ -389,12 +403,14 @@ export class StereoRenderer {
       cam.updateMatrixWorld();
       EYE.value = i;
       r.setRenderTarget(this.rts[i]);
-      r.setClearColor(0x05060a, 1);
+      // In the iPhone app the camera is drawn by the app underneath: leave the room transparent here.
+      r.setClearColor(0x05060a, this.nativeCam && envMode !== 'immersive' ? 0 : 1);
       r.clear(true, true, true);
-      if (envMode !== 'immersive') r.render(this.bgScene, this.bgCam);
+      if (envMode !== 'immersive' && !this.nativeCam) r.render(this.bgScene, this.bgCam);
       r.clearDepth();
       r.render(this.scene, cam);
       if (this.maskOn && u.uHas.value > 0) r.render(this.handScene, this.bgCam);
+      else if (this.maskOn && this.nativeCam && envMode !== 'immersive') r.render(this.holeScene, this.bgCam);
       r.clearDepth();
       r.render(this.overlay, cam);
     }

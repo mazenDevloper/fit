@@ -85,6 +85,11 @@ export class Launcher {
         ['clock', 'المباريات', 'فرقي ونتائج اليوم', () => { a.openMatches(); this.close(); }],
         ['mic', 'أمر صوتي', 'أو اضغط △ مطوّلاً', () => { this.close(); a.listen('command'); }],
         ['sun', 'مكة المكرمة', 'بيئة 360 حولك', () => { this.close(); a.openMakkah(); }],
+        ...(window.MadarIOS ? [
+          ['image', 'صور الآيفون', 'صورك وفيديوهاتك من المكتبة', () => { this.close(); window.MadarIOS.send('pickMedia', { spatial: false }); }],
+          ['video', 'فيديو مكاني', 'فيديو صوّرته بالآيفون ثلاثي الأبعاد', () => { this.close(); window.MadarIOS.send('pickMedia', { spatial: true }); }],
+          ['reset', 'غرفة جديدة', 'انسَ مكان النوافذ وابدأ من جديد', () => { this.close(); window.MadarIOS.send('resetWorld', { forget: true }); a.head.recenter(true); a.toast('بدأت غرفة جديدة', 2000); }],
+        ] : []),
         ['target', 'مسح الغرفة', 'تعرّف على عناصر غرفتك ومساحتها', () => { this.close(); a.room.scan(); }],
         ['cube', 'الألعاب', 'ثلاثية الأبعاد وكلاسيكية', () => { this.close(); a.openGames(); }],
         ['globe', 'متصفح مدار', a.browserDevice() ? 'عبر ' + a.browserDevice().name + ' · تقويس و360' : 'يحتاج التابلت في «أجهزتي»', () => { this.close(); a.browserDevice() ? a.openBrowser('https://www.google.com') : a.windows.open({ kind: 'keyboard' }); }],

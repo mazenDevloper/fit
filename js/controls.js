@@ -309,6 +309,7 @@ export class Controls {
     return false;
   }
   rumble(gp, strength, ms) {
+    if (window.MadarIOS) { window.MadarIOS.send('rumble', { s: strength, ms }); return; }   // native: real controller haptics
     try { gp.vibrationActuator?.playEffect?.('dual-rumble', { duration: ms, strongMagnitude: strength, weakMagnitude: strength }); } catch {}
   }
 }

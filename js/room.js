@@ -8,6 +8,10 @@
 import * as THREE from 'three';
 import { CanvasPanel, glass, text } from './ui.js';
 import { settings } from './config.js';
+import { IOS } from './native.js';
+
+const PLANE = { floor: ['الأرضية', '⬜'], wall: ['جدار', '🧱'], ceiling: ['السقف', '⬛'], table: ['طاولة', '🍽'], seat: ['مقعد', '🛋'], door: ['باب', '🚪'], window: ['نافذة', '🪟'] };
+const UP = new THREE.Vector3(0, 1, 0);
 
 const MODEL_LOCAL = new URL('../assets/efficientdet_lite0.tflite', import.meta.url).href;
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite';
@@ -34,10 +38,53 @@ export class Room {
     this.lastRun = 0; this.busy = false;
     this.guardHit = 0;
     this.group = new THREE.Group();
+    this.planes = [];
+    if (IOS) {
+      // iPhone app: ARKit finds the room's real surfaces (floor, walls, tables, seats, doors, windows) with their
+      // true size and place, and Apple Vision sees people in front of you.
+      window.MadarIOS.on('planes', list => { this.planes = list || []; if (this.scanning) this.fromPlanes(); });
+      window.MadarIOS.on('people', p => { if (p.close) this.guardHit = performance.now(); });
+    }
   }
   attach(root) { root.add(this.group); }
+  // ARKit world point → this group's space (the same turn and walk offset as everything else).
+  toLocal(x, y, z) { return new THREE.Vector3(x, y, z).applyAxisAngle(UP, -(this.app.head.yawOffset || 0)).add(this.app.controls.nav || new THREE.Vector3()); }
+  fromPlanes() {
+    for (const p of this.planes) {
+      const info = PLANE[p.cls]; if (!info) continue;
+      const pos = this.toLocal(p.x, p.y, p.z);
+      let a = this.anchors.find(x => x.id === p.id);
+      if (!a) {
+        if (this.anchors.length > 40) continue;
+        a = { id: p.id, key: p.cls, name: info[0], emoji: info[1], pos, width: p.w, depth: p.h, hits: 2, vertical: p.v };
+        a.panel = new CanvasPanel(0.34, 0.07, (ctx, W, H) => {
+          glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2, true);
+          text(ctx, a.emoji + ' ' + a.name + ' · ' + a.width.toFixed(1) + '×' + a.depth.toFixed(1) + 'م', W / 2, H / 2 + 2, H * 0.42, { weight: 800 });
+        }, { pxPerM: 1200 });
+        this.group.add(a.panel.mesh); this.anchors.push(a);
+      }
+      a.pos.copy(pos); a.width = p.w; a.depth = p.h;
+      a.panel.mesh.position.copy(pos).add(new THREE.Vector3(0, p.v ? 0 : 0.12, 0));
+      a.panel.mesh.scale.setScalar(Math.max(1, pos.distanceTo(new THREE.Vector3()) / 1.6));
+      a.panel.redraw();
+    }
+  }
+  // The wall you are looking at (for «على الجدار»).
+  wallAhead() {
+    const f = this.app.headForward.clone(); f.y = 0; f.normalize();
+    let best = null, bestDot = Math.cos(35 * Math.PI / 180);
+    for (const p of this.planes) {
+      if (p.cls !== 'wall' && !(p.v && p.cls === 'none')) continue;
+      const pos = this.toLocal(p.x, p.y, p.z);
+      const world = this.group.localToWorld(pos.clone()); const d = world.clone().setY(0);
+      const dot = d.normalize().dot(f);
+      if (dot > bestDot) { bestDot = dot; best = { pos, width: Math.min(2.4, Math.max(0.8, p.w * 0.8)), key: 'wall' }; }
+    }
+    return best;
+  }
 
   async load() {
+    if (IOS) return true;
     if (this.detector) return this.detector;
     if (this.loading) return this.loading;
     this.loading = (async () => {
@@ -58,6 +105,13 @@ export class Room {
   async scan() {
     if (this.scanning) { this.stopScan(); return; }
     const a = this.app;
+    if (IOS) {
+      this.scanning = true; this.scanUntil = performance.now() + 15000;
+      window.MadarIOS.send('planes', { on: true });
+      this.fromPlanes();
+      a.toast('🔍 انظر حولك ببطء: الأرض، الجدران، الطاولات (١٥ ثانية)', 4500);
+      return;
+    }
     if (!a.camVideo?.srcObject) { a.toast('مسح الغرفة يحتاج الكاميرا — شغّل الرؤية عبر الكاميرا', 3500); return; }
     a.toast('جارٍ تجهيز التعرف على الغرفة…', 2000);
     try { await this.load(); } catch (e) { a.toast(e.message || 'تعذّر التعرف', 3500); return; }
@@ -77,6 +131,15 @@ export class Room {
 
   // Approximate floor size from where the big furniture was found around you.
   roomSize() {
+    if (IOS) {
+      const floors = this.planes.filter(p => p.cls === 'floor').sort((a, b) => b.w * b.h - a.w * a.h);
+      if (floors.length) return `${floors[0].w.toFixed(1)} × ${floors[0].h.toFixed(1)} م`;
+      const walls = this.anchors.filter(x => x.key === 'wall');
+      if (walls.length < 2) return '';
+      let x0 = 0, x1 = 0, z0 = 0, z1 = 0;
+      walls.forEach(w => { x0 = Math.min(x0, w.pos.x); x1 = Math.max(x1, w.pos.x); z0 = Math.min(z0, w.pos.z); z1 = Math.max(z1, w.pos.z); });
+      return `${Math.max(2, x1 - x0).toFixed(1)} × ${Math.max(2, z1 - z0).toFixed(1)} م`;
+    }
     const pts = this.anchors.filter(x => x.hits >= 2 && x.key !== 'person').map(x => x.pos);
     if (pts.length < 2) return '';
     let x0 = 0, x1 = 0, z0 = 0, z1 = 0;   // you are inside the room too
@@ -84,13 +147,13 @@ export class Room {
     const w = Math.max(2, x1 - x0 + 0.8), d = Math.max(2, z1 - z0 + 0.8);
     return `${w.toFixed(1)} × ${d.toFixed(1)} م`;
   }
-  tv() { return this.anchors.filter(x => x.key === 'tv' && x.hits >= 2).sort((a, b) => b.hits - a.hits)[0] || null; }
+  tv() { if (IOS) return null; return this.anchors.filter(x => x.key === 'tv' && x.hits >= 2).sort((a, b) => b.hits - a.hits)[0] || null; }
 
   update(now, Q) {
     if (this.scanning && now > this.scanUntil) this.stopScan();
-    const guard = settings.roomGuard && this.detector;
+    const guard = settings.roomGuard && (this.detector || IOS);
     const every = this.scanning ? 350 : guard ? 1000 : 0;
-    if (every && !this.busy && now - this.lastRun > every) this.run(now, Q);
+    if (!IOS && every && !this.busy && now - this.lastRun > every) this.run(now, Q);
     // Guard: hide windows while someone is close in front of you.
     const blocked = guard && now - this.guardHit < 1500;
     if (blocked !== !!this.app.windows.guard) {
