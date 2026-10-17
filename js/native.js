@@ -81,6 +81,7 @@ export function setupNative(app) {
     app.log('حرارة الآيفون: ' + ['طبيعية', 'معتدلة', 'مرتفعة', 'حرجة'][p.level]);
   });
   M.on('tracking', p => {
+    if (p.state === 'error' || p.state === 'unavailable') { app.toast('الكاميرا غير متاحة لمدار — اسمح بها من الإعدادات ← مدار', 6000); }
     const msg = { dark: 'المكان مظلم — التتبع ضعيف', fast: 'حركة سريعة — ببطء قليلاً', relocalizing: 'أتعرّف على غرفتك…', interrupted: 'توقف التتبع مؤقتاً' }[p.state];
     if (msg && app.active) app.toast(msg, 2500);
     app.log('ARKit: ' + p.state);
@@ -104,5 +105,7 @@ export function setupNative(app) {
   const sendHands = () => M.send('hands', { on: settings.handsEnabled !== false, every: settings.coolMax ? 60 : settings.cool ? 45 : 35 });
   sendHands(); setInterval(sendHands, 5000);
   M.send('guard', { on: !!settings.roomGuard });
+  // Windows come back where you left them (ARKit remembers the room).
+  if (!settings.iosDefaults) saveSettings({ restoreLayout: true, iosDefaults: 1 });
   app.log('تطبيق مدار للآيفون: ARKit + Vision + Metal');
 }
