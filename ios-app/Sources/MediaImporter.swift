@@ -41,18 +41,18 @@ final class MediaImporter: NSObject, PHPickerViewControllerDelegate {
             guard let url = await copyFile(p, type: type) else { continue }
             var file = url, name = url.lastPathComponent
             if isVideo, await Self.isSpatial(url) {
-                await host?.web.emit("files", ["state": "converting", "name": name])
+                await MainActor.run { host?.web.emit("files", ["state": "converting", "name": name]) }
                 if let sbs = try? await SpatialConverter.convert(url) {
                     file = sbs; name = (name as NSString).deletingPathExtension + " SBS.mp4"
                 }
             } else if spatialOnly {
-                await host?.web.emit("files", ["state": "notSpatial", "name": name])
+                await MainActor.run { host?.web.emit("files", ["state": "notSpatial", "name": name]) }
             }
             await host?.web.sendFile(file, name: name, mime: isVideo ? "video/mp4" : (UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "image/jpeg"))
             try? FileManager.default.removeItem(at: url)
             if file != url { try? FileManager.default.removeItem(at: file) }
         }
-        await host?.web.emit("files", ["state": "done"])
+        await MainActor.run { host?.web.emit("files", ["state": "done"]) }
     }
 
     private func copyFile(_ p: NSItemProvider, type: UTType) async -> URL? {

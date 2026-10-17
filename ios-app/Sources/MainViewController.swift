@@ -1,5 +1,6 @@
 import UIKit
 import ARKit
+import WebKit
 
 /// The whole app: the camera picture drawn natively (Metal, lens-matched for the headset) underneath,
 /// and Madar's web interface on top with a transparent background. Native modules feed the page.

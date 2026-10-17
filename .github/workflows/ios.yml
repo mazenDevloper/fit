@@ -45,7 +45,8 @@ jobs:
           xcodebuild -project Madar.xcodeproj -target Madar -configuration Release -sdk iphoneos \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" SYMROOT="$PWD/build" build 2>&1 | tee build.log | grep -E "error:|warning: .*(deprecated|never)|BUILD" || true
-          test -d build/Release-iphoneos/Madar.app
+          grep -q "BUILD SUCCEEDED" build.log
+          test -f build/Release-iphoneos/Madar.app/Madar
 
       - name: Package the IPA
         working-directory: ios-app
