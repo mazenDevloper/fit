@@ -48,7 +48,7 @@ export class Sports {
       if (!d || !Array.isArray(d.matches)) throw new Error('no matches');
       this.checkGoals(d.matches);
       this.data = d; this.version++; this.error = null;
-    } catch (e) { this.error = 'تعذّر جلب المباريات'; this.version++; }
+    } catch (e) { this.error = 'تعذّر جلب المباريات'; this.app.log('المباريات: ' + (e && e.message || e)); this.version++; }
     this.island.redraw();
   }
   mine(m) { return m.favorite || this.teams().some(t => [m.home.name, m.away.name].some(n => n && (n.includes(t.name) || t.name.includes(n)))); }

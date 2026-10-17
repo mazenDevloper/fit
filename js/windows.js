@@ -1169,7 +1169,7 @@ export class WebWindow extends SpatialWindow {
       this.pendingView = true;
     }
     this.snap = true; this.canCurve = true;
-    this.snapSeq = 0; this.snapBusy = false; this.snapAt = 0; this.snapGot = 0;
+    this.snapSeq = 0; this.snapBusy = false; this.snapAt = 0; this.snapGot = 0; this.snapStarted = performance.now();
     if (!this.snapCv) { this.snapCv = canvasTexture(1024, this.pageH); this.snapCv.texture.colorSpace = THREE.SRGBColorSpace; }
     this.mat.uniforms.uHole.value = 0;
     if (this.snapGot) this.mat.uniforms.map.value = this.snapCv.texture;
@@ -1388,6 +1388,16 @@ export class WebWindow extends SpatialWindow {
       // nearly transparent, in the corner of the left eye, so the picture of it is what you see.
       const c = this.css[0];
       if (c.el.style.opacity !== '0.01') { c.el.style.opacity = '0.01'; c.el.style.transform = 'translate(0px,0px) scale(0.25)'; c.el.style.transformOrigin = '0 0'; c.key = ''; }
+      // The second copy is not used: hide it completely (its dark box covered the right eye).
+      if (this.css[1].el.style.display !== 'none') { this.css[1].el.style.display = 'none'; this.css[1].key = ''; }
+      // No picture of the page after a while (the page can't be drawn): show it live instead of a black window.
+      if (!this.snapGot && this.snapStarted && performance.now() - this.snapStarted > 8000 && !this.snapGaveUp) {
+        this.snapGaveUp = true; this.oneSource = false;
+        if (this.curved) this.setCurved(false);
+        if (this.proj === '360') this.view360(false);
+        this.stopSnap();
+        this.mgr.app.log('الصفحة لا تُرسم كصورة — عرض مباشر: ' + this.url);
+      }
       return;
     }
     this.css.forEach((c, i) => {
