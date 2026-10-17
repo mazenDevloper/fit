@@ -51,6 +51,10 @@ jobs:
         working-directory: ios-app
         run: |
           APP=build/Release-iphoneos/Madar.app
+          ls -la "$APP"
+          grep -nE "^(Ld|CompileSwift|SwiftDriver|SwiftCompile|CompileC|CompileMetal)" build.log | head -20 || true
+          test -f "$APP/Madar" || { echo "::error::executable missing"; exit 1; }
+          file "$APP/Madar"
           codesign --force --sign - "$APP"
           mkdir -p Payload && cp -R "$APP" Payload/
           zip -qry Madar.ipa Payload
@@ -75,6 +79,6 @@ jobs:
         working-directory: ios-app
         run: |
           gh release delete ios-latest --yes --cleanup-tag || true
-          gh release create ios-latest Madar.ipa test.log --target "$GITHUB_SHA" --prerelease \
+          gh release create ios-latest Madar.ipa test.log build.log --target "$GITHUB_SHA" --prerelease \
             --title "مدار للآيفون (build ${{ github.run_number }})" \
             --notes "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Unsigned: install with iloader, Sideloadly or AltStore (iOS 17+, iPhone XS or newer)."
