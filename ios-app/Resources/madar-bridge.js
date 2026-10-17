@@ -68,6 +68,12 @@
     fire(el, 'mouseup', x, y);
     var target = el.closest('a,button,input,select,textarea,[role=button],[role=tab],[onclick],[data-nav-id]') || el;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) target.focus();
+    // A text field was tapped: Madar opens its keyboard (a number pad for number fields).
+    var f = /^(INPUT|TEXTAREA)$/.test(target.tagName) ? target : (target.isContentEditable ? target : null);
+    if (f && !/^(button|submit|checkbox|radio|range|color|file|image|reset|hidden)$/i.test(f.type || '')) {
+      var im = (f.getAttribute('inputmode') || '').toLowerCase(), ty = (f.type || '').toLowerCase();
+      post({ type: 'focus', numeric: ty === 'number' || ty === 'tel' || im === 'numeric' || im === 'decimal' || im === 'tel', input: ty });
+    }
     if (typeof target.click === 'function') target.click(); else fire(target, 'click', x, y);
   }
   // Picture of the visible page for Madar's curved screen and 360° view (drawn with html2canvas,
