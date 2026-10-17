@@ -179,7 +179,7 @@ class SpatialWindow {
     this.content = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.mat);
     this.content.userData.interact = { type: 'surface', window: this, click: hit => this.onContentClick(hit), hover: () => true };
     this.group.add(this.content);
-    this.frame = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x1b1d26, transparent: true, opacity: 0.55, depthWrite: false }));
+    this.frame = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x7c818e, transparent: true, opacity: 0.4, depthWrite: false }));
     this.frame.position.z = -0.006;
     // The frame margin around the content is a grab handle too.
     this.frame.userData.interact = { type: 'drag', window: this, hover: () => true };
@@ -978,7 +978,7 @@ export class PanelWindow extends SpatialWindow {
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
     const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, '#1c2233'); g.addColorStop(1, '#241d33');
+    g.addColorStop(0, 'rgba(96,100,114,0.92)'); g.addColorStop(1, 'rgba(78,82,96,0.92)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, 0, W, H * 0.02);
     const k = this.panelKind;

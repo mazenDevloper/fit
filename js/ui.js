@@ -3,9 +3,10 @@ import * as THREE from 'three';
 
 export const FONT = 'system-ui, -apple-system, "SF Arabic", "Geeza Pro", "Helvetica Neue", sans-serif';
 export const COLORS = {
-  glass: 'rgba(24,26,36,0.86)',
-  glassHi: 'rgba(58,62,80,0.92)',
-  stroke: 'rgba(255,255,255,0.16)',
+  // visionOS-like frosted glass: light grey, translucent, bright hairline edge.
+  glass: 'rgba(108,112,124,0.52)',
+  glassHi: 'rgba(160,165,178,0.62)',
+  stroke: 'rgba(255,255,255,0.32)',
   text: '#f4f6fb',
   dim: 'rgba(225,232,248,0.86)',
   accent: '#7cc4ff',
@@ -46,8 +47,8 @@ export function glass(ctx, x, y, w, h, r, hi = false) {
   ctx.fillStyle = hi ? COLORS.glassHi : COLORS.glass;
   ctx.fill();
   const g = ctx.createLinearGradient(0, y, 0, y + h);
-  g.addColorStop(0, 'rgba(255,255,255,0.10)');
-  g.addColorStop(0.35, 'rgba(255,255,255,0.02)');
+  g.addColorStop(0, 'rgba(255,255,255,0.24)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.06)');
   g.addColorStop(1, 'rgba(255,255,255,0.00)');
   ctx.fillStyle = g; ctx.fill();
   ctx.lineWidth = Math.max(1.5, h * 0.012);
