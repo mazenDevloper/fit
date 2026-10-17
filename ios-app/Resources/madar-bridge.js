@@ -130,6 +130,25 @@
     var d = e.data; if (!d || d.madar !== 1) return;
     if (d.type === 'hello') post({ type: 'ready', path: location.pathname, url: window.__MADAR_PROXY ? window.__MADAR_PROXY.url : undefined });
     else if (d.type === 'snap') snap(d);
+    else if (d.type === 'key') {
+      // Keys from a real keyboard: delete, enter (submit), tab (next field).
+      var el = document.activeElement;
+      if (d.key === 'Backspace' && el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+        var proto = el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, (el.value || '').slice(0, -1));
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      } else if (d.key === 'Backspace' && el && el.isContentEditable) document.execCommand('delete');
+      else if (d.key === 'Enter' && el) {
+        var o = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+        var ok = el.dispatchEvent(new KeyboardEvent('keydown', o));
+        el.dispatchEvent(new KeyboardEvent('keyup', o));
+        if (ok && el.form) { if (el.form.requestSubmit) el.form.requestSubmit(); else el.form.submit(); }
+        else if (el.tagName === 'TEXTAREA' && ok) { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, el.value + '\n'); el.dispatchEvent(new Event('input', { bubbles: true })); }
+      } else if (d.key === 'Tab') {
+        var f = Array.prototype.filter.call(document.querySelectorAll('input,textarea,select,button,a[href]'), function (x) { return x.offsetParent !== null; });
+        var i = f.indexOf(el); if (f.length) f[(i + 1) % f.length].focus();
+      }
+    }
     else if (d.type === 'zoom') { document.documentElement.style.zoom = String(d.value || 1); }
     else if (d.type === 'night') {
       if (!document.getElementById('madar-night')) {

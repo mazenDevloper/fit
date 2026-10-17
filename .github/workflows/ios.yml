@@ -22,6 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Depth model (2D → spatial photos)
+        working-directory: ios-app
+        run: |
+          M=Sources/DepthAnythingV2SmallF16.mlpackage
+          B=https://huggingface.co/apple/coreml-depth-anything-v2-small/resolve/main/DepthAnythingV2SmallF16.mlpackage
+          mkdir -p $M/Data/com.apple.CoreML/weights
+          curl -fsSL -o $M/Manifest.json $B/Manifest.json
+          curl -fsSL -o $M/Data/com.apple.CoreML/model.mlmodel $B/Data/com.apple.CoreML/model.mlmodel
+          curl -fsSL -o $M/Data/com.apple.CoreML/weights/weight.bin $B/Data/com.apple.CoreML/weights/weight.bin
+          ls -la $M $M/Data/com.apple.CoreML $M/Data/com.apple.CoreML/weights
+
       - name: Generate the Xcode project
         working-directory: ios-app
         run: |

@@ -10,14 +10,15 @@ import UniformTypeIdentifiers
 final class MediaImporter: NSObject, PHPickerViewControllerDelegate {
     private weak var host: MainViewController?
     private var spatialOnly = false
+    private var depthMode = false
 
     init(host: MainViewController) { self.host = host }
 
-    func pick(spatial: Bool) {
-        spatialOnly = spatial
+    func pick(spatial: Bool, depth: Bool = false) {
+        spatialOnly = spatial; depthMode = depth
         var c = PHPickerConfiguration(photoLibrary: .shared())
-        c.selectionLimit = spatial ? 1 : 0
-        c.filter = spatial ? .videos : .any(of: [.images, .videos])
+        c.selectionLimit = spatial || depth ? 1 : 0
+        c.filter = spatial ? .videos : depth ? .images : .any(of: [.images, .videos])
         c.preferredAssetRepresentationMode = .current   // no re-encoding: originals, fast
         let p = PHPickerViewController(configuration: c)
         p.delegate = self
@@ -40,6 +41,14 @@ final class MediaImporter: NSObject, PHPickerViewControllerDelegate {
             let type = isVideo ? UTType.movie : UTType.image
             guard let url = await copyFile(p, type: type) else { continue }
             var file = url, name = url.lastPathComponent
+            if depthMode, !isVideo {
+                await MainActor.run { host?.web.emit("files", ["state": "depth"]) }
+                if let png = await Self.depth(url) {
+                    await MainActor.run { host?.web.emit("depth", ["name": name, "png": png.base64EncodedString()]) }
+                } else {
+                    await MainActor.run { host?.web.emit("files", ["state": "noDepth"]) }
+                }
+            }
             if isVideo, await Self.isSpatial(url) {
                 await MainActor.run { host?.web.emit("files", ["state": "converting", "name": name]) }
                 if let sbs = try? await SpatialConverter.convert(url) {
@@ -63,6 +72,18 @@ final class MediaImporter: NSObject, PHPickerViewControllerDelegate {
                 do { try FileManager.default.copyItem(at: url, to: dst); cont.resume(returning: dst) } catch { cont.resume(returning: nil) }
             }
         }
+    }
+
+    static func depth(_ url: URL) async -> Data? {
+        await Task.detached(priority: .userInitiated) {
+            guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let img = CGImageSourceCreateThumbnailAtIndex(src, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                                                         kCGImageSourceThumbnailMaxPixelSize: 1024] as CFDictionary) else { return nil }
+            // The thumbnail is created without applying the photo's rotation: tell Vision.
+            let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any]
+            let raw = (props?[kCGImagePropertyOrientation] as? NSNumber)?.uint32Value ?? 1
+            return try? DepthEstimator.depthPNG(for: img, orientation: CGImagePropertyOrientation(rawValue: raw) ?? .up)
+        }.value
     }
 
     static func isSpatial(_ url: URL) async -> Bool {

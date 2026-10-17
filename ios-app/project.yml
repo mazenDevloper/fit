@@ -38,6 +38,7 @@ targets:
         NSMicrophoneUsageDescription: للأوامر الصوتية والكتابة بالصوت
         NSSpeechRecognitionUsageDescription: لفهم أوامرك الصوتية بالعربي على الجهاز
         NSPhotoLibraryUsageDescription: لفتح صورك وفيديوهاتك داخل مدار
+        NSPhotoLibraryAddUsageDescription: لحفظ تسجيلاتك من مدار في الصور
         NSLocalNetworkUsageDescription: للاتصال بأجهزتك (التابلت، اللابتوب، التلفاز) على نفس الشبكة
         NSBonjourServices: [_madar._tcp]
         NSAppTransportSecurity:

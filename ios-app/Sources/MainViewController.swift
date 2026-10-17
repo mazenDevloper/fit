@@ -10,6 +10,7 @@ final class MainViewController: UIViewController {
     private(set) var web: WebHost!
     let speech = SpeechController()
     let haptics = Haptics()
+    let recorder = Recorder()
     lazy var media = MediaImporter(host: self)
     private var thermalObserver: NSObjectProtocol?
 
@@ -46,6 +47,7 @@ final class MainViewController: UIViewController {
         }
         ar.onEvent = { [weak self] name, payload in self?.web.emit(name, payload) }
         speech.onEvent = { [weak self] payload in self?.web.emit("speech", payload) }
+        recorder.onEvent = { [weak self] payload in self?.web.emit("record", payload) }
 
         thermalObserver = NotificationCenter.default.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.sendThermal()
@@ -102,6 +104,11 @@ final class MainViewController: UIViewController {
         case "speechStart": speech.start(lang: d["lang"] as? String ?? "ar-SA", interim: (d["interim"] as? Bool) ?? false)
         case "speechStop": speech.stop()
         case "rumble": haptics.rumble(strength: (d["s"] as? NSNumber)?.floatValue ?? 0.6, ms: (d["ms"] as? NSNumber)?.intValue ?? 200)
+        case "recordStart": recorder.start()
+        case "recordStop": recorder.stop()
+        case "pickDepth":
+            if DepthEstimator.available { media.pick(spatial: false, depth: true) }
+            else { web.emit("files", ["state": "noModel"]) }
         case "pickMedia": media.pick(spatial: (d["spatial"] as? Bool) ?? false)
         case "h2c": web.injectHtml2Canvas(into: frame)
         case "openExternal":
