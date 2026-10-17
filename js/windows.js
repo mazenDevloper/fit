@@ -1445,6 +1445,7 @@ export class WebWindow extends SpatialWindow {
   handleMessage(e) {
     if ((e.origin === this.base || window.MadarIOS) && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
       if (e.data.type === 'snap') { if (this.css[0].f.contentWindow === e.source) this.onSnap(e.data); return; }
+      if (e.data.type === 'focus') { if (this.css[0].f.contentWindow === e.source || this.snap) this.mgr.openKeyboardFor(this, !!e.data.numeric); return; }
       if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay2: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
       if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }
       if (e.data.url && this.proxied && this.css[0].f.contentWindow === e.source && e.data.url !== this.url) { this.url = e.data.url; this.tabPanel?.redraw(); this.mgr.changed(); }
@@ -1650,6 +1651,13 @@ export class WindowManager {
     const pic = picture();
     this.windows.forEach(w => { if (w.kind === 'video') { w.mat.uniforms.uDim.value = pic.bright; w.mat.uniforms.uPic.value.set(pic.contrast, pic.sat, pic.sharp, pic.green); w.pic?.panel.redraw(); } });
   }
+  // A field was tapped inside a website: open the keyboard typing straight into it (numbers pad for number fields).
+  openKeyboardFor(win, numeric) {
+    let kb = this.windows.find(w => w.kind === 'keyboard');
+    if (!kb) kb = this.open({ kind: 'keyboard' });
+    kb.forField(win, numeric);
+    return kb;
+  }
   openKeyboard(text = '') {
     let kb = this.windows.find(w => w.kind === 'keyboard');
     if (!kb) kb = this.open({ kind: 'keyboard' });
@@ -1754,6 +1762,7 @@ export class WindowManager {
 const KB = {
   en: ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'],
   ar: ['1234567890', 'ضصثقفغعهخحج', 'شسيبلاتنمكط', 'ئءؤرىةوزظد'],
+  num: ['123', '456', '789', '.0+'],
 };
 export class KeyboardWindow {
   constructor(mgr) {
@@ -1769,7 +1778,10 @@ export class KeyboardWindow {
     this.closeBtn = new IconButton('close', 0.034, () => this.mgr.close(this));
     this.closeBtn.mesh.position.set(-0.1, -0.172, 0.004); this.group.add(this.closeBtn.mesh);
   }
-  key(ch) { this.text += ch; this.panel.redraw(); }
+  // Typing straight into a website field (opened when you tap a field in a page).
+  key(ch) { this.text += ch; if (this.field && this.mgr.windows.includes(this.field)) this.field.send({ type: 'text', value: ch }); this.panel.redraw(); }
+  back() { this.text = this.text.slice(0, -1); if (this.field && this.mgr.windows.includes(this.field)) this.field.send({ type: 'key', key: 'Backspace' }); this.panel.redraw(); }
+  forField(win, numeric) { this.field = win; this.text = ''; this.lang = numeric ? 'num' : (this.lang === 'num' ? 'en' : this.lang); this.panel.redraw(); }
   url() {
     let t = this.text.trim(); if (!t) return '';
     if (!/^https?:\/\//i.test(t)) t = 'https://' + t.replace(/^\/+/, '');
@@ -1780,7 +1792,7 @@ export class KeyboardWindow {
     // Text field
     const fh = H * 0.15;
     roundRect(ctx, 24, 18, W - 48, fh, fh / 2); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
-    const shown = this.text || 'اكتب رابطاً أو نصاً…';
+    const shown = this.text || (this.field ? (this.lang === 'num' ? 'اكتب الأرقام…' : 'اكتب في الحقل…') : 'اكتب رابطاً أو نصاً…');
     text(ctx, shown + (this.text ? '|' : ''), W - 50, 18 + fh / 2 + 2, fh * 0.48, { align: 'right', dir: 'auto', weight: 700, color: this.text ? COLORS.text : COLORS.dim, maxWidth: W - 100 });
     const rows = KB[this.lang], top = 18 + fh + 16, rh = (H - top - 18) / 5.2;
     const keyBtn = (x, y, w, h, label, action, id, accent) => {
@@ -1791,7 +1803,7 @@ export class KeyboardWindow {
       p.region(x, y, w, h, () => { blip('tap', settings.sounds); action(); }, id);
     };
     rows.forEach((r, ri) => {
-      const n = r.length, kw = (W - 48) / Math.max(n, 10), x0 = (W - kw * n) / 2;
+      const n = r.length, kw = (W - 48) / Math.max(n, this.lang === 'num' ? 4 : 10), x0 = (W - kw * n) / 2;
       [...r].forEach((ch, i) => {
         const x = this.lang === 'ar' ? x0 + (n - 1 - i) * kw : x0 + i * kw;
         keyBtn(x, top + ri * rh, kw, rh, ch, () => this.key(ch), 'k' + ri + '-' + i);
@@ -1799,10 +1811,18 @@ export class KeyboardWindow {
     });
     // Bottom row
     const y = top + 4 * rh, bh = rh * 1.15;
-    const items = [
-      [this.lang === 'en' ? 'ع' : 'EN', 0.8, () => { this.lang = this.lang === 'en' ? 'ar' : 'en'; this.panel.redraw(); }],
+    const nextLang = () => { this.lang = { en: 'ar', ar: 'num', num: 'en' }[this.lang] || 'en'; this.panel.redraw(); };
+    const langLabel = { en: 'ع', ar: '123', num: 'EN' }[this.lang];
+    const items = this.field ? [
+      [langLabel, 0.9, nextLang],
+      ['مسافة', 2.4, () => this.key(' ')], ['⌫', 1, () => this.back()],
+      ['🎙', 0.8, () => this.mgr.app.listen('dictate')],
+      ['إدخال ↵', 1.4, () => { this.field?.send({ type: 'key', key: 'Enter' }); }, true],
+      ['تم', 1.1, () => this.mgr.close(this), true],
+    ] : [
+      [langLabel, 0.8, nextLang],
       ['.', 0.6, () => this.key('.')], ['/', 0.6, () => this.key('/')], ['.com', 1, () => this.key('.com')],
-      ['مسافة', 2, () => this.key(' ')], ['⌫', 0.9, () => { this.text = this.text.slice(0, -1); this.panel.redraw(); }],
+      ['مسافة', 2, () => this.key(' ')], ['⌫', 0.9, () => this.back()],
       ['🎙', 0.8, () => this.mgr.app.listen('dictate')],
       ['حفظ', 1, () => this.save(), true], ['إرسال', 1.1, () => this.sendToPage(), true], ['فتح', 1.1, () => this.open(), true],
     ];
