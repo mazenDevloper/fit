@@ -182,7 +182,7 @@ export class CanvasPanel {
   }
   onClick(hit) {
     const r = this.hitRegion(hit);
-    if (r && r.action) { r.action(); return true; }
+    if (r && r.action) { r.action(hit.uv.x * this.w - r.x, (1 - hit.uv.y) * this.h - r.y); return true; }
     return false;
   }
   isButtonAt(hit) { return !!this.hitRegion(hit); }

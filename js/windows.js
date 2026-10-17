@@ -1,7 +1,7 @@
 // Spatial windows (video, image, web, info panels) and 3D model volumes, plus the manager that places and saves them.
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, canvasTexture, blip } from './ui.js';
+import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, TEXT_SCALE, canvasTexture, blip } from './ui.js';
 import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem, importFiles } from './db.js';
 import { settings, saveSettings, loadLinks, saveLinks } from './config.js';
@@ -1445,6 +1445,7 @@ export class WebWindow extends SpatialWindow {
   handleMessage(e) {
     if ((e.origin === this.base || window.MadarIOS) && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
       if (e.data.type === 'snap') { if (this.css[0].f.contentWindow === e.source) this.onSnap(e.data); return; }
+      if (e.data.type === 'field') { if (this.css[0].f.contentWindow === e.source) { const kb = this.mgr.windows.find(w => w.kind === 'keyboard'); if (kb?.field === this) kb.syncField(e.data.value, e.data.caret); } return; }
       if (e.data.type === 'focus') { if (this.css[0].f.contentWindow === e.source || this.snap) this.mgr.openKeyboardFor(this, !!e.data.numeric); return; }
       if (e.data.type === 'ready' && !this.bridge) { this.bridge = true; this.mgr.app.log('cplay2: التحكم باليد متصل'); this.mgr.app.toast('التحكم باليد جاهز: اقرص للنقر واسحب للتمرير'); }
       if (e.data.path && this.css[0].f.contentWindow === e.source) { this.path = e.data.path; this.tabPanel?.redraw(); }
@@ -1771,6 +1772,14 @@ export class KeyboardWindow {
     this.group = new THREE.Group(); this.group.userData.window = this;
     this.panel = new CanvasPanel(0.62, 0.3, (ctx, W, H, p) => this.draw(ctx, W, H, p), { pxPerM: 2400 });
     this.panel.mesh.userData.interact.window = this;
+    // Eye/pointer over the text: show where the cursor will land.
+    const ph = this.panel.onHover.bind(this.panel);
+    this.panel.onHover = (on, hit) => {
+      const idx = on && hit?.uv && this.idxAt ? this.idxAt(hit.uv.x * this.panel.w) : null;
+      const r = ph(on, hit);
+      if (idx !== this.hoverIdx) { this.hoverIdx = idx; if (this.panel.hover === 'field') this.panel.redraw(); }
+      return r;
+    };
     this.group.add(this.panel.mesh);
     const { mesh: bar, hit } = makeBar(0.14, 0.016);
     hit.userData.interact = { type: 'drag', window: this, hover: on => { bar.userData.drawHover(on); return true; } };
@@ -1778,10 +1787,24 @@ export class KeyboardWindow {
     this.closeBtn = new IconButton('close', 0.034, () => this.mgr.close(this));
     this.closeBtn.mesh.position.set(-0.1, -0.172, 0.004); this.group.add(this.closeBtn.mesh);
   }
-  // Typing straight into a website field (opened when you tap a field in a page).
-  key(ch) { this.text += ch; if (this.field && this.mgr.windows.includes(this.field)) this.field.send({ type: 'text', value: ch }); this.panel.redraw(); }
-  back() { this.text = this.text.slice(0, -1); if (this.field && this.mgr.windows.includes(this.field)) this.field.send({ type: 'key', key: 'Backspace' }); this.panel.redraw(); }
-  forField(win, numeric) { this.field = win; this.text = ''; this.lang = numeric ? 'num' : (this.lang === 'num' ? 'en' : this.lang); this.panel.redraw(); }
+  // Typing at the cursor; in a website field the page edits at the same spot.
+  live() { return this.field && this.mgr.windows.includes(this.field); }
+  caretAt(i) { this.caret = Math.max(0, Math.min(this.text.length, i)); if (this.live()) this.field.send({ type: 'caret', pos: this.caret }); this.panel.redraw(); }
+  key(ch) {
+    const c = this.caret ?? this.text.length;
+    this.text = this.text.slice(0, c) + ch + this.text.slice(c); this.caret = c + ch.length;
+    if (this.live()) this.field.send({ type: 'text', value: ch });
+    this.panel.redraw();
+  }
+  back() {   // delete one letter before the cursor
+    const c = this.caret ?? this.text.length; if (c <= 0) return;
+    this.text = this.text.slice(0, c - 1) + this.text.slice(c); this.caret = c - 1;
+    if (this.live()) this.field.send({ type: 'key', key: 'Backspace' });
+    this.panel.redraw();
+  }
+  clearAll() { this.text = ''; this.caret = 0; if (this.live()) this.field.send({ type: 'clear' }); this.panel.redraw(); }
+  syncField(value, caret) { this.text = value || ''; this.caret = caret ?? this.text.length; this.panel.redraw(); }
+  forField(win, numeric) { this.field = win; this.text = ''; this.caret = 0; this.lang = numeric ? 'num' : (this.lang === 'num' ? 'en' : this.lang); this.panel.redraw(); }
   url() {
     let t = this.text.trim(); if (!t) return '';
     if (!/^https?:\/\//i.test(t)) t = 'https://' + t.replace(/^\/+/, '');
@@ -1792,8 +1815,33 @@ export class KeyboardWindow {
     // Text field
     const fh = H * 0.15;
     roundRect(ctx, 24, 18, W - 48, fh, fh / 2); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fill();
-    const shown = this.text || (this.field ? (this.lang === 'num' ? 'اكتب الأرقام…' : 'اكتب في الحقل…') : 'اكتب رابطاً أو نصاً…');
-    text(ctx, shown + (this.text ? '|' : ''), W - 50, 18 + fh / 2 + 2, fh * 0.48, { align: 'right', dir: 'auto', weight: 700, color: this.text ? COLORS.text : COLORS.dim, maxWidth: W - 100 });
+    const fy = 18 + fh / 2 + 2, fs = fh * 0.48, fx0 = 50, fx1 = W - 50;
+    if (!this.text) {
+      text(ctx, this.field ? (this.lang === 'num' ? 'اكتب الأرقام…' : 'اكتب في الحقل…') : 'اكتب رابطاً أو نصاً…', fx1, fy, fs, { align: 'right', dir: 'auto', weight: 700, color: COLORS.dim });
+      this.caret = 0; this.idxAt = null;
+    } else {
+      // Text with a cursor that the eye/pointer can move: look at a spot in the text and click (or hold).
+      ctx.save();
+      ctx.font = `700 ${fs * TEXT_SCALE}px ${FONT}`;
+      const rtl = /[\u0600-\u06FF]/.test(this.text), t = this.text, n = t.length;
+      if (this.caret == null || this.caret > n) this.caret = n;
+      const full = ctx.measureText(t).width, room = fx1 - fx0;
+      // Distance from the starting edge to each letter boundary (keeps the cursor visible when the text is long).
+      const off = i => ctx.measureText(t.slice(0, i)).width;
+      const shift = Math.max(0, Math.min(full - room, off(this.caret) - room * 0.8));
+      const xAt = i => rtl ? fx1 - (off(i) - shift) : fx0 + (off(i) - shift);
+      ctx.beginPath(); ctx.rect(fx0, 18, room, fh); ctx.clip();
+      ctx.fillStyle = COLORS.text; ctx.textBaseline = 'middle';
+      ctx.direction = rtl ? 'rtl' : 'ltr'; ctx.textAlign = rtl ? 'right' : 'left';
+      ctx.fillText(t, xAt(0), fy);
+      const cx = xAt(this.caret);
+      ctx.fillStyle = '#7cc4ff'; ctx.fillRect(cx - 2, 18 + fh * 0.18, 4, fh * 0.64);
+      // Pointer/eye hovering the text: a faint marker where the cursor would go.
+      if (p.isHover('field') && this.hoverIdx != null) { ctx.fillStyle = 'rgba(124,196,255,0.45)'; ctx.fillRect(xAt(this.hoverIdx) - 1, 18 + fh * 0.1, 2, fh * 0.8); }
+      ctx.restore();
+      this.idxAt = lx => { let best = n, bd = 1e9; for (let i = 0; i <= n; i++) { const d = Math.abs(xAt(i) - lx); if (d < bd) { bd = d; best = i; } } return best; };
+      p.region(24, 18, W - 48, fh, (lx) => { blip('tap', settings.sounds); this.caretAt(this.idxAt(24 + lx)); }, 'field');
+    }
     const rows = KB[this.lang], top = 18 + fh + 16, rh = (H - top - 18) / 5.2;
     const keyBtn = (x, y, w, h, label, action, id, accent) => {
       const hov = p.isHover(id);
@@ -1815,14 +1863,15 @@ export class KeyboardWindow {
     const langLabel = { en: 'ع', ar: '123', num: 'EN' }[this.lang];
     const items = this.field ? [
       [langLabel, 0.9, nextLang],
-      ['مسافة', 2.4, () => this.key(' ')], ['⌫', 1, () => this.back()],
+      ['◀', 0.7, () => this.caretAt((this.caret ?? 0) - 1)], ['مسافة', 2, () => this.key(' ')], ['▶', 0.7, () => this.caretAt((this.caret ?? 0) + 1)],
+      ['⌫', 0.9, () => this.back()], ['🗑', 0.9, () => this.clearAll()],
       ['🎙', 0.8, () => this.mgr.app.listen('dictate')],
       ['إدخال ↵', 1.4, () => { this.field?.send({ type: 'key', key: 'Enter' }); }, true],
       ['تم', 1.1, () => this.mgr.close(this), true],
     ] : [
       [langLabel, 0.8, nextLang],
       ['.', 0.6, () => this.key('.')], ['/', 0.6, () => this.key('/')], ['.com', 1, () => this.key('.com')],
-      ['مسافة', 2, () => this.key(' ')], ['⌫', 0.9, () => this.back()],
+      ['مسافة', 1.6, () => this.key(' ')], ['⌫', 0.8, () => this.back()], ['🗑', 0.8, () => this.clearAll()],
       ['🎙', 0.8, () => this.mgr.app.listen('dictate')],
       ['حفظ', 1, () => this.save(), true], ['إرسال', 1.1, () => this.sendToPage(), true], ['فتح', 1.1, () => this.open(), true],
     ];
