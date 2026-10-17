@@ -16,6 +16,31 @@
 
   if (window.parent === window) return;
 
+  // iOS must never show its own keyboard inside Madar: it fights ARKit/Metal for the screen and the
+  // app gets killed. Every field gets inputmode="none" (the original is kept for the number pad),
+  // and Madar's keyboard types into it instead.
+  function noSysKb(el) {
+    if (!el || !el.getAttribute || el.hasAttribute('data-madar-im')) return;
+    if (!/^(INPUT|TEXTAREA)$/.test(el.tagName) && !el.isContentEditable) return;
+    el.setAttribute('data-madar-im', el.getAttribute('inputmode') || '');
+    el.setAttribute('inputmode', 'none');
+  }
+  document.addEventListener('focusin', function (e) { noSysKb(e.target); }, true);
+  document.addEventListener('touchstart', function (e) { noSysKb(e.target && e.target.closest && e.target.closest('input,textarea,[contenteditable]')); }, true);
+  // Field Madar's keyboard types into, and where the cursor is inside it.
+  var field = null;
+  function isText(el) { return el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(button|submit|checkbox|radio|range|color|file|image|reset|hidden)$/i.test(el.type || ''))); }
+  function cur() { var a = document.activeElement; return isText(a) ? a : (isText(field) && field.isConnected ? field : null); }
+  function setVal(el, v, caret) {
+    var proto = el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    try { el.setSelectionRange(caret, caret); } catch (e) {}
+    el.__mc = caret; report(el);
+  }
+  function caretOf(el) { var c = el.__mc; if (c == null) { try { c = el.selectionStart; } catch (e) {} } return Math.min(c == null ? el.value.length : c, el.value.length); }
+  function report(el) { post({ type: 'field', value: el.value || '', caret: caretOf(el) }); }
+
   // Inside Madar the page runs twice (one copy per eye) on an iPhone that is also running the camera and 3D.
   // Light mode: no blur/shadow/animation effects (the heaviest work for the iPhone's GPU), and the
   // right-eye copy stays silent so sound and video decoding happen once.
@@ -67,11 +92,14 @@
     fire(el, 'pointerup', x, y, window.PointerEvent);
     fire(el, 'mouseup', x, y);
     var target = el.closest('a,button,input,select,textarea,[role=button],[role=tab],[onclick],[data-nav-id]') || el;
+    if (/^(INPUT|TEXTAREA)$/.test(target.tagName)) noSysKb(target);
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) target.focus();
     // A text field was tapped: Madar opens its keyboard (a number pad for number fields).
     var f = /^(INPUT|TEXTAREA)$/.test(target.tagName) ? target : (target.isContentEditable ? target : null);
     if (f && !/^(button|submit|checkbox|radio|range|color|file|image|reset|hidden)$/i.test(f.type || '')) {
-      var im = (f.getAttribute('inputmode') || '').toLowerCase(), ty = (f.type || '').toLowerCase();
+      var im = (f.getAttribute('data-madar-im') || '').toLowerCase(), ty = (f.type || '').toLowerCase();
+      if (isText(f)) { field = f; f.__mc = f.value.length; try { f.setSelectionRange(f.__mc, f.__mc); } catch (e) {} }
+      post({ type: 'field', value: f.value || '', caret: f.value ? f.value.length : 0 });
       post({ type: 'focus', numeric: ty === 'number' || ty === 'tel' || im === 'numeric' || im === 'decimal' || im === 'tel', input: ty });
     }
     if (typeof target.click === 'function') target.click(); else fire(target, 'click', x, y);
@@ -138,11 +166,10 @@
     else if (d.type === 'snap') snap(d);
     else if (d.type === 'key') {
       // Keys from a real keyboard: delete, enter (submit), tab (next field).
-      var el = document.activeElement;
-      if (d.key === 'Backspace' && el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
-        var proto = el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
-        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, (el.value || '').slice(0, -1));
-        el.dispatchEvent(new Event('input', { bubbles: true }));
+      var el = cur() || document.activeElement;
+      if (d.key === 'Backspace' && isText(el)) {
+        var c = caretOf(el), v = el.value || '';
+        if (c > 0) setVal(el, v.slice(0, c - 1) + v.slice(c), c - 1);
       } else if (d.key === 'Backspace' && el && el.isContentEditable) document.execCommand('delete');
       else if (d.key === 'Enter' && el) {
         var o = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
@@ -175,14 +202,14 @@
       if (a) a.click(); else location.assign(d.path);
     }
     else if (d.type === 'back') history.back();
+    else if (d.type === 'clear') { var el = cur(); if (el) setVal(el, '', 0); else if (document.activeElement && document.activeElement.isContentEditable) document.activeElement.textContent = ''; }
+    else if (d.type === 'caret') { var el = cur(); if (el) { var n = Math.max(0, Math.min(el.value.length, d.pos | 0)); el.__mc = n; try { el.setSelectionRange(n, n); } catch (e) {} report(el); } }
     else if (d.type === 'text') {
-      // Type into the focused field (works with React-controlled inputs).
-      var el = document.activeElement;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
-        var proto = el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
-        var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-        setter.call(el, (el.value || '') + d.value);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
+      // Type into the field at the cursor (works with React-controlled inputs).
+      var el = cur() || document.activeElement;
+      if (isText(el)) {
+        var c = caretOf(el), v = el.value || '';
+        setVal(el, v.slice(0, c) + d.value + v.slice(c), c + d.value.length);
       } else if (el && el.isContentEditable) document.execCommand('insertText', false, d.value);
     }
   });
