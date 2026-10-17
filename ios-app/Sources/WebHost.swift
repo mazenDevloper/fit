@@ -108,6 +108,11 @@ final class WebHost: UIView, WKScriptMessageHandler, WKNavigationDelegate, WKUID
         return nil
     }
 
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        controller?.ar.replay()
+        controller?.sendThermal()
+    }
+
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { retryLater() }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { retryLater() }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {

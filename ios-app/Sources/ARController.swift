@@ -30,6 +30,7 @@ final class ARController: NSObject, ARSessionDelegate {
     private var camSent = SIMD4<Float>(0, 0, 0, 0)
     private var lastState = ""
     private var relocalizing = false
+    private var worldState = "new"
     private let handRequest: VNDetectHumanHandPoseRequest = { let r = VNDetectHumanHandPoseRequest(); r.maximumHandCount = 2; return r }()
     private let peopleRequest = VNDetectHumanRectanglesRequest()
 
@@ -68,7 +69,18 @@ final class ARController: NSObject, ARSessionDelegate {
         }
         relocalizing = map != nil
         session.run(configuration(map: map), options: [])
-        onEvent?("world", ["state": map != nil ? "relocalizing" : "new"])
+        worldState = map != nil ? "relocalizing" : "new"
+        onEvent?("world", ["state": worldState])
+    }
+
+    /// The page (re)loaded: tell it everything it may have missed.
+    func replay() {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.camSent = .zero
+            self.lastState = ""
+            self.onEvent?("world", ["state": self.worldState])
+        }
     }
 
     func pause() { running = false; session.pause() }
@@ -78,7 +90,8 @@ final class ARController: NSObject, ARSessionDelegate {
         relocalizing = false
         session.run(configuration(map: nil), options: [.resetTracking, .removeExistingAnchors])
         running = true
-        onEvent?("world", ["state": "new"])
+        worldState = "new"
+        onEvent?("world", ["state": worldState])
     }
 
     func saveWorldMap() {
@@ -139,7 +152,7 @@ final class ARController: NSObject, ARSessionDelegate {
         case .normal: name = "normal"
         }
         guard name != lastState else { return }
-        if name == "normal", relocalizing { relocalizing = false; onEvent?("world", ["state": "relocalized"]) }
+        if name == "normal", relocalizing { relocalizing = false; worldState = "relocalized"; onEvent?("world", ["state": worldState]) }
         lastState = name
         onEvent?("tracking", ["state": name])
     }
