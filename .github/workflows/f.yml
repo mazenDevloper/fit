@@ -1,0 +1,15 @@
+name: fetch-assets
+on: { push: { branches: [assets-fetch] } }
+permissions: { contents: write }
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p out
+          curl -sL -A madar "https://api.polyhaven.com/assets?t=hdris&c=indoor" | python3 -c "import json,sys;d=json.load(sys.stdin);print('\n'.join(sorted(k+' | '+','.join(v.get('categories',[]))+' | '+','.join(v.get('tags',[])[:8]) for k,v in d.items())))" > out/hdris.txt
+          curl -sL -A madar "https://api.polyhaven.com/assets?t=models" | python3 -c "import json,sys;d=json.load(sys.stdin);print('\n'.join(sorted(k+' | '+','.join(v.get('categories',[])) for k,v in d.items())))" > out/models.txt
+          wc -l out/*
+          git config user.name bot; git config user.email bot@x
+          git add out && git commit -qm lists && git push
