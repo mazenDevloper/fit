@@ -90,6 +90,7 @@ export class Launcher {
         ...(window.MadarIOS ? [
           ['video', a.recording ? 'إيقاف التسجيل' : 'تسجيل', 'سجّل ما تراه في الصور', () => { this.close(); window.MadarIOS.send(a.recording ? 'recordStop' : 'recordStart'); }],
           ['image', 'صورة مجسّمة', 'حوّل صورة عادية إلى ثلاثية الأبعاد', () => { this.close(); window.MadarIOS.send('pickDepth'); }],
+          ['reset', 'تحديث التطبيق', 'ابحث عن نسخة أحدث وثبّتها', () => { this.close(); window.MadarIOS.send('update'); }],
           ['keyboard', 'لوحة المفاتيح الحقيقية', a.deskHole ? 'ظاهرة' : 'رؤيتها داخل البيئة', () => { this.close(); a.toggleDeskHole(); }],
         ] : []),
         ...(window.MadarIOS ? [
