@@ -110,6 +110,7 @@ final class MainViewController: UIViewController {
             if DepthEstimator.available { media.pick(spatial: false, depth: true) }
             else { web.emit("files", ["state": "noModel"]) }
         case "pickMedia": media.pick(spatial: (d["spatial"] as? Bool) ?? false)
+        case "update": Updater.check(silent: false)
         case "h2c": web.injectHtml2Canvas(into: frame)
         case "openExternal":
             if let s = d["url"] as? String, let u = URL(string: s) { UIApplication.shared.open(u) }

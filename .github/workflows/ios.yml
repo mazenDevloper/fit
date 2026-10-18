@@ -91,6 +91,7 @@ jobs:
         working-directory: ios-app
         run: |
           gh release delete ios-latest --yes --cleanup-tag || true
-          gh release create ios-latest Madar.ipa test.log build.log --target "$GITHUB_SHA" --prerelease \
+          echo ${{ github.run_number }} > build.txt
+          gh release create ios-latest Madar.ipa build.txt test.log build.log --target "$GITHUB_SHA" --prerelease \
             --title "مدار للآيفون (build ${{ github.run_number }})" \
             --notes "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Unsigned: install with iloader, Sideloadly or AltStore (iOS 17+, iPhone XS or newer)."
