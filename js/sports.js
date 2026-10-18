@@ -83,6 +83,14 @@ export class Sports {
     this.last = now;
     const teams = this.teams().map(t => t.name + (t.country ? '~' + t.country : '')).join('|');
     try {
+      try {   // our server: one small ready file
+        const r = await fetch('https://studio.c-p.workers.dev/matches?lang=27', { cache: 'no-store' });
+        const d = r.ok && await r.json();
+        if (d && Array.isArray(d.matches) && d.teams?.length) {
+          if (JSON.stringify(d.teams.map(t => t.id)) !== JSON.stringify(this.teams().map(t => t.id))) { saveSettings({ myTeams: d.teams }); this.app.renderTeams?.(); }
+          this.checkGoals(d.matches); this.data = d; this.version++; this.error = null; this.island.redraw(); return;
+        }
+      } catch (e) {}
       if (!this.teams().some(t => t.id) && !this.binTried) {
         this.binTried = true;
         try { const t = await cloudFavourites(); if (t.length) { saveSettings({ myTeams: t }); this.app.renderTeams?.(); } } catch (e) {}
