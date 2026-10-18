@@ -24,7 +24,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '67';
+export const APP_VERSION = '68';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -545,7 +545,7 @@ class App {
     if (!this.sports.teams().length) this.sports.syncFavorites();
     return w;
   }
-  openCplay() { this.windows.open({ kind: 'web', url: 'https://cplay2.netlify.app/media', title: 'cplay2' }); }
+  openCplay() { this.windows.open({ kind: 'web', url: 'https://drivecast.c-p.workers.dev/media', title: 'DriveCast' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
     const k = ENV_ORDER[(ENV_ORDER.indexOf(envKey(settings.environment)) + 1) % ENV_ORDER.length];

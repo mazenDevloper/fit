@@ -9,7 +9,7 @@ import { CSS_K, EYE } from './render.js';
 import { drawMatches } from './sports.js';
 import { BalloonGame } from './games.js';
 
-const BROWSE_ORIGIN = 'https://cplay2.netlify.app';
+const BROWSE_ORIGIN = 'https://drivecast.c-p.workers.dev';
 const CONTENT_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const CONTENT_FRAG = /* glsl */`
   uniform sampler2D map; uniform float uVideo; uniform float uHas; uniform vec2 uSize; uniform float uRadius; uniform float uDim; uniform float uHole;
@@ -1063,7 +1063,7 @@ export class WebWindow extends SpatialWindow {
     this.ytState = { playing: true, muted: true, times: [0, 0] };
     this.mat.uniforms.uHole.value = 1;
     let host = ''; try { host = new URL(url).hostname; } catch {}
-    this.cplay = (host === 'cplay2.netlify.app' || host === 'cplay2.netlify.app');
+    this.cplay = (host === 'drivecast.c-p.workers.dev' || /cplay[23]\.netlify\.app/.test(host));
     this.base = (() => { try { return new URL(url).origin; } catch { return ''; } })();
     // Internal browser: ordinary sites open through Madar's page service so the pointer can click in them.
     this.direct = direct;
@@ -1716,7 +1716,7 @@ export class WindowManager {
       try {
         const spec = Object.assign({ kind: s.kind }, s.ref);
         if (s.ref.item) spec.itemId = s.ref.item;
-        if (spec.url) spec.url = spec.url.replace(/cplay[23]\.(netlify|vercel)\.app/, 'cplay2.netlify.app');
+        if (spec.url) spec.url = spec.url.replace(/cplay[23]\.(netlify|vercel)\.app/, 'drivecast.c-p.workers.dev');
         let win;
         if (s.kind === 'video') win = new VideoWindow(this, spec);
         else if (s.kind === 'image') win = new ImageWindow(this, spec);

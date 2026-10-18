@@ -5,7 +5,7 @@ import { CanvasPanel, glass, text, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
 import { drawIsland, islandWidth, drawWidget, drawGoal, goalDuration, drawClock, setLogoListener } from './matchart.js';
 
-export const SPORTS_ORIGIN = 'https://cplay2.netlify.app';
+export const SPORTS_ORIGIN = 'https://drivecast.c-p.workers.dev';
 const MADAR = location.origin;
 // Straight from the sources: favourite teams (with their 365Scores ids) from the cloud bin, games from 365Scores.
 const BIN = 'https://api.jsonbin.io/v3/b/69c782cbb7ec241ddcb0b99a/latest';
