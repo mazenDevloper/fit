@@ -1,0 +1,18 @@
+name: probe
+on: { push: { branches: [probe] } }
+permissions: { contents: write }
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          H='-H Origin:https://www.365scores.com -H Referer:https://www.365scores.com/ -A Mozilla/5.0'
+          curl -s -D h1.txt $H "https://webws.365scores.com/web/games/current/?appTypeId=5&langId=27&timezoneName=Asia/Muscat&userCountryId=1&competitors=131,132" -o games.json
+          curl -s -D h2.txt -H "Origin: https://mazendevloper.github.io" "https://webws.365scores.com/web/games/current/?appTypeId=5&langId=27&timezoneName=Asia/Muscat&userCountryId=1&competitors=131" -o games2.json
+          curl -s -D h3.txt -H "X-Master-Key: \$2a\$10\$SYrYv.ct8hiMU9YeUxEQ.ecRkOrTqs.TDchJRV3wW.aKJnDXy2oVy" -H "X-Bin-Meta: false" -H "Origin: https://mazendevloper.github.io" "https://api.jsonbin.io/v3/b/69c782cbb7ec241ddcb0b99a/latest" -o master.json
+          python3 -c "import json;d=json.load(open('master.json'));print(json.dumps(d.get('favoriteTeams'),ensure_ascii=False)[:3000])" > fav.txt || true
+          python3 -c "import json;d=json.load(open('games.json'));g=d.get('games',[]);print(len(g));print(json.dumps(g[:2],ensure_ascii=False)[:6000])" > gsum.txt || true
+          head -c 300 games2.json > g2.txt
+          gh release delete probe --yes --cleanup-tag -R ${{ github.repository }} || true
+          gh release create probe h1.txt h2.txt h3.txt fav.txt gsum.txt g2.txt -R ${{ github.repository }} --target ${{ github.sha }} --prerelease -t probe -n probe
+        env: { GH_TOKEN: "${{ github.token }}" }
