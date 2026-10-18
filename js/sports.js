@@ -79,7 +79,7 @@ export class Sports {
   }
   async refresh(force) {
     const now = Date.now();
-    if (!force && now - this.last < 25000) return;
+    if (!force && now - this.last < 9000) return;
     this.last = now;
     const teams = this.teams().map(t => t.name + (t.country ? '~' + t.country : '')).join('|');
     try {
@@ -130,7 +130,7 @@ export class Sports {
   update(now, Q) {
     if (!this.app.active) return;
     const live = this.liveMine().length > 0;
-    const every = live ? 30000 : (this.app.windows.windows.some(w => w.panelKind === 'matches') || settings.island !== false) ? 90000 : 0;
+    const every = live ? 10000 : (this.app.windows.windows.some(w => w.panelKind === 'matches') || settings.island !== false) ? 120000 : 0;
     if (every && now - this.timer > every) { this.timer = now; this.refresh(true); }
     this.island.update(now, Q);
     this.goal.update(now, Q);
