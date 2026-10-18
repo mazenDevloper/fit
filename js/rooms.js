@@ -333,17 +333,27 @@ export function realNeon() {
 
 export function realStudio() {
   const R = new THREE.Group(), BW = -2.5, top = -0.8, dz = BW + 0.33;
-  const wallTex = study().children[0].material.map;   // the sunlight + leaf shadows painted for the light version
-  const wall = pbr('white_plaster_02', { color: 0xffffff, repeat: [3, 2], envI: 0.25 }); wall.map = wallTex;
-  plane(R, 5.2, 3.1, wall, 0, 0, BW);
+  // light lavender plaster; the sun through a window behind you throws real shadows on it
+  const wall = pbr('white_plaster_02', { color: 0xe4c6f6, repeat: [3, 2], envI: 0.2, map: false });
+  plane(R, 5.2, 3.1, wall, 0, 0, BW).receiveShadow = true;
   plane(R, 5.2, 0.09, std(0xf3f1f5), 0, FLOOR + 0.045, BW + 0.012);
-  const side = pbr('white_plaster_02', { color: 0xc4a8dc, repeat: [3, 2], envI: 0.25, map: false });
+  const side = pbr('white_plaster_02', { color: 0xd8c0ea, repeat: [3, 2], envI: 0.25, map: false });
   plane(R, 5, 3.1, side, -2.6, 0, 0, Math.PI / 2); plane(R, 5, 3.1, side, 2.6, 0, 0, -Math.PI / 2);
   plane(R, 5.2, 3.1, std(0xa88cc4), 0, 0, 2.5, Math.PI); plane(R, 5.2, 5, std(0xefe9f2), 0, 1.55, 0, 0, Math.PI / 2);
-  plane(R, 5.2, 5, pbr('concrete_floor_01', { color: 0xdcd9e0, repeat: [4, 4], envI: 0.3, map: false }), 0, FLOOR, 0, 0, -Math.PI / 2);
+  plane(R, 5.2, 5, pbr('concrete_floor_01', { color: 0xf0eef2, repeat: [4, 4], envI: 0.3, map: false }), 0, FLOOR, 0, 0, -Math.PI / 2).receiveShadow = true;
   // sunlight from behind-right (matching the painted window light) + soft fill
-  const sun = new THREE.DirectionalLight(0xfff1e0, 1.8); sun.position.set(3, 2.5, 2); R.add(sun);
-  R.add(new THREE.HemisphereLight(0xf6eaff, 0xc9b9d8, 1.4));
+  const target = new THREE.Vector3(0.3, -0.2, BW), dir = new THREE.Vector3(-1.0, 0.6, 1).normalize();   // sun from behind-left, as in the picture
+  const sun = new THREE.DirectionalLight(0xfff3e6, 3.2); sun.position.copy(target).addScaledVector(dir, 6); sun.target.position.copy(target);
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 9; sun.shadow.blurSamples = 16; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+  Object.assign(sun.shadow.camera, { left: -3.5, right: 3.5, top: 3, bottom: -3, near: 0.5, far: 14 }); sun.shadow.camera.updateProjectionMatrix();
+  R.add(sun, sun.target);
+  R.add(new THREE.HemisphereLight(0xeedcff, 0xcdb6e0, 1.15));
+  // the window (out of sight, behind-right): a wall with a 4-pane opening between the sun and the room - it only casts shadows
+  const win = new THREE.Group(), hide = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+  const ww = 1.9, wh = 1.7, bar = 0.07, B = (w, h, x, y) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.05), hide); m.position.set(x, y, 0); m.castShadow = true; win.add(m); };
+  B(20, 10, 0, wh / 2 + 5); B(20, 10, 0, -wh / 2 - 5); B(10, wh, -ww / 2 - 5, 0); B(10, wh, ww / 2 + 5, 0);   // the wall around the opening
+  B(bar, wh, 0, 0); B(ww, bar, 0, 0.1);                                                                   // the window's cross bars
+  win.position.copy(target).addScaledVector(dir, 3.1); win.lookAt(sun.position); R.add(win);
   // white desk (metal frame, painted)
   const white = std(0xf6f5f8, { roughness: 0.35 });
   box(R, 1.6, 0.035, 0.6, white, 0, top, dz); box(R, 1.56, 0.1, 0.56, std(0xe9e6ee, { roughness: 0.4 }), 0, top - 0.07, dz);
@@ -356,7 +366,7 @@ export function realStudio() {
   plane(R, 0.32, 0.2, study().children.find(c => c.geometry?.parameters?.width === 0.32).material, 0, top + 0.13, dz - 0.085);
   // ribbed lamp, notebook, candle (flame + warm light), mug, ornament
   cyl(R, 0.07, 0.08, 0.01, white, -0.55, top + 0.022, dz - 0.05); cyl(R, 0.008, 0.008, 0.3, white, -0.55, top + 0.17, dz - 0.05, 8);
-  const shade = cyl(R, 0.11, 0.11, 0.18, new THREE.MeshStandardMaterial({ color: 0xfbefd8, emissive: 0xffe6b8, emissiveIntensity: 0.55, roughness: 0.9 }), -0.55, top + 0.38, dz - 0.05, 32);
+  const shade = cyl(R, 0.11, 0.11, 0.18, new THREE.MeshStandardMaterial({ color: 0xfbefd8, emissive: 0xffe6b8, emissiveIntensity: 0.2, roughness: 0.9 }), -0.55, top + 0.38, dz - 0.05, 32);
   pointL(R, 0xffe2b0, 0.6, 1.5, -0.55, top + 0.36, dz);
   box(R, 0.18, 0.012, 0.13, std(0xe9ecf8), -0.25, top + 0.024, dz + 0.04).rotation.y = 0.15;
   cyl(R, 0.032, 0.032, 0.09, std(0x4a2d1e, { roughness: 0.15, transparent: true, opacity: 0.9 }), 0.3, top + 0.063, dz - 0.05, 20);
@@ -376,6 +386,8 @@ export function realStudio() {
     const [tree, small] = await Promise.all(['pachira_aquatica_01', 'potted_plant_04'].map(glb));
     cyl(R, 0.24, 0.19, 0.5, std(0xf5f3f7, { roughness: 0.35 }), -1.55, FLOOR + 0.25, BW + 0.45, 36);
     R.add(place(tame(tree, 0.3), { x: -1.55, z: BW + 0.45, height: 1.7, y0: FLOOR + 0.42 }));
+    R.traverse(o => { if (o.isMesh && o.material && o.material.blending !== THREE.AdditiveBlending && o.geometry.type !== 'PlaneGeometry' && o.material !== hide) o.castShadow = true; });
+    R.userData.shadowsDirty = true;
     R.add(place(tame(small, 0.3), { x: -0.6, z: BW + 0.1, height: 0.18, y0: sy + 0.018 }));
   })().catch(e => console.warn('room', e));
   return R;

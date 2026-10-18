@@ -82,6 +82,8 @@ export class StereoRenderer {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, premultipliedAlpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.autoClear = false;
+    // real shadows (only the photo-real study uses them; drawn once, then reused - the room doesn't move)
+    this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.VSMShadowMap; this.renderer.shadowMap.autoUpdate = false;
     this.maxAniso = this.renderer.capabilities.getMaxAnisotropy();
 
     this.scene = new THREE.Scene();

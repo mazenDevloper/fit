@@ -24,7 +24,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '65';
+export const APP_VERSION = '66';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -1055,7 +1055,9 @@ class App {
     for (const k in this.envs) this.envs[k].visible = !around && !cinema && k === ek;
     // a room with its own lights (the photo-real ones) turns the general light down
     const dim = this.envs[ek]?.visible ? (this.envs[ek].userData.dim ?? 1) : 1;
-    if (dim !== this.lightDim) { this.lightDim = dim; this.globalLights?.forEach(([l, i]) => { l.intensity = i * dim; }); this.renderer.scene.environmentIntensity = dim; }
+    const room = this.envs[ek]?.visible && this.envs[ek].children[0];
+    if (room && room.userData.shadowsDirty) { room.userData.shadowsDirty = false; this.renderer.renderer.shadowMap.needsUpdate = true; }
+    if (dim !== this.lightDim) { this.renderer.renderer.shadowMap.needsUpdate = true; this.lightDim = dim; this.globalLights?.forEach(([l, i]) => { l.intensity = i * dim; }); this.renderer.scene.environmentIntensity = dim; }
     this.renderer.updateHandMask(settings.handsEnabled && this.hands.state === 'ready' ? this.hands.slots : null, now);
     this.envModeNow = cinema ? 'immersive' : isImmersive(ek) ? 'immersive' : ek;
     this.renderer.render(this.renderQ, this.envModeNow);
