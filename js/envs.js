@@ -1,5 +1,6 @@
 // Virtual environments shown instead of (or dimming) the real room.
 import * as THREE from 'three';
+import { neonDesk, study } from './rooms.js';
 
 export const ENVS = {
   passthrough: { label: 'الواقع', note: 'غرفتك الحقيقية', immersive: false },
@@ -7,6 +8,8 @@ export const ENVS = {
   night:       { label: 'ليل',   note: 'سماء مرصّعة بالنجوم', immersive: true },
   cinema:      { label: 'سينما', note: 'قاعة مظلمة للمشاهدة', immersive: true },
   sunset:      { label: 'غروب',  note: 'أفق دافئ مفتوح', immersive: true },
+  neonDesk:    { label: 'مكتب النيون', note: 'غرفة هادئة بإضاءة خافتة', immersive: true },
+  study:       { label: 'المكتب البنفسجي', note: 'مكتب نهاري بضوء الشمس', immersive: true },
 };
 export const ENV_ORDER = Object.keys(ENVS);
 export const envKey = k => (k === 'immersive' ? 'night' : ENVS[k] ? k : 'passthrough');
@@ -60,6 +63,15 @@ export function makeEnvironments() {
     c += vec3(1.0,0.85,0.6) * (sun + pow(max(0.0, dot(vP, sd)), 40.0) * 0.5);
     gl_FragColor = vec4(min(c, 1.0),1.0); }`));
   all.sunset = g;
+  // furnished rooms: built the first time they are chosen (keeps start-up light)
+  all.neonDesk = lazyRoom(neonDesk);
+  all.study = lazyRoom(study);
   Object.values(all).forEach(x => { x.visible = false; });
   return all;
+}
+
+function lazyRoom(build) {
+  const g = new THREE.Group(); let built = false;
+  Object.defineProperty(g, 'visible', { get() { return this._v; }, set(v) { this._v = v; if (v && !built) { built = true; this.add(build()); } } });
+  return g;
 }
