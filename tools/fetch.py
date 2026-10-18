@@ -31,7 +31,7 @@ for h in []:
         open(h + '.src.jpg', 'wb').write(get(u))
         subprocess.run(['convert', h + '.src.jpg', '-resize', '4096x2048!', '-quality', '84', h + '.jpg'], check=True); os.remove(h + '.src.jpg')
     except Exception as e: log.append('ERR ' + h + ' ' + repr(e))
-for m in ['drawer_cabinet', 'anthurium_botany_01', 'calathea_orbifolia_01', 'ceramic_vase_01', 'gallinera_chair', 'pachira_aquatica_01', 'decorative_book_set_01', 'cheiridopsis_succulent', 'hanging_picture_frame_01', 'potted_plant_04', 'gallinera_table', 'brass_candleholders']:
+for m in []:
     try:
         d = json.loads(get('https://api.polyhaven.com/files/' + m)); g = d['gltf']['1k']['gltf']
         base = 'src/' + m + '/'; os.makedirs(base, exist_ok=True)
@@ -43,6 +43,15 @@ for m in ['drawer_cabinet', 'anthurium_botany_01', 'calathea_orbifolia_01', 'cer
         log.append(m + ' ok ' + str(os.path.getsize(m + '.glb')))
     except Exception as e: log.append('ERR ' + m + ' ' + repr(e)[:300])
 subprocess.run(['rm', '-rf', 'src'])
+for t in ['white_plaster_02', 'fabric_pattern_05', 'concrete_floor_01', 'white_oak_veneer']:
+    try:
+        d = json.loads(get('https://api.polyhaven.com/files/' + t))
+        for key, suf in [('Diffuse', 'diff'), ('nor_gl', 'nor'), ('Rough', 'rough')]:
+            if key in d:
+                open(t + '_' + suf + '.jpg', 'wb').write(get(d[key]['1k']['jpg']['url']))
+                subprocess.run(['mogrify', '-resize', '512x512', '-quality', '85', t + '_' + suf + '.jpg'])
+        log.append(t + ' ok ' + ','.join(d.keys()))
+    except Exception as e: log.append('ERR ' + t + ' ' + repr(e)[:200])
 tx = json.loads(get('https://api.polyhaven.com/assets?t=textures'))
 open('textures.txt','w').write('\n'.join(sorted(k+' | '+','.join(v.get('categories',[])) for k,v in tx.items())))
 open('log.txt', 'w').write('\n'.join(log))
