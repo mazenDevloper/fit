@@ -1,12 +1,10 @@
-fireplace keys tonemapped,hdri url https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/fireplace.jpg
-lythwood_lounge keys tonemapped,hdri url https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/lythwood_lounge.jpg
-ERR modern_coffee_table_01 CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/modern_coffee_table_01/modern_coffee_table_01.gltf', '-o', 'modern_coffee_table_01.glb'])
-ERR tea_set_01 CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/tea_set_01/tea_set_01.gltf', '-o', 'tea_set_01.glb'])
-ERR potted_plant_02 CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/potted_plant_02/potted_plant_02.gltf', '-o', 'potted_plant_02.glb'])
-ERR mid_century_lounge_chair CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/mid_century_lounge_chair/mid_century_lounge_chair.gltf', '-o', 'mid_century_lounge_chair.glb'])
-ERR WoodenTable_02 CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/WoodenTable_02/WoodenTable_02.gltf', '-o', 'WoodenTable_02.glb'])
-ERR desk_lamp_arm_01 CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/desk_lamp_arm_01/desk_lamp_arm_01.gltf', '-o', 'desk_lamp_arm_01.glb'])
-ERR classic_laptop CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/classic_laptop/classic_laptop.gltf', '-o', 'classic_laptop.glb'])
-ERR potted_plant_01 CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/potted_plant_01/potted_plant_01.gltf', '-o', 'potted_plant_01.glb'])
-ERR modern_arm_chair_01 CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/modern_arm_chair_01/modern_arm_chair_01.gltf', '-o', 'modern_arm_chair_01.glb'])
-ERR book_encyclopedia_set_01 CalledProcessError(1, ['npx', '-y', 'gltf-pipeline@4.1.0', '-i', 'src/book_encyclopedia_set_01/book_encyclopedia_set_01.gltf', '-o', 'book_encyclopedia_set_01.glb'])
+modern_coffee_table_01 ok 445996
+tea_set_01 ok 1340396
+potted_plant_02 ok 2062532
+mid_century_lounge_chair ok 655552
+WoodenTable_02 ok 189748
+desk_lamp_arm_01 ok 1303020
+classic_laptop ok 999084
+potted_plant_01 ok 5614068
+modern_arm_chair_01 ok 896480
+book_encyclopedia_set_01 ok 2745816
