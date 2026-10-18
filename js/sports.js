@@ -7,6 +7,42 @@ import { drawIsland, islandWidth, drawWidget, drawGoal, goalDuration, drawClock,
 
 export const SPORTS_ORIGIN = 'https://cplay2.netlify.app';
 const MADAR = location.origin;
+// Straight from the sources: favourite teams (with their 365Scores ids) from the cloud bin, games from 365Scores.
+const BIN = 'https://api.jsonbin.io/v3/b/69c782cbb7ec241ddcb0b99a/latest';
+const BIN_KEY = '$2a$10$SYrYv.ct8hiMU9YeUxEQ.ecRkOrTqs.TDchJRV3wW.aKJnDXy2oVy';
+const LOGO = id => 'https://imagecache.365scores.com/image/upload/f_png,w_64,h_64,c_limit,q_auto:eco/Competitors/' + id;
+async function cloudFavourites() {
+  const r = await fetch(BIN, { headers: { 'X-Master-Key': BIN_KEY, 'X-Bin-Meta': 'false' }, cache: 'no-store' });
+  if (!r.ok) throw new Error('bin ' + r.status);
+  const d = await r.json();
+  return ((d.record || d).favoriteTeams || []).filter(t => t && +t.id > 0)
+    .map(t => ({ id: +t.id, name: t.name || '', country: t.country || '', island: t.island !== false }));
+}
+async function direct365(teams) {
+  const ids = teams.filter(t => t.id).map(t => t.id);
+  if (!ids.length) throw new Error('no ids');
+  const u = 'https://webws.365scores.com/web/games/current/?appTypeId=5&langId=27&timezoneName=Asia/Muscat&userCountryId=1&competitors=' + ids.join(',');
+  const r = await fetch(u, { cache: 'no-store' });
+  if (!r.ok) throw new Error('365 ' + r.status);
+  const d = await r.json(), isl = new Set(teams.filter(t => t.island).map(t => t.id)), now = Date.now();
+  const out = [];
+  for (const g of d.games || []) {
+    const h = g.homeCompetitor, a = g.awayCompetitor; if (!h || !a || !g.startTime) continue;
+    const grp = g.statusGroup, txt = g.statusText || '';
+    if (grp !== 3 && grp !== 4 && /postpon|cancel|abandon|suspend|مؤجل|ملغ/i.test(txt)) continue;
+    const status = grp === 3 ? 'live' : grp === 4 ? 'finished' : 'upcoming', t = Date.parse(g.startTime);
+    if (status === 'upcoming' && (t - now > 36 * 3.6e6 || now - t > 3 * 3.6e6)) continue;
+    if (status === 'finished' && now - t > 8 * 3.6e6) continue;
+    const st = status !== 'upcoming', sc = v => st && typeof v === 'number' && v >= 0 ? v : null;
+    out.push({ id: '365' + g.id, status, statusText: txt, timestamp: t / 1000,
+      home: { id: '' + h.id, name: h.name, logo: LOGO(h.id) }, away: { id: '' + a.id, name: a.name, logo: LOGO(a.id) },
+      score: { home: sc(h.score), away: sc(a.score) }, league: { id: '' + g.competitionId, name: g.competitionDisplayName || '' },
+      omanTime: new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Muscat' }),
+      favorite: isl.has(h.id) || isl.has(a.id), elapsed: status === 'live' && g.gameTime >= 0 ? Math.floor(g.gameTime) : undefined });
+  }
+  out.sort((x, y) => (y.status === 'live') - (x.status === 'live') || x.timestamp - y.timestamp);
+  return { matches: out, source: '365scores' };
+}
 
 export class Sports {
   constructor(app) {
@@ -20,8 +56,13 @@ export class Sports {
   }
   teams() { return settings.myTeams || []; }
   // Your favourite teams from cplay2 (same list as the APK) — read once from cplay2's own storage via a tiny page.
-  syncFavorites() {
-    if (this.syncing) return; this.syncing = true;
+  async syncFavorites() {
+    if (this.syncing) return;
+    try {
+      const teams = await cloudFavourites();
+      if (teams.length) { saveSettings({ myTeams: teams }); this.app.renderTeams?.(); this.refresh(true); return; }
+    } catch (e) { this.app.log('المفضلة من السحابة: ' + (e && e.message || e)); }
+    this.syncing = true;
     const f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px';
     f.src = SPORTS_ORIGIN + '/madar-sync.html';
@@ -42,6 +83,16 @@ export class Sports {
     this.last = now;
     const teams = this.teams().map(t => t.name + (t.country ? '~' + t.country : '')).join('|');
     try {
+      if (!this.teams().some(t => t.id) && !this.binTried) {
+        this.binTried = true;
+        try { const t = await cloudFavourites(); if (t.length) { saveSettings({ myTeams: t }); this.app.renderTeams?.(); } } catch (e) {}
+      }
+      if (this.teams().some(t => t.id)) {
+        try {
+          const d = await direct365(this.teams());
+          this.checkGoals(d.matches); this.data = d; this.version++; this.error = null; this.island.redraw(); return;
+        } catch (e) { this.app.log('365Scores: ' + (e && e.message || e)); }
+      }
       const r = await fetch(SPORTS_ORIGIN + '/api/matches?limit=20' + (teams ? '&teams=' + encodeURIComponent(teams) : ''), { cache: 'no-store' });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const d = await r.json();
