@@ -2,6 +2,7 @@
 // Everything uses unlit materials with the light painted into textures, so it costs almost nothing to draw
 // and looks the same whatever the scene's lights do. Floor at y = -1.55, the desk in front of you at z ≈ -2.3.
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const FLOOR = -1.55;
 
@@ -195,4 +196,57 @@ export function study() {
   back.position.set(0, 0.6, 0.02); ch.add(back);
   for (const sx of [-0.28, 0.28]) cyl(ch, 0.022, 0.022, 0.3, wood, sx, 0.58, 0.02, 8);
   return R;
+}
+
+// ---------------------------------------------------------------- photo-real rooms (Poly Haven, CC0)
+// A 360° photograph of a real room all around you, with real scanned furniture (GLB) standing in front of you.
+const BASE = new URL('../assets/rooms/', import.meta.url).href;
+let loader;
+function glb(name) {
+  loader = loader || new GLTFLoader();
+  return new Promise((ok, bad) => loader.load(BASE + name + '.glb', g => ok(g.scene), undefined, bad));
+}
+function photoSphere(file, yaw) {
+  const t = new THREE.TextureLoader().load(BASE + file); t.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(12, 64, 32), new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, depthWrite: false }));
+  m.scale.x = -1; m.rotation.y = yaw; m.position.y = 0.2; m.renderOrder = -1;
+  return m;
+}
+// put a model on the floor (or on top of another), centred at x/z, turned by ry, scaled
+function place(obj, { x = 0, z = -1.5, ry = 0, s = 1, on = null, dx = 0, dz = 0 } = {}) {
+  obj.scale.setScalar(s); obj.rotation.y = ry; obj.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(obj);
+  let y = FLOOR - b.min.y;
+  if (on) { const ob = new THREE.Box3().setFromObject(on); y = ob.max.y - b.min.y; x = (ob.min.x + ob.max.x) / 2 + dx; z = (ob.min.z + ob.max.z) / 2 + dz; }
+  obj.position.set(x - (b.min.x + b.max.x) / 2 + obj.position.x, y, z - (b.min.z + b.max.z) / 2 + obj.position.z);
+  obj.updateMatrixWorld(true);
+  return obj;
+}
+function realRoom(photo, yaw, light, furnish) {
+  const R = new THREE.Group();
+  R.add(photoSphere(photo, yaw));
+  // the room's own light on the furniture (warm by the fire / soft daylight)
+  R.add(new THREE.HemisphereLight(light.sky, light.ground, light.amb));
+  const d = new THREE.DirectionalLight(light.key, light.keyI); d.position.set(...light.dir); R.add(d);
+  furnish(R).catch(e => console.warn('room', e));
+  return R;
+}
+export function lounge() {
+  return realRoom('fireplace.jpg', -0.15, { sky: 0xffd8b0, ground: 0x30201a, amb: 0.9, key: 0xffb070, keyI: 1.4, dir: [-2, 2, -1] }, async R => {
+    const [chair, table, tea] = await Promise.all(['mid_century_lounge_chair', 'modern_coffee_table_01', 'tea_set_01'].map(glb));
+    R.add(place(table, { x: 0, z: -1.45 }));
+    R.add(place(tea, { on: table }));
+    R.add(place(chair, { x: -1.2, z: -1.6, ry: 0.7 }));
+  });
+}
+export function realStudy() {
+  return realRoom('lythwood_lounge.jpg', 0, { sky: 0xffffff, ground: 0x8a8070, amb: 1.2, key: 0xfff4e0, keyI: 1.5, dir: [2, 3, 1] }, async R => {
+    const [table, laptop, lamp, books, chair, plant] = await Promise.all(['modern_coffee_table_01', 'classic_laptop', 'desk_lamp_arm_01', 'book_encyclopedia_set_01', 'modern_arm_chair_01', 'potted_plant_02'].map(glb));
+    R.add(place(table, { x: 0, z: -1.5 }));
+    R.add(place(laptop, { on: table, dx: -0.15, s: 0.8 }));
+    R.add(place(books, { on: table, dx: 0.3, dz: 0.05, s: 0.6, ry: -0.3 }));
+    R.add(place(chair, { x: 1.25, z: -1.3, ry: -1.0 }));
+    R.add(place(lamp, { x: 1.0, z: -2.0, ry: -0.8, s: 1.6 }));
+    R.add(place(plant, { x: -1.3, z: -1.7 }));
+  });
 }

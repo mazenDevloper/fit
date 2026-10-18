@@ -1,6 +1,6 @@
 // Virtual environments shown instead of (or dimming) the real room.
 import * as THREE from 'three';
-import { neonDesk, study } from './rooms.js';
+import { neonDesk, study, lounge, realStudy } from './rooms.js';
 
 export const ENVS = {
   passthrough: { label: 'الواقع', note: 'غرفتك الحقيقية', immersive: false },
@@ -10,6 +10,8 @@ export const ENVS = {
   sunset:      { label: 'غروب',  note: 'أفق دافئ مفتوح', immersive: true },
   neonDesk:    { label: 'مكتب النيون', note: 'غرفة هادئة بإضاءة خافتة', immersive: true },
   study:       { label: 'المكتب البنفسجي', note: 'مكتب نهاري بضوء الشمس', immersive: true },
+  lounge:      { label: 'صالة المدفأة', note: 'غرفة حقيقية · واقعية', immersive: true },
+  realStudy:   { label: 'الصالة المضيئة', note: 'غرفة حقيقية بضوء النهار', immersive: true },
 };
 export const ENV_ORDER = Object.keys(ENVS);
 export const envKey = k => (k === 'immersive' ? 'night' : ENVS[k] ? k : 'passthrough');
@@ -66,6 +68,8 @@ export function makeEnvironments() {
   // furnished rooms: built the first time they are chosen (keeps start-up light)
   all.neonDesk = lazyRoom(neonDesk);
   all.study = lazyRoom(study);
+  all.lounge = lazyRoom(lounge);
+  all.realStudy = lazyRoom(realStudy);
   Object.values(all).forEach(x => { x.visible = false; });
   return all;
 }
