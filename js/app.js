@@ -24,7 +24,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '64';
+export const APP_VERSION = '65';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -107,8 +107,9 @@ class App {
     const scene = this.renderer.scene;
     const pm = new THREE.PMREMGenerator(this.renderer.renderer);
     scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3a4a, 1.1));
+    const hl = new THREE.HemisphereLight(0xffffff, 0x3a3a4a, 1.1); scene.add(hl);
     const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(1, 2, 1.5); scene.add(d);
+    this.globalLights = [[hl, 1.1], [d, 1.6]];
     this.envs = makeEnvironments();
     Object.values(this.envs).forEach(g => scene.add(g));
   }
@@ -1052,6 +1053,9 @@ class App {
     // A 360° picture surrounds you completely: hide the room/sky so nothing cuts into it.
     const around = this.windows.windows.some(w => w.sphere), cinema = !!this.windows.cinema;
     for (const k in this.envs) this.envs[k].visible = !around && !cinema && k === ek;
+    // a room with its own lights (the photo-real ones) turns the general light down
+    const dim = this.envs[ek]?.visible ? (this.envs[ek].userData.dim ?? 1) : 1;
+    if (dim !== this.lightDim) { this.lightDim = dim; this.globalLights?.forEach(([l, i]) => { l.intensity = i * dim; }); this.renderer.scene.environmentIntensity = dim; }
     this.renderer.updateHandMask(settings.handsEnabled && this.hands.state === 'ready' ? this.hands.slots : null, now);
     this.envModeNow = cinema ? 'immersive' : isImmersive(ek) ? 'immersive' : ek;
     this.renderer.render(this.renderQ, this.envModeNow);

@@ -204,7 +204,18 @@ const BASE = new URL('../assets/rooms/', import.meta.url).href;
 let loader;
 function glb(name) {
   loader = loader || new GLTFLoader();
-  return new Promise((ok, bad) => loader.load(BASE + name + '.glb', g => ok(g.scene), undefined, bad));
+  return new Promise((ok, bad) => loader.load(BASE + name + '.glb', g => ok(one(g.scene)), undefined, bad));
+}
+// some scans hold several variants side by side: keep the biggest
+function one(scene) {
+  let root = scene; while (root.children.length === 1 && !root.children[0].isMesh) root = root.children[0];
+  if (root.children.length < 2) return scene;
+  const size = o => { const v = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()); return v.x * v.y * v.z; };
+  const spread = new THREE.Box3().setFromObject(root).getSize(new THREE.Vector3());
+  const best = root.children.reduce((a, b) => (size(b) > size(a) ? b : a));
+  const bs = new THREE.Box3().setFromObject(best).getSize(new THREE.Vector3());
+  if (spread.x < bs.x * 1.6 && spread.z < bs.z * 1.6) return scene;   // one object made of parts
+  best.removeFromParent(); best.position.set(0, best.position.y, 0); return best;
 }
 function photoSphere(file, yaw) {
   const t = new THREE.TextureLoader().load(BASE + file); t.colorSpace = THREE.SRGBColorSpace;
@@ -213,14 +224,16 @@ function photoSphere(file, yaw) {
   return m;
 }
 // put a model on the floor (or on top of another), centred at x/z, turned by ry, scaled
-function place(obj, { x = 0, z = -1.5, ry = 0, s = 1, on = null, dx = 0, dz = 0 } = {}) {
-  obj.scale.setScalar(s); obj.rotation.y = ry; obj.updateMatrixWorld(true);
-  const b = new THREE.Box3().setFromObject(obj);
-  let y = FLOOR - b.min.y;
+function place(obj, { x = 0, z = -1.5, ry = 0, s = 1, on = null, dx = 0, dz = 0, y0 = FLOOR, height = 0 } = {}) {
+  const g = new THREE.Group(); g.add(obj);
+  if (height) { const h = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3()).y; s = height / h; }
+  g.scale.setScalar(s); g.rotation.y = ry; g.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(g);
+  let y = y0 - b.min.y;
   if (on) { const ob = new THREE.Box3().setFromObject(on); y = ob.max.y - b.min.y; x = (ob.min.x + ob.max.x) / 2 + dx; z = (ob.min.z + ob.max.z) / 2 + dz; }
-  obj.position.set(x - (b.min.x + b.max.x) / 2 + obj.position.x, y, z - (b.min.z + b.max.z) / 2 + obj.position.z);
-  obj.updateMatrixWorld(true);
-  return obj;
+  g.position.set(x - (b.min.x + b.max.x) / 2, y, z - (b.min.z + b.max.z) / 2);
+  g.updateMatrixWorld(true);
+  return g;
 }
 function realRoom(photo, yaw, light, furnish) {
   const R = new THREE.Group();
@@ -249,4 +262,121 @@ export function realStudy() {
     R.add(place(lamp, { x: 1.0, z: -2.0, ry: -0.8, s: 1.6 }));
     R.add(place(plant, { x: -1.3, z: -1.7 }));
   });
+}
+
+// ---------------------------------------------------------------- the two rooms again, photo-real
+// Same layout as the light versions, now with real materials (Poly Haven PBR textures), scanned furniture (GLB)
+// and real lights. The scene's general light is turned down while these are shown (see envs.js: dim).
+const texCache = {};
+function pbr(name, { color = 0xffffff, repeat = [1, 1], rough = 1, envI = 0.3, normal = true, map = true } = {}) {
+  const load = (suf, srgb) => {
+    const k = name + suf + repeat; if (texCache[k]) return texCache[k];
+    const t = new THREE.TextureLoader().load(BASE + name + '_' + suf + '.jpg'); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat);
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return (texCache[k] = t);
+  };
+  return new THREE.MeshStandardMaterial({ color, map: map ? load('diff', true) : null, normalMap: normal ? load('nor') : null, roughnessMap: load('rough'), roughness: rough, metalness: 0, envMapIntensity: envI });
+}
+const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0, envMapIntensity: 0.3, ...o });
+const emit = (color) => new THREE.MeshBasicMaterial({ color });
+function tame(obj, envI, tint) {   // GLB materials: room light only (and an optional colour)
+  obj.traverse(o => { if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.envMapIntensity = envI; if (tint) m.color?.multiply(new THREE.Color(tint)); }); } });
+  return obj;
+}
+function pointL(R, color, i, d, x, y, z) { const l = new THREE.PointLight(color, i, d, 2); l.position.set(x, y, z); R.add(l); return l; }
+
+export function realNeon() {
+  const R = new THREE.Group(), BW = -2.6, top = -0.78, deskZ = BW + 0.33;
+  const wall = pbr('white_plaster_02', { color: 0x8c8aa8, repeat: [3, 2], envI: 0.05, map: false });
+  R.add(new THREE.HemisphereLight(0x8a8cff, 0x202050, 0.35));
+  const sideWall = pbr('white_plaster_02', { color: 0x6c6a8c, repeat: [3, 2], envI: 0.05, map: false });
+  plane(R, 5.4, 3.1, wall, 0, 0, BW);
+  plane(R, 5, 3.1, sideWall, -2.7, 0, -0.1, Math.PI / 2);
+  plane(R, 5, 3.1, sideWall, 2.7, 0, -0.1, -Math.PI / 2);
+  plane(R, 5.4, 3.1, std(0x3a3950), 0, 0, 2.4, Math.PI);
+  plane(R, 5.4, 5, std(0x2a2940), 0, 1.55, -0.1, 0, Math.PI / 2);
+  plane(R, 5.4, 5, pbr('fabric_pattern_05', { color: 0x223a8a, repeat: [8, 8], map: false, envI: 0.05 }), 0, FLOOR, -0.1, 0, -Math.PI / 2);
+  // light bar + its warm light
+  box(R, 1.25, 0.05, 0.07, std(0x3c3c44, { metalness: 0.6, roughness: 0.3 }), 0, 1.0, BW + 0.04);
+  box(R, 1.2, 0.012, 0.02, emit(0xffd43b), 0, 0.972, BW + 0.06);
+  glow(R, 1.9, 0.6, 0xffc93a, 0.45, 0, 0.92, BW + 0.01);
+  pointL(R, 0xffc85a, 2.2, 3.5, 0, 0.85, BW + 0.25);
+  // desk (oak veneer, painted grey-white) + cyan strip and its light on the wall
+  box(R, 3.9, 0.045, 0.62, pbr('white_oak_veneer', { color: 0xc8c6dc, repeat: [3, 1], envI: 0.08 }), 0.15, top, deskZ);
+  box(R, 3.6, 0.014, 0.014, emit(0x5fdcff), 0.15, top + 0.035, BW + 0.05);
+  glow(R, 4.2, 0.35, 0x40c8ff, 0.7, 0.15, top + 0.05, BW + 0.01);
+  for (const x of [-1.2, 0.15, 1.5]) pointL(R, 0x3aa8ff, 1.6, 2.4, x, top - 0.25, BW + 0.2);
+  pointL(R, 0x5fd8ff, 0.8, 1.6, 0.15, top + 0.15, BW + 0.12);
+  // monitor riser + magenta light, monitor
+  box(R, 1.0, 0.025, 0.26, std(0xc9c6d8), 0.15, top + 0.12, BW + 0.2);
+  for (const dx of [-0.45, 0.45]) cyl(R, 0.012, 0.012, 0.1, std(0xb8a0d0, { metalness: 0.8, roughness: 0.25 }), 0.15 + dx, top + 0.07, BW + 0.2, 8);
+  box(R, 0.9, 0.006, 0.006, emit(0xff5fd6), 0.15, top + 0.105, BW + 0.12);
+  glow(R, 1.4, 0.22, 0xff4fd0, 0.7, 0.15, top + 0.05, BW + 0.2, 0, -Math.PI / 2);
+  pointL(R, 0xff4fd0, 0.9, 1.2, 0.15, top + 0.06, BW + 0.2);
+  box(R, 1.05, 0.42, 0.03, std(0x0a0a0e, { roughness: 0.15, envMapIntensity: 0.6 }), 0.15, top + 0.5, BW + 0.2);
+  box(R, 0.07, 0.2, 0.04, std(0x18181c, { metalness: 0.5 }), 0.15, top + 0.24, BW + 0.18);
+  box(R, 0.45, 0.012, 0.16, std(0x141418, { metalness: 0.5 }), 0.15, top + 0.14, BW + 0.2);
+  // glowing posts
+  for (const x of [-0.7, 1.0]) for (const dx of [-0.1, 0.1]) { cyl(R, 0.028, 0.028, 0.13, emit(0x8ffff0), x + dx, top - 0.09, deskZ + 0.05, 12); glow(R, 0.22, 0.3, 0x5ffff0, 0.5, x + dx, top - 0.09, deskZ + 0.09); }
+  const dt = drawersTex('#c4cbe4', 'rgba(40,50,90,.35)', '#3a3f55');
+  const cabM = new THREE.MeshStandardMaterial({ map: dt, roughness: 0.55, envMapIntensity: 0.05 });
+  for (const x of [-0.7, 1.0]) { box(R, 0.42, 0.64, 0.5, std(0xbfc6e0, { envMapIntensity: 0.05 }), x, FLOOR + 0.32, deskZ); plane(R, 0.42, 0.64, cabM, x, FLOOR + 0.32, deskZ + 0.251); }
+  (async () => {
+    const [plant, vase] = await Promise.all(['calathea_orbifolia_01', 'ceramic_vase_01'].map(glb));
+    for (const [x, k] of [[-1.6, 1], [-1.38, 0.6], [1.85, 1], [2.05, 0.6]]) {
+      const v = place(tame(vase.clone(true), 0.05), { x, z: BW + 0.2, height: 0.16 * k, y0: top + 0.022 }); R.add(v);
+      const vb = new THREE.Box3().setFromObject(v);
+      R.add(place(tame(plant.clone(true), 0.05, 0xd070ff), { x, z: BW + 0.2, height: 0.36 * k, y0: vb.max.y - 0.03 * k }));
+    }
+  })().catch(e => console.warn('room', e));
+  return R;
+}
+
+export function realStudio() {
+  const R = new THREE.Group(), BW = -2.5, top = -0.8, dz = BW + 0.33;
+  const wallTex = study().children[0].material.map;   // the sunlight + leaf shadows painted for the light version
+  const wall = pbr('white_plaster_02', { color: 0xffffff, repeat: [3, 2], envI: 0.25 }); wall.map = wallTex;
+  plane(R, 5.2, 3.1, wall, 0, 0, BW);
+  plane(R, 5.2, 0.09, std(0xf3f1f5), 0, FLOOR + 0.045, BW + 0.012);
+  const side = pbr('white_plaster_02', { color: 0xc4a8dc, repeat: [3, 2], envI: 0.25, map: false });
+  plane(R, 5, 3.1, side, -2.6, 0, 0, Math.PI / 2); plane(R, 5, 3.1, side, 2.6, 0, 0, -Math.PI / 2);
+  plane(R, 5.2, 3.1, std(0xa88cc4), 0, 0, 2.5, Math.PI); plane(R, 5.2, 5, std(0xefe9f2), 0, 1.55, 0, 0, Math.PI / 2);
+  plane(R, 5.2, 5, pbr('concrete_floor_01', { color: 0xdcd9e0, repeat: [4, 4], envI: 0.3, map: false }), 0, FLOOR, 0, 0, -Math.PI / 2);
+  // sunlight from behind-right (matching the painted window light) + soft fill
+  const sun = new THREE.DirectionalLight(0xfff1e0, 1.8); sun.position.set(3, 2.5, 2); R.add(sun);
+  R.add(new THREE.HemisphereLight(0xf6eaff, 0xc9b9d8, 1.4));
+  // white desk (metal frame, painted)
+  const white = std(0xf6f5f8, { roughness: 0.35 });
+  box(R, 1.6, 0.035, 0.6, white, 0, top, dz); box(R, 1.56, 0.1, 0.56, std(0xe9e6ee, { roughness: 0.4 }), 0, top - 0.07, dz);
+  for (const sx of [-0.78, 0.78]) for (const sz of [-0.27, 0.27]) box(R, 0.03, 0.72, 0.03, white, sx, FLOOR + 0.36, dz + sz);
+  for (const sx of [-0.78, 0.78]) box(R, 0.025, 0.025, 0.54, white, sx, FLOOR + 0.13, dz);
+  box(R, 1.56, 0.025, 0.025, white, 0, FLOOR + 0.13, dz + 0.27);
+  // modern laptop (aluminium) with the blue swirl
+  const alu = std(0xc9ccd2, { metalness: 0.7, roughness: 0.3, envMapIntensity: 0.8 });
+  box(R, 0.34, 0.012, 0.23, alu, 0, top + 0.024, dz + 0.02); box(R, 0.34, 0.22, 0.008, alu, 0, top + 0.13, dz - 0.09);
+  plane(R, 0.32, 0.2, study().children.find(c => c.geometry?.parameters?.width === 0.32).material, 0, top + 0.13, dz - 0.085);
+  // ribbed lamp, notebook, candle (flame + warm light), mug, ornament
+  cyl(R, 0.07, 0.08, 0.01, white, -0.55, top + 0.022, dz - 0.05); cyl(R, 0.008, 0.008, 0.3, white, -0.55, top + 0.17, dz - 0.05, 8);
+  const shade = cyl(R, 0.11, 0.11, 0.18, new THREE.MeshStandardMaterial({ color: 0xfbefd8, emissive: 0xffe6b8, emissiveIntensity: 0.55, roughness: 0.9 }), -0.55, top + 0.38, dz - 0.05, 32);
+  pointL(R, 0xffe2b0, 0.6, 1.5, -0.55, top + 0.36, dz);
+  box(R, 0.18, 0.012, 0.13, std(0xe9ecf8), -0.25, top + 0.024, dz + 0.04).rotation.y = 0.15;
+  cyl(R, 0.032, 0.032, 0.09, std(0x4a2d1e, { roughness: 0.15, transparent: true, opacity: 0.9 }), 0.3, top + 0.063, dz - 0.05, 20);
+  glow(R, 0.08, 0.1, 0xffc070, 0.8, 0.3, top + 0.13, dz - 0.05); pointL(R, 0xffb060, 0.25, 0.6, 0.3, top + 0.15, dz - 0.05);
+  cyl(R, 0.04, 0.035, 0.075, std(0x5b86d6, { roughness: 0.2 }), 0.38, top + 0.055, dz + 0.05, 24);
+  mesh(new THREE.IcosahedronGeometry(0.06, 2), std(0xe2914a, { roughness: 0.5 }), 0.55, top + 0.075, dz - 0.03, R);
+  // shelf with books and a small succulent
+  const sy = 0.55; box(R, 0.85, 0.035, 0.2, white, -0.3, sy, BW + 0.1);
+  [[0x1c1c1e, 0.22], [0x7a2b25, 0.24], [0x2a2a2c, 0.23], [0xe9e6e1, 0.25], [0x1c1c1e, 0.21], [0x3a2a28, 0.22]].forEach(([col, hh], i) => box(R, 0.035, hh, 0.15, std(col, { roughness: 0.8 }), -0.2 + i * 0.04, sy + 0.018 + hh / 2, BW + 0.1));
+  // framed print
+  const art = study().children.find(c => c.geometry?.parameters?.width === 0.46).material;
+  plane(R, 0.46, 0.46, art, 0.85, 0.4, BW + 0.036); box(R, 0.56, 0.56, 0.03, white, 0.85, 0.4, BW + 0.02);
+  plane(R, 0.09, 0.12, std(0xf1eff3), -0.42, FLOOR + 0.5, BW + 0.005);
+  // the rattan armchair (as in the light version)
+  const light = study(); const ch = light.children.find(c => c.isGroup); if (ch) R.add(ch);
+  (async () => {
+    const [tree, small] = await Promise.all(['pachira_aquatica_01', 'potted_plant_04'].map(glb));
+    cyl(R, 0.24, 0.19, 0.5, std(0xf5f3f7, { roughness: 0.35 }), -1.55, FLOOR + 0.25, BW + 0.45, 36);
+    R.add(place(tame(tree, 0.3), { x: -1.55, z: BW + 0.45, height: 1.7, y0: FLOOR + 0.42 }));
+    R.add(place(tame(small, 0.3), { x: -0.6, z: BW + 0.1, height: 0.18, y0: sy + 0.018 }));
+  })().catch(e => console.warn('room', e));
+  return R;
 }
