@@ -1,4 +1,0 @@
-white_plaster_02 ok Diffuse,nor_dx,nor_gl,blend,gltf,rough_ao,Bump,arm,AO,Displacement,Rough,spec,mtlx
-fabric_pattern_05 ok nor_dx,nor_gl,blend,gltf,col_03,arm,AO,Rough,col_01,col_02,mtlx
-concrete_floor_01 ok Diffuse,nor_dx,nor_gl,blend,gltf,Bump,arm,AO,Displacement,Rough,spec,mtlx
-white_oak_veneer ok blend,AO,arm,Diffuse,Displacement,nor_dx,nor_gl,Rough,gltf,mtlx
