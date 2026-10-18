@@ -144,7 +144,7 @@ export class Sports {
 const ROWS = 4, ROW_H = 0.075;
 class Island {
   constructor(sports) {
-    this.sports = sports;
+    this.sports = sports; this.events = []; this.evAt = 0;
     this.panel = new CanvasPanel(0.62, ROW_H * ROWS, (ctx, W, H) => this.draw(ctx, W, H), { pxPerM: 1500 });
     this.panel.mesh.userData.interact = null;
     this.panel.mesh.material.depthTest = false;
@@ -161,7 +161,7 @@ class Island {
       if (d && Array.isArray(d.events)) { this.events = d.events; this.redraw(); }
     } catch (e) {}
   }
-  nextEvent() { const now = Date.now(); return this.events.find(e => e.at > now - 30000); }
+  nextEvent() { const now = Date.now(); return (this.events || []).find(e => e.at > now - 30000); }
   rows() {
     const live = this.sports.liveMine().slice(0, ROWS - 1);
     const ev = settings.prayerBar !== false ? this.nextEvent() : null;
