@@ -31,7 +31,7 @@ for h in []:
         open(h + '.src.jpg', 'wb').write(get(u))
         subprocess.run(['convert', h + '.src.jpg', '-resize', '4096x2048!', '-quality', '84', h + '.jpg'], check=True); os.remove(h + '.src.jpg')
     except Exception as e: log.append('ERR ' + h + ' ' + repr(e))
-for m in ['modern_coffee_table_01', 'tea_set_01', 'potted_plant_02', 'mid_century_lounge_chair', 'WoodenTable_02', 'desk_lamp_arm_01', 'classic_laptop', 'potted_plant_01', 'modern_arm_chair_01', 'book_encyclopedia_set_01']:
+for m in ['drawer_cabinet', 'anthurium_botany_01', 'calathea_orbifolia_01', 'ceramic_vase_01', 'gallinera_chair', 'pachira_aquatica_01', 'decorative_book_set_01', 'cheiridopsis_succulent', 'hanging_picture_frame_01', 'potted_plant_04', 'gallinera_table', 'brass_candleholders']:
     try:
         d = json.loads(get('https://api.polyhaven.com/files/' + m)); g = d['gltf']['1k']['gltf']
         base = 'src/' + m + '/'; os.makedirs(base, exist_ok=True)
@@ -43,4 +43,6 @@ for m in ['modern_coffee_table_01', 'tea_set_01', 'potted_plant_02', 'mid_centur
         log.append(m + ' ok ' + str(os.path.getsize(m + '.glb')))
     except Exception as e: log.append('ERR ' + m + ' ' + repr(e)[:300])
 subprocess.run(['rm', '-rf', 'src'])
+tx = json.loads(get('https://api.polyhaven.com/assets?t=textures'))
+open('textures.txt','w').write('\n'.join(sorted(k+' | '+','.join(v.get('categories',[])) for k,v in tx.items())))
 open('log.txt', 'w').write('\n'.join(log))
