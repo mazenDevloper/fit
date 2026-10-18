@@ -1,0 +1,301 @@
+abandoned_bakery | natural light,artificial light,urban,indoor,high contrast | abandoned,empty,industrial,windows,bare,rubble,brick,concrete
+abandoned_construction | indoor,urban,natural light,medium contrast,overcast | brick,pillar,warehouse,rubble,abandoned,debris,desolate,empty
+abandoned_factory_canteen_01 | indoor,urban,low contrast,natural light | hall,abandoned,fluorescent,industrial,backplates,backplates
+abandoned_factory_canteen_02 | indoor,urban,natural light,medium contrast | hall,abandoned,industrial,boxes,backplates
+abandoned_games_room_01 | indoor,urban,midday,low contrast,natural light | abandoned,room,window,tile,rubble
+abandoned_games_room_02 | indoor,urban,midday,low contrast,natural light | abandoned,room,window,tile,arcade,rubble
+abandoned_garage | indoor,medium contrast,urban,natural light,midday,overcast | abandoned,graffiti,grunge,workshop,tire,debris,trash
+abandoned_greenhouse | low contrast,natural light,indoor,urban,overcast,midday | warehouse,concrete,greenhouse,abandoned,industrial,graffiti
+abandoned_hall_01 | indoor,urban,low contrast,natural light | hall,window,abandoned,empty,bare
+abandoned_tiled_room | indoor,urban,natural light,medium contrast,sunrise-sunset | abandoned,industrial,rubble,ruin,trash,weathered,broken,neglected
+abandoned_workshop | indoor,urban,medium contrast,natural light | abandoned,warehouse,rubble,brick,pillar,bare,empty,backplates
+abandoned_workshop_02 | indoor,nature,midday,low contrast,natural light,urban | abandoned,warehouse,concrete,bare,empty,overgrown,backplates
+acoustical_shell | indoor,outdoor,natural light,urban,morning-afternoon,partly cloudy,medium contrast | stage,promenade,tree,garden,bay
+adams_place_bridge | indoor,urban,high contrast,artificial light | building,architecture,europe,bridge,tunnel,path
+aerodynamics_workshop | indoor,urban,morning-afternoon,medium contrast,natural light,artificial light | machine,industrial,workshop,wind tunnel,window
+afrikaans_church_interior | indoor,high contrast,natural light,urban,morning-afternoon | windows,pew,altar,red carpet,stage,wooden ceiling,pulpit,high ceiling
+aft_lounge | indoor,urban,sunrise-sunset,clear,high contrast,natural light,artificial light | lounge,chair,ship,stage,carpet,window,ocean,sun
+aircraft_workshop_01 | indoor,urban,morning-afternoon,medium contrast,natural light,artificial light | workshop,industrial,warehouse,scaffold
+anniversary_lounge | indoor,urban,medium contrast,natural light,artificial light | window,room,couch,lamp,carpet,table
+art_studio | indoor,urban,medium contrast,natural light,artificial light | painting,art,workshop,window,atelier
+artist_workshop | indoor,urban,midday,low contrast,natural light | painting,canvas,window,art,atelier
+auto_service | indoor,urban,medium contrast,artificial light | workshop,warehouse,industrial,concrete,backplates
+autoshop_01 | indoor,urban,low contrast,artificial light | garage,warehouse,industrial,car,workshop
+ballroom | indoor,urban,medium contrast,artificial light,natural light | tile,victorian,window,piano,chandelier
+bank_vault | indoor,urban,artificial light,medium contrast | cage,bars,concrete,fluorescent,bare,empty,industrial
+basement_boxing_ring | indoor,urban,artificial light,medium contrast | sport,boxing,ring,basement,fluorescent
+bathroom | indoor,urban,medium contrast,artificial light | bath,basin,tiles,sink
+bell_tower | indoor,natural light,urban,medium contrast,morning-afternoon | church,tower,wooden beams,stained glass,architecture,arched windows,empty,wooden floor
+billiard_hall | indoor,urban,natural light,artificial light,medium contrast,morning-afternoon | brick,pool,snooker,ball game,carpet,window,lamp,billiards
+birbeck_street_underpass | indoor,urban,morning-afternoon,medium contrast,natural light,artificial light | road,asphalt,tunnel,underpass,brick,graffiti
+blender_institute | indoor,urban,low contrast,artificial light | blender,timber,computer,chair,lamp,people
+blinds | indoor,urban,morning-afternoon,medium contrast,natural light | kitchen,window,counter,table
+blocky_photo_studio | urban,indoor,studio,artificial light,natural light,low contrast | studio,stair,ramp,stand,modern,concrete
+blue_photo_studio | studio,indoor,artificial light,natural light,urban,medium contrast,midday | couch,wooden floor,lamp,window,seat,dark,backplates
+boiler_room | indoor,urban,low contrast,natural light,artificial light | machine,industrial,pipes,factory
+boma | indoor,urban,natural light,medium contrast,morning-afternoon | bench,restaurant,arch,brick,rafters,cafe,seat,flag
+brown_photostudio_01 | indoor,urban,natural light,artificial light,medium contrast,studio,low contrast | studio,lamp,photo,chair,window,wood,fluorescent,couch
+brown_photostudio_02 | urban,studio,indoor,artificial light,natural light,medium contrast | bed,studio,fluorescent,window,couch,chair,photo,table
+brown_photostudio_03 | indoor,studio,natural light,urban,low contrast,morning-afternoon | couch,studio,window,fireplace,plant,modern,backplates
+brown_photostudio_04 | studio,natural light,indoor,urban,midday,low contrast | studio,couch,bed,window,table,kitchen,plant,curtain
+brown_photostudio_05 | indoor,natural light,urban,morning-afternoon,low contrast,studio | wood,couch,decor,studio,windows,door,curtain,backplates
+brown_photostudio_06 | indoor,studio,urban,natural light,medium contrast | studio,couch,curtain,wood,mirror,backplates
+brown_photostudio_07 | natural light,studio,indoor,medium contrast,urban | studio,bed,fabric,wood,wooden floor,white,windows,chair
+burnt_warehouse | natural light,indoor,urban,medium contrast | abandoned,warehouse,industrial,concrete,burnt,trash,brick,rubble
+bush_restaurant | indoor,urban,medium contrast,natural light | table,chair,restaurant,window,door
+cabin | indoor,urban,high contrast,artificial light | bed,tv,hotel,cabin,boat,ship,cruise
+carpentry_shop_01 | indoor,urban,high contrast,artificial light | workshop,lamp,tablesaw,wood
+carpentry_shop_02 | indoor,urban,high contrast,artificial light | lamp,fluorescent,workshop,machine,tools,wood,carpentry,workbench
+castle_zavelstein_cellar | natural light,indoor,urban,high contrast | cellar,basement,arch,tunnel,brick,castle
+cave_wall | outdoor,indoor,nature,morning-afternoon,medium contrast,natural light | rock,tree,wall,river,vine,ledge,cave
+cayley_interior | indoor,urban,sunrise-sunset,artificial light,natural light,high contrast | lamp,table,window,glass,balcony,view,log
+chapel_day | indoor,urban,artificial light,natural light,low contrast,midday | chair,bench,cross,altar,barrel,seat,church,pew
+childrens_hospital | indoor,urban,high contrast,artificial light | bed,ward,medical,hospital,room
+christmas_photo_studio_01 | indoor,urban,night,high contrast,artificial light,studio | couch,sofa,wood,book,blanket,tree,christmas,step
+christmas_photo_studio_02 | indoor,studio,urban,medium contrast,artificial light | blanket,cloth,christmas,ladder,wood,studio,backplates
+christmas_photo_studio_03 | indoor,studio,urban,artificial light,medium contrast,night | couch,christmas,photo,shoot,backplates
+christmas_photo_studio_04 | indoor,studio,urban,night,low contrast,artificial light | couch,christmas,photo,shoot,curtain,presents,fluorescent,backplates
+christmas_photo_studio_05 | indoor,studio,morning-afternoon,natural light,artificial light,low contrast,urban | table,couch,christmas,fireplace,victorian,apartment,backplates
+christmas_photo_studio_06 | medium contrast,urban,indoor,artificial light,studio | couch,christmas,photo,shoot,clock,painting,chair
+christmas_photo_studio_07 | artificial light,studio,urban,indoor,medium contrast,high contrast | kitchen,chair,umbrella,wood,wooden floor,table,window,plant
+church_meeting_room | indoor,low contrast,natural light,urban,morning-afternoon | table,pew,chair,portraits,wooden ceiling,stained glass,carpet
+church_museum | indoor,natural light,urban,medium contrast,morning-afternoon | wooden ceiling,vaulted ceiling,stained glass,carpet,table,chair,bench,display
+church_stairway | indoor,natural light,high contrast,urban,morning-afternoon,artificial light | wooden staircase,stained glass,wooden ceiling,historic architecture,balusters,balcony,arched windows
+cinema_hall | indoor,urban,medium contrast,artificial light | movie,cinema,chair,seat,projector,theater
+cinema_lobby | indoor,urban,medium contrast,artificial light | couch,seat,bench,fluorescent
+circus_arena | indoor,urban,medium contrast,artificial light | seat,theater,arena,show
+climbing_gym | indoor,urban,artificial light,medium contrast | fitness,gym,exercise,mat,climbing,training,warehouse,high ceiling
+colorful_studio | indoor,urban,high contrast,artificial light | couch,bar,bottle,incandescent,set,lounge,backplates
+combination_room | indoor,urban,medium contrast,natural light,artificial light | couch,victorian,curtain,lamp,painting,window
+comfy_cafe | indoor,urban,low contrast,artificial light | shop,coffee,cafe,couch,table,store,backplates
+concrete_tunnel | indoor,urban,high contrast,artificial light | tunnel,brick,concrete,lamp,bench
+concrete_tunnel_02 | indoor,urban,midday,medium contrast,natural light | asphalt,concrete,tunnel,road,underpass
+country_club | indoor,urban,natural light,high contrast,morning-afternoon | victorian,room,window,ballroom,wood floor,backplates
+cowboy_town_hall | indoor,urban,natural light,artificial light,medium contrast,morning-afternoon | saloon,western decor,wild west,bench,lamp,table,corrugated metal ceiling
+cowboy_town_saloon | indoor,urban,artificial light,natural light,medium contrast,morning-afternoon | saloon,western decor,wild west,restaurant,table,chair,bar,dining
+creepy_bathroom | indoor,urban,artificial light,night,low contrast | dark,spooky,broken,abandoned,pipes,debris,grunge,window
+crossfit_gym | indoor,urban,artificial light,medium contrast | rubber floor,workout equipment,gym,metal roof,fluorescent,fitness,exercise,weights
+cyclorama_hard_light | studio,indoor,high contrast,urban,artificial light | studio,lamp,umbrella,white,infinity,clean
+dancing_hall | urban,medium contrast,indoor,artificial light | lamp,hall,architecture,empty,curtain,stage,backplates
+de_balie | indoor,urban,medium contrast,artificial light | stair,banister,people,bcon,door,meeting,pink
+debris_basement_corridor | indoor,urban,artificial light,high contrast | basement,storage area,construction,debris,utility room,underground,maintenance
+decor_shop | indoor,urban,morning-afternoon,medium contrast,artificial light | tile,couch,decor,chandelier,store,shop,backplates
+distribution_board | natural light,urban,medium contrast,indoor,morning-afternoon | abandoned,industrial,factory,rust,rubble,electrical,machine,brick
+drachenfels_cellar | indoor,nature,urban,medium contrast,natural light | tunnel,brick,dirt,cave,castle,arch,shelter,doorway
+dresden_station_night | indoor,urban,night,medium contrast,artificial light | train,station,bench,hall,tracks,fluorescent
+empty_play_room | indoor,urban,natural light,artificial light,medium contrast,morning-afternoon | carpet,table tennis,curtain,fluorescent,brick,wood
+empty_warehouse_01 | indoor,urban,morning-afternoon,medium contrast,artificial light | warehouse,derelict,fluorescent,concrete,industrial,backplates
+empty_workshop | medium contrast,indoor,urban,midday,natural light | bare,empty,clean,spacious,brick,concrete,wood
+en_suite | indoor,urban,artificial light,high contrast | bathroom,sink,basin,shower,toilet
+entrance_hall | indoor,urban,midday,medium contrast,natural light,artificial light | victorian,window,tile
+events_hall_interior | indoor,medium contrast,urban,natural light,midday | warehouse,concrete floor,high ceiling,rustic walls,metal roof,white chairs
+ferndale_studio_01 | studio,indoor,artificial light,urban,high contrast | photo,lamp,infinity,dark ceiling,umbrella,white
+ferndale_studio_02 | studio,indoor,artificial light,urban,high contrast | photo,lamp,infinity,dark ceiling,umbrella,rectangle,spotlight,blue
+ferndale_studio_03 | studio,indoor,artificial light,urban,medium contrast | photo,lamp,infinity,dark ceiling,umbrella,rectangle,spotlight,white
+ferndale_studio_04 | studio,indoor,artificial light,urban,medium contrast | photo,lamp,infinity,dark ceiling,umbrella,rectangle,spotlight,yellow
+ferndale_studio_05 | studio,indoor,artificial light,urban,high contrast | photo,lamp,infinity,dark ceiling,umbrella,rectangle,pink,purple
+ferndale_studio_06 | studio,indoor,artificial light,urban,high contrast | photo,lamp,infinity,dark ceiling,umbrella,rectangle,red,blue
+ferndale_studio_07 | studio,indoor,artificial light,urban,medium contrast | photo,lamp,infinity,dark ceiling,umbrella,spotlight,tube,rectangle
+ferndale_studio_08 | studio,indoor,artificial light,urban,medium contrast | photo,lamp,infinity,dark ceiling,umbrella,rectangle,spotlight,warm
+ferndale_studio_09 | studio,indoor,artificial light,urban,high contrast | photo,lamp,infinity,dark ceiling,umbrella,reflector,warm,white
+ferndale_studio_10 | studio,indoor,artificial light,urban,high contrast | photo,lamp,infinity,dark ceiling,umbrella,reflector,weathered,blue
+ferndale_studio_11 | studio,indoor,artificial light,urban,medium contrast | photo,lamp,infinity,dark ceiling,rectangle,tube,white,warm
+ferndale_studio_12 | studio,indoor,artificial light,urban,medium contrast | photo,lamp,infinity,dark ceiling,rectangle,tube,blue,colors
+fireplace | indoor,urban,night,high contrast,artificial light | fire,couch,room,lounge
+floral_tent | indoor,nature,urban,midday,medium contrast,natural light | bush,plant,sun,tiles,tent,canopy
+garage | indoor,urban,high contrast,natural light,artificial light | garage,fluorescent,concrete,parking,shelves,orange,mess,tools
+gear_store | indoor,artificial light,urban,medium contrast | shelves,fluorescent,boxes,store
+georgentor | indoor,urban,medium contrast,natural light | brick,architecture,tunnel,passage
+glass_passage | indoor,nature,urban,low contrast,natural light,artificial light | tunnel,plant,tree,lamp,enclosure
+glasshouse_interior | indoor,urban,natural light,nature,low contrast,morning-afternoon,partly cloudy | large windows,bed,kitchen,dining table,fireplace,vintage carpet,cozy,panoramic
+graaff_reinet_groote_kerk | indoor,urban,artificial light,medium contrast | church,religion,stained glass,altar,pew,arched windows,wooden ceiling
+graffiti_shelter | indoor,urban,midday,overcast,medium contrast,natural light | tree,shelter,bench,road,path,graffiti,hut,autumn
+gym_01 | indoor,urban,medium contrast,artificial light | fluorescent,gym,weights,fitness,exercise
+gym_entrance | indoor,urban,medium contrast,artificial light | shop,couch,gym,red,fluorescent
+hall_of_finfish | indoor,urban,low contrast,artificial light | fish,shark,museum
+hall_of_mammals | indoor,urban,medium contrast,artificial light | museum,bone,lion,tiger,whale,skeleton
+hamburg_hbf | indoor,urban,morning-afternoon,medium contrast,natural light | hall,windows,sun,train,station
+hangar_interior | indoor,urban,natural light,medium contrast,midday | hangar,plane,airport,concrete,aviation,warehouse
+hayloft | indoor,urban,natural light,medium contrast,midday | barn,farm,hay,timber,rafters,pallet,rural,rustic
+hikers_cave | indoor,nature,midday,medium contrast,natural light | forest,cave,rock
+historic_cloister_passage | indoor,urban,natural light,medium contrast,midday | arched windows,sandstone,wooden door,gothic,medieval,monastery,castle,arch
+hospital_room | indoor,urban,medium contrast,artificial light | bed,table,hospital,lamp,medical,operation
+hospital_room_2 | indoor,urban,artificial light,medium contrast | medical,healthcare,hospital,ward,bed,clean,clinical,recovery
+hotel_room | indoor,urban,high contrast,natural light,artificial light | bed,tv,table,chair,mirror,window,curtain,lamp
+indoor_pool | indoor,urban,low contrast,artificial light | pool,water,lamp,chair
+industrial_pipe_and_valve_01 | indoor,urban,high contrast,artificial light | workshop,lamp,industrial,warehouse
+industrial_pipe_and_valve_02 | artificial light,high contrast,indoor,urban | industrial,lamp,warehouse,workshop
+industrial_wooden_attic | indoor,urban,natural light,midday,high contrast | wooden floor,rafters,machine,rustic,beam ceiling,loft,old factory,barn
+industrial_workshop_foundry | indoor,medium contrast,artificial light,natural light,urban | industrial,warehouse,workshop,machine,tools
+interior_construction | indoor,low contrast,urban,midday,natural light | bare,construction,brick,wood,chipboard,empty,backplates
+kart_club | indoor,urban,natural light,high contrast,midday | track,race,tire,warehouse,graffiti,pillar,window,concrete
+kiara_interior | indoor,urban,sunrise-sunset,medium contrast,natural light,artificial light | tile,table,fridge,window,door,glass,kitchen,lounge
+lapa | indoor,urban,medium contrast,natural light,artificial light | thatch,couch,garden,plant,gazebo
+large_corridor | indoor,urban,morning-afternoon,medium contrast,natural light | entrance,hall,arch,empty,victorian,backplates
+leadenhall_market | indoor,urban,morning-afternoon,medium contrast,natural light,artificial light | hall,mall,europe,architecture,london,cobblestone,street,road
+lebombo | indoor,urban,morning-afternoon,low contrast,natural light,artificial light | house,lamp,window,wood floor,empty
+lookout | indoor,urban,nature,medium contrast,natural light | thatch,hide,pilanesberg,window
+lythwood_lounge | indoor,urban,midday,overcast,medium contrast,natural light,artificial light | couch,warm,lounge,lamp,room
+lythwood_room | indoor,urban,midday,overcast,low contrast,natural light,artificial light | couch,bed,lamp,window,mantel,carpet,backplates
+machine_shop_01 | indoor,urban,medium contrast,natural light | workshop,hall,warehouse,industrial,machine,metal
+machine_shop_02 | indoor,urban,medium contrast,natural light | workshop,hall,warehouse,industrial,machine,metal
+machine_shop_03 | indoor,urban,morning-afternoon,medium contrast,natural light | hall,industrial,machine,warehouse,workshop
+marry_hall | studio,indoor,urban,natural light,morning-afternoon,artificial light,low contrast | curtain,couch,studio,text,window,chair,backplates
+metro_noord | indoor,urban,artificial light,night,medium contrast | train,metro,station,modern,bench,glass,architecture,empty
+metro_vijzelgracht | indoor,urban,artificial light,low contrast,night | underground,metro,train,station,platform,metal,concrete,subway
+mirrored_hall | indoor,urban,medium contrast,natural light,midday | hall,mirror,window,victorian,high ceiling,abandoned
+missile_launch_facility_01 | indoor,urban,medium contrast,natural light | tunnel,rubble,concrete,forest,arch,sand,abandoned
+modern_bathroom | indoor,midday,low contrast,natural light | contemporary,clean,white,bath,shower,toilet,basin,sink
+monkstown_castle | low contrast,indoor,outdoor,natural light,urban,morning-afternoon,partly cloudy | tunnel,shade,castle,wall,stone,medieval,arch,doorway
+monochrome_studio_01 | studio,indoor,artificial light,urban,high contrast | white,photo,lamp,umbrella,infinity,dark ceiling
+monochrome_studio_02 | studio,indoor,artificial light,urban,medium contrast | lamp,white,photo,dark ceiling,infinity,umbrella,rectangle,softbox
+monochrome_studio_03 | studio,indoor,artificial light,urban,low contrast | lamp,white,photo,dark ceiling,infinity,softbox,rectangle,diffuser
+monochrome_studio_04 | studio,indoor,artificial light,urban,medium contrast | lamp,white,photo,dark ceiling,infinity,rectangle,softbox,diffuser
+moon_lab | indoor,urban,artificial light,high contrast,studio,collection: moon | lamp,lunar,sand,simulation,science,museum,laboratory
+mosaic_tunnel | indoor,urban,medium contrast,artificial light | path,tunnel,tiles,concrete,pipe,art,fluorescent,lamp
+museum_of_ethnography | indoor,urban,medium contrast,artificial light | museum,antique,display
+music_hall_01 | indoor,urban,medium contrast,artificial light | theater,organ,chair,victorian,hall
+music_hall_02 | indoor,urban,medium contrast,artificial light,natural light | hall,empty,victorian,window,couch
+mutianyu | indoor,urban,morning-afternoon,clear,low contrast,natural light | arch,brick,window,mountain,great wall
+neon_photostudio | urban,indoor,medium contrast,artificial light,natural light,studio | fluorescent,window,wood,lamp,studio,chair,plant,backplates
+newman_cafeteria | indoor,urban,artificial light,medium contrast | lockers,fluorescent,brick,table,school,university,hallway
+newman_lobby | indoor,urban,artificial light,medium contrast | school,university,brick,concrete ceiling,doorway,table,hallway
+newman_locker_room | indoor,urban,artificial light,medium contrast | lockers,fluorescent,brick,school,university,concrete ceiling,hallway
+old_apartments_walkway | indoor,urban,midday,clear,low contrast,natural light | tree,railing,abandoned,balcony
+old_bus_depot | indoor,urban,midday,medium contrast,natural light | warehouse,industrial,concrete,abandoned,backplates
+old_depot | indoor,urban,morning-afternoon,clear,low contrast,natural light | warehouse,abandoned,industrial
+old_hall | indoor,urban,morning-afternoon,medium contrast,natural light | victorian,abandoned,empty,hall,europe,building,arch,backplates
+old_room | indoor,urban,morning-afternoon,low contrast,natural light | window,arch,fireplace,backplates
+outdoor_chapel | indoor,urban,nature,natural light,medium contrast,morning-afternoon | bench,altar,wedding,stone wall,arch,transparent roof,airy,flower decorations
+parking_garage | indoor,urban,natural light,high contrast | lamp,car,parking,road,garage,underground,backplates
+paul_lobe_haus | outdoor,indoor,urban,midday,overcast,medium contrast,natural light | architecture,berlin,germany,autumn,glass,skylight
+pav_studio_01 | studio,urban,artificial light,indoor,high contrast | white,photo,infinity,rectangle
+pav_studio_02 | studio,urban,artificial light,indoor,medium contrast,natural light | red,photo,infinity,rectangle,umbrella,softbox,window
+pav_studio_03 | studio,urban,artificial light,indoor,low contrast,natural light | white,photo,infinity,umbrella,window,rectangle,softbox
+penguin_museum | indoor,urban,artificial light,natural light,medium contrast,morning-afternoon | museum,carpet,display,fish,penguin,vaulted ceiling,wooden beams,exhibition cases
+peppermint_powerplant | indoor,urban,morning-afternoon,medium contrast,natural light | abandoned,industrial,factory,workshop
+peppermint_powerplant_2 | urban,natural light,sunrise-sunset,indoor,medium contrast | abandoned,industrial,window,workshop,tiles,machine,factory
+phone_shop | indoor,urban,medium contrast,artificial light | lamp,shop,store,display,counter
+photo_studio_01 | indoor,studio,urban,medium contrast,artificial light | lamp,photo,fluorescent,bed,white,infinity,chair,backplates
+photo_studio_broadway_hall | indoor,low contrast,natural light,overcast,urban,studio,morning-afternoon | wood,wall,chair,flash,umbrella,studio,photo,backplates
+photo_studio_loft_hall | indoor,medium contrast,urban,studio,morning-afternoon,natural light | couch,wood,sunny,apartment,backplates
+photo_studio_london_hall | indoor,natural light,urban,low contrast,midday,studio | table,couch,victorian,apartment,backplates
+pillars | indoor,urban,morning-afternoon,low contrast,natural light | column,architecture,monument
+pine_attic | indoor,artificial light,natural light,urban,medium contrast | wood,carpet,pallet,skylight,wooden ceiling,cozy,warm,backplates
+poly_haven_studio | low contrast,indoor,urban,artificial light,natural light,midday | chair,office,table,heater,cat,wooden ceiling,computer,window
+pretville_cinema | indoor,artificial light,medium contrast,urban | chair,seat,stage,cinema,theater,movie,red,piano
+provence_studio | studio,indoor,urban,artificial light,low contrast | couch,stair,door,studio,umbrella,chair,curtain,bicycle
+pump_house | indoor,urban,morning-afternoon,high contrast,natural light | brick,pump,dirt,pipe,shed,window
+reading_room | indoor,urban,morning-afternoon,medium contrast,natural light | chair,couch,window,door,tile
+reinforced_concrete_01 | outdoor,indoor,urban,sunrise-sunset,clear,medium contrast,natural light | tree,sun,grass,concrete,rubble,ruin,warehouse,industrial
+relax_inn_seaview_suite | indoor,urban,natural light,artificial light,medium contrast,midday,morning-afternoon | hotel,bed,bedroom,window,clock,table,balcony,sliding glass door
+rostock_arches | indoor,artificial light,night,urban,low contrast | europe,architecture,germany,street,restaurant,city,square,building
+rostock_laage_airport | indoor,low contrast,natural light,artificial light,urban | airport,hall,warehouse,high ceiling,tiles,europe,building,aviation
+royal_esplanade | indoor,urban,high contrast,artificial light | mall,cruise,screen,balcony,stair,tile
+school_hall | indoor,natural light,artificial light,urban,medium contrast,morning-afternoon | school,stage,hall,wood,wooden floor,curtain
+school_quad | indoor,urban,natural light,artificial light,medium contrast,morning-afternoon | concrete,pavers,covered,hall,square,campus,school,symmetrical
+sculpture_exhibition | indoor,urban,medium contrast,artificial light | horse,art,exhibition,museum
+sepulchral_chapel_basement | indoor,urban,medium contrast,natural light,artificial light | tiles,architecture,dome,circular
+sepulchral_chapel_rotunda | indoor,urban,medium contrast,natural light | tiles,architecture,roman,hall,dome,pantheon,circular
+short_tunnel | indoor,urban,midday,overcast,medium contrast,natural light | tunnel,road,street,concrete,underpass,backplates
+skylit_garage | indoor,urban,medium contrast,natural light | road,parking,pillar,backplates
+small_cathedral | indoor,urban,low contrast,natural light | church,chapel,carpet,painting,religion,backplates
+small_cathedral_02 | outdoor,urban,sunrise-sunset,partly cloudy,medium contrast,natural light,indoor | sun,europe,architecture,arch,church,tree,cobblestone,brick
+small_cave | indoor,nature,morning-afternoon,medium contrast,natural light | cave,forest,rock
+small_empty_house | indoor,urban,morning-afternoon,medium contrast,natural light | house,tile,lamp,door
+small_empty_room_1 | indoor,urban,natural light,medium contrast,midday | room,empty,office,door,window,curtain,wooden floor
+small_empty_room_2 | indoor,urban,artificial light,medium contrast,night | room,empty,office,door,curtain,wooden floor,led panel,wallpaper
+small_empty_room_3 | indoor,urban,artificial light,medium contrast,morning-afternoon | room,empty,office,door,curtain,wooden floor,led panel
+small_empty_room_4 | indoor,urban,natural light,medium contrast,midday | room,empty,office,door,window,curtain,wooden floor,wallpaper
+small_hangar_01 | indoor,urban,morning-afternoon,low contrast,natural light | hangar,plane,industrial,warehouse
+small_hangar_02 | indoor,urban,morning-afternoon,medium contrast,natural light | hangar,plane,industrial,europe
+small_workshop | artificial light,natural light,indoor,urban,low contrast,medium contrast,morning-afternoon | workshop,machine,fluorescent,lamp,table,tablesaw,concrete,tools
+smelting_tower_interior | natural light,indoor,urban,high contrast | stone tower,rock,arched doorway,historical,abandoned,ruin,rubble,weathered
+solitude_interior | indoor,medium contrast,urban,natural light,morning-afternoon | architecture,europe,building,column,pillar,arch,victorian,backplates
+squash_court | indoor,artificial light,urban,medium contrast | sport,court,lines,ball game,arena,wooden floor,rafters
+st_fagans_interior | indoor,urban,low contrast,artificial light | bench,couch,lobby,modern,museum,stairs,wooden floor
+storeroom | indoor,urban,high contrast,artificial light | mess,junk,fluorescent
+story_studio_01 | studio,indoor,artificial light,urban,natural light,medium contrast | umbrella,softbox,infinity,window,lamp,white,photo
+story_studio_02 | studio,indoor,artificial light,urban,medium contrast | umbrella,softbox,infinity,lamp,white,photo
+story_studio_03 | studio,indoor,artificial light,urban,medium contrast | umbrella,softbox,infinity,lamp,white,photo
+story_studio_04 | studio,indoor,artificial light,urban,medium contrast | umbrella,softbox,infinity,lamp,white,photo
+story_studio_05 | studio,indoor,artificial light,urban,high contrast | umbrella,softbox,infinity,lamp,white,overhead,photo
+studio_country_hall | indoor,medium contrast,urban,studio,morning-afternoon,natural light | studio,wood,rustic,kitchen,chair,ladder,carpet,backplates
+studio_kominka_01 | studio,indoor,artificial light,urban,high contrast | infinity,lamp,white,rectangle,overhead,umbrella,reflector,photo
+studio_kominka_02 | studio,indoor,artificial light,urban,medium contrast | infinity,lamp,white,umbrella,overhead,rectangle,photo
+studio_kominka_03 | studio,indoor,artificial light,urban,low contrast | infinity,lamp,white,umbrella,reflector,photo
+studio_kominka_04 | studio,indoor,artificial light,urban,medium contrast | infinity,lamp,white,umbrella,photo
+studio_kontrast_01 | studio,urban,artificial light,indoor,medium contrast | infinity,lamp,white,umbrella,warm,photo
+studio_kontrast_02 | studio,urban,artificial light,indoor,low contrast | infinity,lamp,white,umbrella,rectangle,softbox,photo
+studio_kontrast_03 | studio,urban,artificial light,indoor,medium contrast | infinity,lamp,white,rectangle,softbox,photo
+studio_kontrast_04 | studio,urban,artificial light,indoor,low contrast | infinity,lamp,white,rectangle,softbox,photo
+studio_small_01 | indoor,urban,studio,high contrast,artificial light | lamp,studio,photo
+studio_small_02 | indoor,urban,studio,high contrast,artificial light | lamp,studio,photo
+studio_small_03 | indoor,urban,studio,high contrast,artificial light | lamp,studio,photo,umbrella
+studio_small_04 | indoor,studio,urban,high contrast,artificial light | lamp,studio,photo
+studio_small_05 | indoor,urban,studio,high contrast,artificial light | lamp,studio,photo,reflector,dish
+studio_small_06 | indoor,urban,studio,high contrast,artificial light | lamp,studio,photo
+studio_small_07 | indoor,studio,urban,high contrast,artificial light | lamp,photo,studio,single
+studio_small_08 | low contrast,indoor,urban,artificial light,studio | umbrella,softbox,infinity,lamp,studio,photo
+studio_small_09 | medium contrast,indoor,urban,artificial light,studio | umbrella,softbox,infinity,lamp,studio,photo
+studio_wizja_01 | studio,artificial light,urban,indoor,medium contrast | photo,infinity,white,lamp,umbrella,rectangle,softbox
+studio_wizja_02 | studio,artificial light,urban,indoor,medium contrast | photo,infinity,white,lamp,umbrella,rectangle,softbox
+studio_wizja_03 | studio,artificial light,urban,indoor,medium contrast | photo,infinity,white,lamp,rectangle
+subway_entrance | indoor,urban,midday,medium contrast,artificial light | tile,fluorescent,stair,map,tunnel,station,escalator
+sundowner_deck | indoor,outdoor,natural light,medium contrast,morning-afternoon | patio,restaurant,table,chair,cafe,sea view,ocean,wooden deck
+surgery | indoor,urban,medium contrast,artificial light | bed,table,hospital,lamp,medical,operation
+teufelsberg_inner | indoor,urban,midday,overcast,medium contrast,natural light | abandoned,graffiti,art,industrial
+teufelsberg_lookout | indoor,urban,morning-afternoon,partly cloudy,medium contrast,natural light | graffiti,abandoned,art,pallet,industrial,forest,view
+thatch_chapel | artificial light,indoor,urban,high contrast,morning-afternoon | room,thatch,windows,door,basket,table,chapel
+theater_01 | indoor,urban,medium contrast,artificial light | theater,theatre,seat,orchestra,stage,curtain
+theater_02 | indoor,urban,medium contrast,artificial light | theater,theatre,seat,orchestra,stage,curtain
+trekker_monument | natural light,indoor,urban,medium contrast,overcast,midday | concrete,monument,symmetrical,circular,skylight
+tv_studio | indoor,urban,high contrast,artificial light | camera,studio,set,news,show
+unfinished_office | natural light,indoor,urban,morning-afternoon,low contrast | room,empty,construction,office,door,white
+unfinished_office_night | artificial light,urban,night,indoor,medium contrast | room,empty,construction,office,door,white
+university_workshop | indoor,urban,natural light,medium contrast,midday | machine,workshop,tools,carpentry,workbench,spacious,industrial,concrete floor
+ushaka_sea_world_aquarium | indoor,urban,artificial light,medium contrast | aquarium,water,window,tank,wooden floor,wooden ceiling,wooden beams,pirate
+veranda | indoor,outdoor,urban,morning-afternoon,medium contrast,natural light | table,tile,brick,patio,veranda,porch
+vestibule | indoor,natural light,medium contrast,urban | wooden floor,victorian,high ceiling,arch,architecture,europe,building,pillar
+vintage_measuring_lab | indoor,urban,medium contrast,natural light,artificial light | machine,industrial,workshop,laboratory
+voortrekker_interior | indoor,urban,natural light,medium contrast,low contrast,morning-afternoon | arch,architecture,tile,window,door,museum,sculpture
+vulture_hide | indoor,urban,medium contrast,natural light | hide,bench,brick,window
+warm_bar | indoor,urban,artificial light,night,medium contrast | pub,bar,stool,bench,counter,fridge,bottle,rafters
+warm_reception_dinner | indoor,artificial light,urban,medium contrast,morning-afternoon | lamp,windows,table,chair,chandelier,fireplace,barn door,concrete floor
+warm_restaurant | indoor,medium contrast,natural light,urban,morning-afternoon | window,table,restaurant,chair,tiles,bench,animal skin,rafters
+warm_restaurant_night | indoor,urban,artificial light,night,medium contrast | restaurant,seat,chair,bench,animal skin,dining,rafters,window
+whale_skeleton | indoor,urban,medium contrast,artificial light | museum,bone,whale,skeleton
+white_chapel | indoor,urban,natural light,medium contrast,midday | church,wedding,thatch,vaulted ceiling,religion,chapel,round window,symmetrical
+white_home_studio | studio,indoor,artificial light,urban,high contrast,medium contrast | lamp,white,photo,softbox,umbrella,rectangle,infinity
+white_studio_01 | studio,indoor,artificial light,urban,medium contrast | lamp,white,photo,infinity,umbrella,high ceiling
+white_studio_02 | studio,indoor,artificial light,urban,low contrast | lamp,white,photo,infinity,umbrella,high ceiling,grid,dark ceiling
+white_studio_03 | studio,indoor,artificial light,urban,medium contrast | lamp,white,photo,infinity,umbrella,high ceiling,grid,dark ceiling
+white_studio_04 | studio,indoor,artificial light,urban,low contrast | lamp,white,photo,infinity,dark ceiling,umbrella,soft,high ceiling
+white_studio_05 | studio,indoor,artificial light,urban,low contrast | lamp,white,photo,infinity,high ceiling,soft,umbrella
+white_studio_06 | studio,indoor,urban,low contrast,natural light | white,photo,infinity,high ceiling,soft,skylight
+witsand_woolshop | indoor,urban,natural light,artificial light,medium contrast,morning-afternoon | shop,table,wool,wood,yarn,spinning wheel,crochet,fabric
+wooden_lounge | indoor,urban,high contrast,artificial light | couch,wood,lamp,table
+wooden_studio_01 | studio,indoor,artificial light,urban,medium contrast | lamp,photo,rectangle,wooden ceiling,wood,black floor
+wooden_studio_02 | studio,indoor,artificial light,urban,medium contrast | lamp,photo,rectangle,wooden ceiling,wood,black floor,softbox
+wooden_studio_03 | studio,indoor,artificial light,urban,medium contrast | umbrella,lamp,photo,rectangle,wooden ceiling,wood,black floor,softbox
+wooden_studio_04 | studio,artificial light,indoor,urban,low contrast | umbrella,lamp,photo,rectangle,wooden ceiling,wood,black floor,softbox
+wooden_studio_05 | studio,indoor,artificial light,urban,low contrast | lamp,photo,rectangle,wooden ceiling,wood,black floor,softbox,soft
+wooden_studio_06 | studio,indoor,artificial light,urban,medium contrast | lamp,photo,rectangle,wooden ceiling,wood,black floor,softbox
+wooden_studio_07 | studio,indoor,artificial light,urban,medium contrast,high contrast | red,lamp,photo,rectangle,wooden ceiling,wood,black floor
+wooden_studio_08 | studio,indoor,artificial light,urban,medium contrast,high contrast | lamp,photo,rectangle,wooden ceiling,wood,black floor
+wooden_studio_09 | studio,indoor,artificial light,urban,high contrast | black floor,led panel,rectangle,lamp,blue,red,teal,wooden ceiling
+wooden_studio_10 | studio,indoor,artificial light,urban,high contrast | black floor,wooden ceiling,led panel,rectangle,blue,pink,orange,softbox
+wooden_studio_11 | studio,indoor,artificial light,urban,high contrast | wooden ceiling,rectangle,diffuser,black floor,lamp,blue,orange,softbox
+wooden_studio_12 | studio,indoor,artificial light,urban,medium contrast | wooden ceiling,diffuser,black floor,lamp,pink,yellow,photo
+wooden_studio_13 | studio,indoor,artificial light,urban,high contrast | wooden ceiling,umbrella,diffuser,pink,green,black floor,lamp,photo
+wooden_studio_14 | studio,indoor,artificial light,urban,high contrast | wooden ceiling,black floor,lamp,red,green,blue,led panel,photo
+wooden_studio_15 | studio,indoor,artificial light,urban,high contrast,medium contrast | black floor,lamp,softbox,soft,white,photo
+wooden_studio_16 | studio,indoor,artificial light,urban,medium contrast | black floor,lamp,softbox,soft,white,photo
+wooden_studio_17 | studio,indoor,artificial light,urban,medium contrast,low contrast | black floor,lamp,softbox,soft,white,photo
+wooden_studio_18 | studio,indoor,artificial light,urban,low contrast | wooden ceiling,black floor,lamp,white,umbrella,photo
+wooden_studio_19 | studio,indoor,artificial light,urban,low contrast | black floor,lamp,softbox,soft,white,rectangle,photo
+workshop | indoor,high contrast,artificial light,urban | fluorescent,lamp,table,workshop,machine,tools,concrete,mess
+wrestling_gym | indoor,urban,natural light,low contrast,midday,morning-afternoon | gym,exercise,mat,windows,empty,hall,fitness,backplates
+yaris_interior_garage | indoor,urban,midday,medium contrast,natural light,artificial light | car,driver,seat,garage
+yoga_room | indoor,urban,artificial light,medium contrast | mirror,gym,wooden floor,window,high ceiling,backplates
+zwartkops_pit | outdoor,indoor,natural light,medium contrast,urban,midday | race,track,pit,parking,concrete,covered,barrier,pillar
