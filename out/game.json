@@ -1,0 +1,109 @@
+{
+ "keys": [
+  "lineTypesIds",
+  "id",
+  "sportId",
+  "competitionId",
+  "statusId",
+  "seasonNum",
+  "stageNum",
+  "roundNum",
+  "roundName",
+  "stageName",
+  "competitionDisplayName",
+  "startTime",
+  "statusGroup",
+  "statusText",
+  "shortStatusText",
+  "gameTimeAndStatusDisplayType",
+  "justEnded",
+  "gameTime",
+  "gameTimeDisplay",
+  "preciseGameTime",
+  "winDescription",
+  "homeCompetitor",
+  "awayCompetitor",
+  "stages",
+  "events",
+  "bestOdds",
+  "hasBetsTeaser",
+  "isHomeAwayInverted",
+  "hasStats",
+  "hasStandings",
+  "standingsName",
+  "hasBrackets",
+  "hasPreviousMeetings",
+  "hasRecentMatches",
+  "hasBets",
+  "hasPlayerBets",
+  "hasPointByPoint",
+  "venue",
+  "members",
+  "promotedPredictions",
+  "gameStageHasTable",
+  "hasTrends",
+  "hasTopTrends"
+ ],
+ "events": [
+  {
+   "competitorId": 2370,
+   "statusId": 6,
+   "stageId": 7,
+   "order": 1,
+   "num": 1,
+   "gameTime": 6.0,
+   "addedTime": 0,
+   "gameTimeDisplay": "6'",
+   "gameTimeAndStatusDisplayType": 2,
+   "playerId": 2992367,
+   "isMajor": true,
+   "eventType": {
+    "id": 1,
+    "name": "Goal",
+    "subTypeId": 1,
+    "subTypeName": "Field Goal"
+   }
+  },
+  {
+   "competitorId": 51307,
+   "statusId": 6,
+   "stageId": 7,
+   "order": 2,
+   "num": 2,
+   "gameTime": 28.0,
+   "addedTime": 0,
+   "gameTimeDisplay": "28'",
+   "gameTimeAndStatusDisplayType": 2,
+   "playerId": 79665345,
+   "isMajor": true,
+   "eventType": {
+    "id": 1,
+    "name": "Goal",
+    "subTypeId": 2,
+    "subTypeName": "Own Goal"
+   }
+  }
+ ],
+ "members_sample": [
+  {
+   "competitorId": 2370,
+   "id": 2992367,
+   "athleteId": 48200,
+   "name": "Dalberto",
+   "nameForURL": "dalberto",
+   "createdAt": "2016-03-05T22:09:00.693Z"
+  },
+  {
+   "competitorId": 51307,
+   "id": 79665345,
+   "name": "Faris Izdiham",
+   "nameForURL": "faris-izdiham"
+  }
+ ],
+ "home": 2370,
+ "away": 51307,
+ "score": [
+  1.0,
+  1.0
+ ]
+}
