@@ -139,32 +139,75 @@ export class Sports {
 }
 
 // The live island: a small pill at the top of your view while your team plays.
+// The top bar, pinned like the clock: every live match of your teams (up to 3, one under the other) and the next
+// adhan / iqamah / reminder with its countdown (from the DriveCast server).
+const ROWS = 4, ROW_H = 0.075;
 class Island {
   constructor(sports) {
     this.sports = sports;
-    this.panel = new CanvasPanel(0.62, 0.075, (ctx, W, H) => this.draw(ctx, W, H), { pxPerM: 1500 });
+    this.panel = new CanvasPanel(0.62, ROW_H * ROWS, (ctx, W, H) => this.draw(ctx, W, H), { pxPerM: 1500 });
     this.panel.mesh.userData.interact = null;
     this.panel.mesh.material.depthTest = false;
     this.panel.mesh.renderOrder = 998;
     this.mesh = this.panel.mesh; this.mesh.visible = false;
-    this.idx = 0; this.flip = 0;
+    this.events = []; this.evAt = 0;
   }
   redraw() { this.panel.redraw(); }
+  async loadEvents() {
+    this.evAt = Date.now();
+    try {
+      const r = await fetch('https://studio.c-p.workers.dev/events', { cache: 'no-store' });
+      const d = r.ok && await r.json();
+      if (d && Array.isArray(d.events)) { this.events = d.events; this.redraw(); }
+    } catch (e) {}
+  }
+  nextEvent() { const now = Date.now(); return this.events.find(e => e.at > now - 30000); }
+  rows() {
+    const live = this.sports.liveMine().slice(0, ROWS - 1);
+    const ev = settings.prayerBar !== false ? this.nextEvent() : null;
+    return { live, ev };
+  }
   draw(ctx, W, H) {
-    const live = this.sports.liveMine(); if (!live.length) return;
-    const m = live[this.idx % live.length];
-    // The APK's island: black glass pill, red minute badge, round logos, the score glowing emerald.
-    const h = H * 0.8, w = Math.min(W - 8, islandWidth(ctx, m, h, true));
-    drawIsland(ctx, (W - w) / 2, (H - h) / 2, w, h, m, performance.now(), { fav: true, expanded: true });
+    const { live, ev } = this.rows(), rh = H / ROWS, h = rh * 0.8;
+    let y = 0;
+    for (const m of live) {
+      const w = Math.min(W - 8, islandWidth(ctx, m, h, true));
+      drawIsland(ctx, (W - w) / 2, y + (rh - h) / 2, w, h, m, performance.now(), { fav: true, expanded: true });
+      y += rh;
+    }
+    if (ev) drawEvent(ctx, W, y + (rh - h) / 2, h, ev);
   }
   update(now, Q) {
-    const on = settings.island !== false && this.sports.liveMine().length > 0 && this.sports.app.active && !this.sports.goal.active;
+    if (now - this.evAt > 10 * 60e3) this.loadEvents();   // the list is today's + tomorrow's: refreshed every 10 min
+    const { live, ev } = this.rows();
+    const on = settings.island !== false && (live.length > 0 || !!ev) && this.sports.app.active && !this.sports.goal.active;
     this.mesh.visible = on; if (!on) return;
-    if (now - this.flip > 6000) { this.flip = now; this.idx++; }
-    if (now - (this.drawn || 0) > 90) { this.drawn = now; this.panel.redraw(); }   // the score breathes
-    this.mesh.position.set(0, 0.36, -1.15).applyQuaternion(Q);
+    const every = live.length ? 90 : 1000;   // the score breathes; the countdown ticks each second
+    if (now - (this.drawn || 0) > every) { this.drawn = now; this.panel.redraw(); }
+    // the first row sits where the single island was; more rows go downwards
+    this.mesh.position.set(0, 0.36 - ROW_H * (ROWS - 1) / 2, -1.15).applyQuaternion(Q);
     this.mesh.quaternion.copy(Q);
   }
+}
+
+// adhan (blue) / iqamah, reminder (green): name, then a big countdown
+function drawEvent(ctx, W, y, h, e) {
+  const col = e.kind === 'azan' ? '#60a5fa' : '#34d399';
+  const left = Math.max(0, e.at - Date.now()), s = Math.floor(left / 1000);
+  const hh = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60, ss = s % 60, p2 = n => String(n).padStart(2, '0');
+  const t = left <= 0 ? 'الآن' : hh ? `${hh}:${p2(mm)}:${p2(ss)}` : `${p2(mm)}:${p2(ss)}`;
+  ctx.font = `800 ${h * 0.4}px "Thmanyah Sans", system-ui, sans-serif`; const tw = ctx.measureText(e.title).width;
+  ctx.font = `900 ${h * 0.6}px system-ui, sans-serif`; const cw = ctx.measureText(t).width;
+  const w = Math.min(W - 8, h * 0.9 + tw + cw + h * 1.1), x = (W - w) / 2, r = h / 2;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fillStyle = 'rgba(0,0,0,0.92)'; ctx.fill();
+  ctx.strokeStyle = col + '66'; ctx.lineWidth = h * 0.04; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + r, y + r, h * 0.2, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+  ctx.textBaseline = 'middle'; ctx.direction = 'rtl'; ctx.textAlign = 'right';
+  ctx.font = `800 ${h * 0.4}px "Thmanyah Sans", system-ui, sans-serif`; ctx.fillStyle = '#fff';
+  ctx.fillText(e.title, x + w - r * 0.8, y + h / 2);
+  ctx.direction = 'ltr'; ctx.textAlign = 'center'; ctx.font = `900 ${h * 0.6}px system-ui, sans-serif`;
+  ctx.shadowColor = col; ctx.shadowBlur = h * 0.25; ctx.fillStyle = col;
+  ctx.fillText(t, x + r * 1.6 + cw / 2, y + h / 2 + h * 0.03); ctx.shadowBlur = 0;
 }
 
 // The goal celebration, exactly like the APK: the pill grows into a card, colour wipe, GOAAAL!, then the score
