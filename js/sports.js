@@ -84,10 +84,12 @@ export class Sports {
     const teams = this.teams().map(t => t.name + (t.country ? '~' + t.country : '')).join('|');
     try {
       try {   // our server: one small ready file
-        const r = await fetch('https://studio.c-p.workers.dev/matches?lang=27', { cache: 'no-store' });
+        const r = await fetch('https://studio.c-p.workers.dev/now?lang=27', { cache: 'no-store' });   // matches + scorers + prayers, one request
         const d = r.ok && await r.json();
         if (d && Array.isArray(d.matches) && d.teams?.length) {
           if (JSON.stringify(d.teams.map(t => t.id)) !== JSON.stringify(this.teams().map(t => t.id))) { saveSettings({ myTeams: d.teams }); this.app.renderTeams?.(); }
+          this.goals = d.goals || {};
+          if (Array.isArray(d.events) && d.events.length) { this.island.events = d.events; this.island.evAt = Date.now(); }
           this.checkGoals(d.matches); this.data = d; this.version++; this.error = null; this.island.redraw(); return;
         }
       } catch (e) {}
@@ -118,7 +120,9 @@ export class Sports {
       if (prev != null && s > prev && m.status === 'live' && (this.mine(m) || settings.allGoals)) {
         const prevM = this.prevById?.get(k);
         const side = prevM && (m.score.away ?? 0) > (prevM.score.away ?? 0) ? 'away' : 'home';
-        this.goal.show({ home: m.home.name, away: m.away.name, homeLogo: m.home.logo, awayLogo: m.away.logo, sh: m.score.home ?? 0, sa: m.score.away ?? 0, side, league: m.league?.name || '', minute: m.elapsed ? "د" + m.elapsed : '' });
+        const last = [...(this.goals?.[m.id] || [])].reverse().find(g => g.side === side);
+        const scorer = last ? last.player + (last.type === 'own' ? ' (عكسي)' : last.type === 'penalty' ? ' (جزاء)' : '') : '';
+        this.goal.show({ home: m.home.name, away: m.away.name, homeLogo: m.home.logo, awayLogo: m.away.logo, sh: m.score.home ?? 0, sa: m.score.away ?? 0, side, league: m.league?.name || '', minute: last?.minute || (m.elapsed ? "د" + m.elapsed : ''), scorer });
         blip('open', true); this.app.controls?.rumbleAll?.(0.6, 300);
         this.app.log('هدف: ' + m.home.name + ' ' + m.score.home + '-' + m.score.away + ' ' + m.away.name);
       }
