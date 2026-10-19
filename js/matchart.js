@@ -259,3 +259,32 @@ export function drawClock(ctx, W, H, now = new Date()) {
   glassText(ctx, s, W / 2, H / 2, f, a(WHITE, 0.6), a(WHITE, 0.12));
   ctx.font = f; ctx.lineWidth = Math.max(1, H / 90); ctx.strokeStyle = a(WHITE, 0.22); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeText(s, W / 2, H / 2);
 }
+
+// ---------- the sports-mode scoreboard: no names, big logos, a huge score and minute ----------
+export function drawScoreboard(ctx, W, H, list, { empty = 'لا مباريات لفرقك الآن' } = {}) {
+  ctx.clearRect(0, 0, W, H);
+  const rad = W * 0.06;
+  fill(ctx, 0, 0, W, H, rad, 'rgba(4,4,6,0.96)');
+  stroke(ctx, 0, 0, W, H, rad, a(WHITE, 0.1), Math.max(1, H / 300));
+  if (!list.length) { centerText(ctx, empty, W / 2, H / 2, font(800, W * 0.06), a(WHITE, 0.4)); return; }
+  const n = Math.min(list.length, 5), pad = W * 0.04, rowH = (H - pad * 2) / Math.max(n, 3), gap = rowH * 0.09;
+  list.slice(0, n).forEach((m, i) => {
+    const y0 = pad + i * rowH + gap / 2, h = rowH - gap, cy = y0 + h / 2, x0 = pad, w = W - pad * 2;
+    const live = m.status === 'live', fin = m.status === 'finished', fav = !!m.favorite;
+    if (live && fav) { glow(ctx, x0, y0, w, h, h * 0.3, 'rgba(250,204,21,0.25)', h * 0.15); fill(ctx, x0, y0, w, h, h * 0.3, '#0a0a0c'); stroke(ctx, x0, y0, w, h, h * 0.3, a(YELLOW, 0.65), Math.max(2, h / 40)); }
+    else { fill(ctx, x0, y0, w, h, h * 0.3, a(WHITE, live ? 0.07 : 0.04)); stroke(ctx, x0, y0, w, h, h * 0.3, a(WHITE, 0.08), Math.max(1, h / 60)); }
+    // logos as big as the row allows, at the two ends
+    const lr = h * 0.42;
+    plate(ctx, logoImg(m.home.logo), x0 + h * 0.08 + lr, cy - h * 0.02, lr, m.home.name);
+    plate(ctx, logoImg(m.away.logo), x0 + w - h * 0.08 - lr, cy - h * 0.02, lr, m.away.name);
+    const mid = x0 + w / 2;
+    if (live || fin) {
+      const sf = font(900, h * 0.62);
+      scorePieces(ctx, String(m.score.home ?? 0), String(m.score.away ?? 0), mid, cy - h * 0.1, sf, live ? EMERALD : a(WHITE, 0.9), live ? a(EMERALD, 0.6) : a(WHITE, 0.35));
+      if (live) { const s = minuteText(m), bh = h * 0.27; minuteBadge(ctx, s, mid, cy + h * 0.3, bh); }
+      else centerText(ctx, 'انتهت', mid, cy + h * 0.32, font(800, h * 0.18), a(WHITE, 0.45));
+    } else {
+      centerText(ctx, to12h(m.omanTime), mid, cy, font(900, h * 0.38), a(WHITE, 0.75));
+    }
+  });
+}

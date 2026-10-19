@@ -50,7 +50,9 @@ export const DEFAULTS = {
   gazeModel: null,      // eye calibration result
   viewMode: 'sbs',      // 'sbs' = headset (two eyes), 'mono' = phone full screen with on-screen controls
   walk: false,          // experimental 6DoF walking
-  walkScale: 1.5,       // metres per SLAM unit (monocular SLAM has no absolute scale)
+  walkScale: 1.5,
+  lite: false,          // light mode: everything lighter (30 fps, slower hands, no room shadows/SLAM) but the windows stay at top quality
+  sportsMode: false,    // sports mode: the match site + the big scoreboard + big islands under the clock       // metres per SLAM unit (monocular SLAM has no absolute scale)
   v: 4,
 };
 

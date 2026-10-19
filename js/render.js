@@ -186,8 +186,9 @@ export class StereoRenderer {
     const cssSize = 2 * TAN_MAX * settings.screenToLens * px;
     // Match the screen's pixel density at the lens centre (1:1), within memory limits.
     // Leave memory for web pages when one is open; cool mode renders a little lighter to keep the iPhone cool.
-    const cap = this.cssCount > 0 ? 1280 : settings.coolMax ? 1216 : settings.cool ? 1408 : 1664;
-    this.quality = this.quality || 1;
+    // light mode: the rest is lightened elsewhere, the windows keep the full resolution (no adaptive drop)
+    const cap = settings.lite ? (this.cssCount > 0 ? 1536 : 1664) : this.cssCount > 0 ? 1280 : settings.coolMax ? 1216 : settings.cool ? 1408 : 1664;
+    this.quality = settings.lite ? 1 : this.quality || 1;
     const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr * this.quality / 64) * 64, 896, cap);
     if (want !== this.rtSize) this.makeTargets(want);
     this.layoutCss();
@@ -313,6 +314,7 @@ export class StereoRenderer {
 
   // Dynamic resolution: drop render size a little only while frames run slow, restore when smooth.
   adapt(dt) {
+    if (settings.lite) return;
     this.ft = this.ft ? this.ft * 0.95 + dt * 0.05 : dt;
     const now = performance.now();
     if (now - (this.lastAdapt || 0) < 2500) return;

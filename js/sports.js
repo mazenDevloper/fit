@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CanvasPanel, glass, text, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
-import { drawIsland, islandWidth, drawWidget, drawGoal, goalDuration, drawClock, setLogoListener } from './matchart.js';
+import { drawIsland, islandWidth, drawWidget, drawGoal, goalDuration, drawClock, setLogoListener, drawScoreboard } from './matchart.js';
 
 export const SPORTS_ORIGIN = 'https://drivecast.c-p.workers.dev';
 const MADAR = location.origin;
@@ -134,7 +134,8 @@ export class Sports {
   update(now, Q) {
     if (!this.app.active) return;
     const live = this.liveMine().length > 0;
-    const every = live ? 10000 : (this.app.windows.windows.some(w => w.panelKind === 'matches') || settings.island !== false) ? 120000 : 0;
+    const board = this.app.windows.windows.some(w => w.panelKind === 'matches' || w.panelKind === 'scoreboard');
+    const every = live || (settings.sportsMode && this.data?.matches?.some(m => m.status === 'live')) ? 5000 : (board || settings.island !== false) ? 60000 : 0;
     if (every && now - this.timer > every) { this.timer = now; this.refresh(true); }
     this.island.update(now, Q);
     this.goal.update(now, Q);
@@ -167,7 +168,9 @@ class Island {
   }
   nextEvent() { const now = Date.now(); return (this.events || []).find(e => e.at > now - 30000); }
   rows() {
-    const live = this.sports.liveMine().slice(0, ROWS - 1);
+    // sports mode: only the matches of the teams you marked for the island, bigger
+    const pool = settings.sportsMode ? this.sports.liveMine().filter(m => m.favorite) : this.sports.liveMine();
+    const live = pool.slice(0, ROWS - 1);
     const ev = settings.prayerBar !== false ? this.nextEvent() : null;
     return { live, ev };
   }
@@ -186,10 +189,12 @@ class Island {
     const { live, ev } = this.rows();
     const on = settings.island !== false && (live.length > 0 || !!ev) && this.sports.app.active && !this.sports.goal.active;
     this.mesh.visible = on; if (!on) return;
-    const every = live.length ? 90 : 1000;   // the score breathes; the countdown ticks each second
+    const every = settings.lite ? 1000 : live.length ? 90 : 1000;   // the score breathes; the countdown ticks each second
     if (now - (this.drawn || 0) > every) { this.drawn = now; this.panel.redraw(); }
-    // the first row sits where the single island was; more rows go downwards
-    this.mesh.position.set(0, 0.36 - ROW_H * (ROWS - 1) / 2, -1.15).applyQuaternion(Q);
+    // the first row sits right under the clock; more rows go downwards (bigger in sports mode)
+    const k = settings.sportsMode ? 1.4 : 1;
+    this.mesh.scale.setScalar(k);
+    this.mesh.position.set(0, 0.405 - ROW_H * k / 2 - ROW_H * k * (ROWS - 1) / 2, -1.15).applyQuaternion(Q);
     this.mesh.quaternion.copy(Q);
   }
 }
@@ -259,4 +264,12 @@ export function drawMatches(ctx, W, H, sports) {
   const list = [...d.matches].sort((a, b) => (sports.mine(b) - sports.mine(a)) || ((b.status === 'live') - (a.status === 'live')) || a.timestamp - b.timestamp);
   ctx.clearRect(0, 0, W, H);
   drawWidget(ctx, W, H, list, { heading: mine ? 'مباريات فرقي ⚽' : 'المباريات ⚽', favOf: m => sports.mine(m) });
+}
+
+// The sports-mode scoreboard: live first (your island teams first among them), then coming, then finished.
+export function drawBoard(ctx, W, H, sports) {
+  const d = sports?.data;
+  const rank = m => (m.status === 'live' ? 0 : m.status === 'upcoming' ? 2 : 3) - (m.favorite ? 0.5 : 0);
+  const list = d ? [...d.matches].filter(m => sports.mine(m)).sort((a, b) => rank(a) - rank(b) || a.timestamp - b.timestamp) : [];
+  drawScoreboard(ctx, W, H, list, { empty: d ? 'لا مباريات لفرقك الآن' : (sports?.error || 'جاري التحميل…') });
 }

@@ -1,5 +1,5 @@
 // Offline cache: network-first for the app shell (so updates arrive), cache-first for heavy libraries and assets.
-const VERSION = 'madar-v68';
+const VERSION = 'madar-v69';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'apple-touch-icon.png',
   'js/app.js', 'js/config.js', 'js/db.js', 'js/orient.js', 'js/render.js', 'js/hands.js', 'js/ui.js', 'js/windows.js', 'js/models.js', 'js/panels.js', 'js/interaction.js', 'js/controls.js', 'js/slam.js', 'js/gaze.js', 'js/envs.js', 'js/rooms.js', 'js/mirror.js', 'js/lens.js', 'js/devices.js', 'tv.html', 'emu.html', 'js/sports.js', 'js/games.js', 'js/room.js', 'js/matchart.js', 'js/native.js',
   'lib/three/three.module.js', 'assets/sample.mp4'];

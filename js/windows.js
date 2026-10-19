@@ -6,7 +6,7 @@ import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem, importFiles } from './db.js';
 import { settings, saveSettings, loadLinks, saveLinks } from './config.js';
 import { CSS_K, EYE } from './render.js';
-import { drawMatches } from './sports.js';
+import { drawMatches , drawBoard } from './sports.js';
 import { BalloonGame } from './games.js';
 
 const BROWSE_ORIGIN = 'https://drivecast.c-p.workers.dev';
@@ -499,7 +499,7 @@ export class VideoWindow extends SpatialWindow {
         { icon: 'chevR', action: () => this.key('back') },
         { icon: 'chevL', action: () => this.remote.send({ type: 'input', a: 'forward' }) },
         { icon: 'reload', action: () => this.remote.send({ type: 'input', a: 'reload' }) },
-        { icon: 'keyboard', action: () => this.mgr.openKeyboard(this.pageUrl) },
+        { icon: 'keyboard', action: () => this.mgr.openKeyboardFor(this, false) },   // types into the page's field (the address bar opens the URL keyboard)
         { icon: 'enter', action: () => this.key('enter') },
         { icon: () => this.proj === '360' ? 'image' : 'globe', action: () => { this.setProjection(this.proj === '360' ? 'flat' : '360'); } },
         { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
@@ -519,7 +519,7 @@ export class VideoWindow extends SpatialWindow {
       this.toolbar = new Toolbar([
         { icon: 'chevR', action: () => this.key('back') },
         { icon: 'home', action: () => this.key('home') },
-        { icon: 'keyboard', action: () => this.mgr.openKeyboard() },
+        { icon: 'keyboard', action: () => this.mgr.openKeyboardFor(this, false) },
         { icon: 'enter', action: () => this.key('enter') },
         { icon: 'sliders', action: () => this.togglePicture() },
         { icon: () => this.headLock ? 'target' : 'grid', action: () => { this.headLock = !this.headLock; this.mgr.app.toast(this.headLock ? 'الشاشة مثبتة أمام عينيك وتتبع رأسك' : 'الشاشة ثابتة في مكانها بالغرفة'); } },
@@ -773,6 +773,13 @@ export class VideoWindow extends SpatialWindow {
     this.remote.send({ type: 'input', a: 'key', key: k }); blip('tap', settings.sounds);
   }
   typeText(t) { if (this.control) this.remote.send({ type: 'input', a: 'text', value: t }); }
+  // the keyboard typing into the focused field of this device / built-in browser page
+  send(msg) {
+    if (!this.remote) return;
+    if (msg.type === 'text') this.remote.send({ type: 'input', a: 'text', value: msg.value });
+    else if (msg.type === 'key') this.remote.send({ type: 'input', a: 'key', key: msg.key === 'Backspace' ? 'backspace' : msg.key === 'Enter' ? 'enter' : String(msg.key).toLowerCase() });
+    else if (msg.type === 'clear') { for (let i = 0; i < 60; i++) this.remote.send({ type: 'input', a: 'key', key: 'backspace' }); }
+  }
   scrollAt(dx, dy, at) {
     if (!this.control) return;
     const W = this.video.videoWidth || 1280, H = this.video.videoHeight || 720;
@@ -926,7 +933,7 @@ export class PanelWindow extends SpatialWindow {
     super(mgr, 'panel');
     this.panelKind = panel;
     this.canCurve = false;
-    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42], pad: [1, 0.86], matches: [1, 0.8], store: [1, 0.7] };
+    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42], pad: [1, 0.86], matches: [1, 0.8], store: [1, 0.7], scoreboard: [0.78, 1] };
     const [w, h] = specs[panel] || [1, 0.6];
     this.aspect = w / h;
     this.cv = canvasTexture(1400, Math.round(1400 * h / w));
@@ -983,6 +990,7 @@ export class PanelWindow extends SpatialWindow {
     ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, 0, W, H * 0.02);
     const k = this.panelKind;
     if (k === 'matches') { drawMatches(ctx, W, H, this.mgr.app.sports); this.drawnV = this.mgr.app.sports?.version; texture.needsUpdate = true; return; }
+    if (k === 'scoreboard') { drawBoard(ctx, W, H, this.mgr.app.sports); this.drawnV = this.mgr.app.sports?.version; this.drawnAt = performance.now(); texture.needsUpdate = true; return; }
     if (k === 'store') { this.drawStore(ctx, W, H); texture.needsUpdate = true; return; }
     if (k === 'clock') {
       const now = new Date();
@@ -1026,6 +1034,7 @@ export class PanelWindow extends SpatialWindow {
   update(dt, now) {
     if (this.panelKind === 'clock' && now - this.lastDraw > 1000) { this.lastDraw = now; this.draw(); }
     if (this.panelKind === 'matches' && this.drawnV !== this.mgr.app.sports?.version) this.draw();
+    if (this.panelKind === 'scoreboard' && (this.drawnV !== this.mgr.app.sports?.version || now - (this.drawnAt || 0) > 2000)) this.draw();   // logos arriving
   }
   ref() { return { panel: this.panelKind }; }
   dispose() { super.dispose(); this.cv.texture.dispose(); }
@@ -1683,6 +1692,13 @@ export class WindowManager {
     if (k === 'model') return this.add(new ModelVolume(this, spec), { dist: 1.25, y: -0.38 });
     if (k === 'game') { const old = this.windows.find(w => w.kind === 'game'); if (old) this.close(old); return this.add(new BalloonGame(this), { dist: 1.2, y: -0.28, scale: 1 }); }
     if (k === 'keyboard') { const old = this.windows.find(w => w.kind === 'keyboard'); if (old) this.close(old); return this.add(new KeyboardWindow(this), { dist: 0.9, y: -0.2, scale: 1 }); }
+  }
+  // Put a window at an angle from where you look (negative = to your right), facing you.
+  placeBeside(win, yawOff, dist = 2, y = 0) {
+    const a = this.forwardYaw() + yawOff, h = this.headLocal();
+    win.group.position.set(h.x - Math.sin(a) * dist, h.y + y, h.z - Math.cos(a) * dist);
+    win.group.lookAt(h.x, h.y + y, h.z);
+    win.onDragEnd?.();
   }
   // Bring every window back into a fan in front of the viewer.
   arrange() {

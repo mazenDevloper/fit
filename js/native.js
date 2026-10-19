@@ -66,7 +66,7 @@ export function setupNative(app) {
       sbs: settings.viewMode === 'sbs', sep: settings.lensSep, vOff: settings.vOffset, vSkew: settings.vSkew || 0,
       s2l: settings.screenToLens, k1: settings.k1, k2: settings.k2, px: r.distMat.uniforms.uPx.value, tanMax: r.distMat.uniforms.uTanMax.value,
       tx: t.x, ty: t.y, mx: m.x, my: m.y, bright: env === 'dim' ? 0.32 : 1, show: (env !== 'immersive' || !!app.deskHole) && app.active,
-      fps: settings.coolMax ? 30 : 60,
+      fps: settings.coolMax || settings.lite ? 30 : 60,
     };
     const k = JSON.stringify(L);
     if (k !== lensKey) { lensKey = k; M.send('lens', L); }
@@ -106,7 +106,7 @@ export function setupNative(app) {
     if (app.active) app.openLocalFiles([f]); else app.toast('أُضيف إلى المكتبة: ' + f.name, 2500);
   });
   // Hand tracking settings follow the page's settings.
-  const sendHands = () => M.send('hands', { on: settings.handsEnabled !== false, every: settings.coolMax ? 60 : settings.cool ? 45 : 35 });
+  const sendHands = () => M.send('hands', { on: settings.handsEnabled !== false, every: settings.lite ? 95 : settings.coolMax ? 60 : settings.cool ? 45 : 35 });
   sendHands(); setInterval(sendHands, 5000);
   M.send('guard', { on: !!settings.roomGuard });
   M.on('record', p => {

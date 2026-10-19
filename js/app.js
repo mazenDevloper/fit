@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { deviceIdentity, saveDeviceIdentity, pairedDevices, KIND_LABEL } from './config.js';
-import { settings, saveSettings, applyPreset, resetSettings, VIEWER_PRESETS, loadLayout, saveLayout, loadLinks, saveLinks } from './config.js';
+import { settings, saveSettings, applyPreset, resetSettings, VIEWER_PRESETS, loadLayout, saveLayout, loadLinks, saveLinks, onSettings } from './config.js';
 import { StageOrientation, HeadTracker } from './orient.js';
 import { StereoRenderer } from './render.js';
 import { HandTracker } from './hands.js';
@@ -545,6 +545,22 @@ class App {
     if (!this.sports.teams().length) this.sports.syncFavorites();
     return w;
   }
+  // Sports mode: the streaming site in front, the big scoreboard to its right, big islands under the clock.
+  startSportsMode() {
+    if (!this.active) return;
+    const W = this.windows;
+    if (!W.windows.some(w => w.panelKind === 'scoreboard')) {
+      const sb = W.open({ kind: 'panel', panel: 'scoreboard' });
+      W.placeBeside?.(sb, -0.62, 2.0, -0.02);
+    }
+    const hasSite = W.windows.some(w => /dramalive/.test(w.url || w.pageUrl || ''));
+    if (!hasSite) { const w = W.open({ kind: 'web', url: 'https://web.dramalive.cc', title: 'البث المباشر' }); if (w) W.placeBeside?.(w, 0.12, 2.2, 0.02); }
+    this.sports.refresh(true);
+    this.toast('⚽ الوضع الرياضي', 1800);
+  }
+  stopSportsMode() {
+    const sb = this.windows.windows.find(w => w.panelKind === 'scoreboard'); if (sb) this.windows.close(sb);
+  }
   openCplay() { this.windows.open({ kind: 'web', url: 'https://drivecast.c-p.workers.dev/media', title: 'DriveCast' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
@@ -640,6 +656,10 @@ class App {
       if (['k1', 'k2', 'lensSep', 'screenToLens'].includes(k)) patch.preset = 'custom';
       saveSettings(patch); this.renderSettings(); this.applySettings();
     }));
+    onSettings((st) => {
+      if (st.sportsMode !== this.sportsWas) { const was = this.sportsWas; this.sportsWas = st.sportsMode; if (was !== undefined && this.active) st.sportsMode ? this.startSportsMode() : this.stopSportsMode(); }
+      if (st.lite !== this.liteWas) { const was = this.liteWas; this.liteWas = st.lite; if (was !== undefined) { this.renderer.resize(); if (this.active) this.toast(st.lite ? '🪶 الوضع الخفيف — النوافذ بجودة فائقة' : 'الوضع الخفيف متوقف', 2200); } }
+    });
     document.querySelectorAll('input[type=checkbox][data-key]').forEach(inp => inp.addEventListener('change', () => { saveSettings({ [inp.dataset.key]: inp.checked }); }));
     $('#resetSettings').addEventListener('click', () => { resetSettings(); this.renderSettings(); this.applySettings(); });
     $('#resetLayout').addEventListener('click', () => { saveLayout({ windows: [] }); try { localStorage.removeItem(FIRST_RUN); } catch {} $('#resetLayout').textContent = 'سيظهر الترتيب الافتراضي عند الدخول'; });
@@ -750,7 +770,8 @@ class App {
     this.restoreScene();
     // Your teams from cplay2 (once a day), then matches for the live island.
     if (!settings.myTeamsAt || Date.now() - settings.myTeamsAt > 864e5) { saveSettings({ myTeamsAt: Date.now() }); setTimeout(() => this.sports.syncFavorites(), 4000); }
-    setTimeout(() => this.sports.refresh(true), 6000);
+    setTimeout(() => this.sports.refresh(true), settings.sportsMode ? 500 : 6000);
+    if (settings.sportsMode) setTimeout(() => this.startSportsMode(), 2500);
     this.last = performance.now();
     this.renderer.renderer.setAnimationLoop(t => this.frame(t));
     setTimeout(() => this.toast(motionOk ? 'ضع الهاتف في النظارة · الكاميرا للخارج' : 'حساسات الحركة غير مفعّلة', 4500), 300);
@@ -1029,10 +1050,10 @@ class App {
     this.controls.applyLook(this.renderQ);
     // Cool mode: while your head is still, draw 30 times a second instead of 60 (the GPU does half
     // the work, the iPhone stays much cooler); any head movement goes straight back to full smoothness.
-    if (settings.cool && this.lastQ) {
+    if ((settings.cool || settings.lite) && this.lastQ) {
       const moving = this.lastQ.angleTo(this.renderQ) > 0.004;
       if (moving) this.movingAt = now;
-      if ((settings.coolMax || now - (this.movingAt || 0) > 250) && now - this.last < 28) return;
+      if ((settings.coolMax || settings.lite || now - (this.movingAt || 0) > 250) && now - this.last < 28) return;
     }
     (this.lastQ ||= new THREE.Quaternion()).copy(this.renderQ);
     const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
@@ -1040,7 +1061,7 @@ class App {
     this.headForward.set(0, 0, -1).applyQuaternion(this.renderQ);
     const touching = this.controls.applyTouches(now);
     if (settings.handsEnabled && !touching) this.hands.update(this.camVideo, now, (x, y) => { const [sx, sy] = this.renderer.imageToStage(x, y); return this.renderer.stageToTan(sx, sy); });
-    this.slam.update(this.camVideo, now, this.renderQ);
+    if (!settings.lite) this.slam.update(this.camVideo, now, this.renderQ);
     if (settings.viewMode === 'desktop' && settings.eyeTrack) this.gaze.update(this.camVideo, now);
     this.controls.update(dt);
     this.interaction.update(dt, now);
@@ -1056,6 +1077,7 @@ class App {
     // a room with its own lights (the photo-real ones) turns the general light down
     const dim = this.envs[ek]?.visible ? (this.envs[ek].userData.dim ?? 1) : 1;
     const room = this.envs[ek]?.visible && this.envs[ek].children[0];
+    if (this.renderer.renderer.shadowMap.enabled === !!settings.lite) { this.renderer.renderer.shadowMap.enabled = !settings.lite; this.renderer.renderer.shadowMap.needsUpdate = true; }
     if (room && room.userData.shadowsDirty) { room.userData.shadowsDirty = false; this.renderer.renderer.shadowMap.needsUpdate = true; }
     if (dim !== this.lightDim) { this.renderer.renderer.shadowMap.needsUpdate = true; this.lightDim = dim; this.globalLights?.forEach(([l, i]) => { l.intensity = i * dim; }); this.renderer.scene.environmentIntensity = dim; }
     this.renderer.updateHandMask(settings.handsEnabled && this.hands.state === 'ready' ? this.hands.slots : null, now);
