@@ -17,6 +17,7 @@ const steps = JSON.parse(fs.readFileSync('tools/steps.json', 'utf8'));
 let i = 4;
 for (const s of steps) {
   if (s.tap) await tap(s.tap[0], s.tap[1], s.wait || 2500);
+  if (s.blur) { out.push('blur ' + await fr.evaluate(() => { const a = document.activeElement; const t = a && a.tagName; a && a.blur && a.blur(); return t + ' -> ' + document.activeElement.tagName; })); }
   if (s.text) { await p.evaluate(v => send({ type: 'text', value: v }), s.text); await p.waitForTimeout(1500); }
   out.push(i + ' ' + JSON.stringify(s) + ' active=' + await fr.evaluate(() => { const a = document.activeElement; return a ? a.tagName + ':' + (a.value ?? '') : '-'; }));
   await shot(i++ + '-step');
