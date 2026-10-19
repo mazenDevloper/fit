@@ -1,3 +1,0 @@
-messages:
-{"type":"ready","path":"/","madar":1}
-{"type":"ready","path":"/","madar":1}
