@@ -84,9 +84,29 @@
     var opts = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, view: window, button: 0, buttons: type.indexOf('down') > 0 ? 1 : 0, pointerId: 1, pointerType: 'touch', isPrimary: true };
     try { el.dispatchEvent(new (Ctor || MouseEvent)(type, opts)); } catch (e) {}
   }
+  var tappedAt = 0;
+  // a field the page focuses by itself after a tap (custom widgets, labels over the input): Madar's keyboard too
+  document.addEventListener('focusin', function (e) {
+    var f = e.target; if (Date.now() - tappedAt > 1200 || !isText(f)) return;
+    noSysKb(f); field = f; f.__mc = (f.value || '').length;
+    var im = (f.getAttribute('data-madar-im') || '').toLowerCase(), ty = (f.type || '').toLowerCase();
+    post({ type: 'field', value: f.value || '', caret: f.__mc });
+    post({ type: 'focus', numeric: ty === 'number' || ty === 'tel' || im === 'numeric' || im === 'decimal' || im === 'tel', input: ty });
+  }, true);
+  function fieldAt(el, x, y) {
+    // the tap landed on a label / decoration over a field: find the field under that point
+    var lab = el.closest && el.closest('label'); if (lab && lab.control && isText(lab.control)) return lab.control;
+    var all = document.querySelectorAll('input,textarea');
+    for (var i = 0; i < all.length; i++) { var r = all[i].getBoundingClientRect(); if (isText(all[i]) && x >= r.left - 4 && x <= r.right + 4 && y >= r.top - 4 && y <= r.bottom + 4) return all[i]; }
+    return null;
+  }
   function tap(x, y) {
     var el = document.elementFromPoint(x, y);
     if (!el) return;
+    tappedAt = Date.now();
+    // a frame inside the page (an embedded player / form): the tap goes into it
+    if (el.tagName === 'IFRAME') { try { var r = el.getBoundingClientRect(); el.focus(); el.contentWindow.postMessage({ madar: 1, relay: 1, type: 'tap', x: x - r.left, y: y - r.top }, '*'); } catch (e) {} return; }
+    if (!/^(INPUT|TEXTAREA)$/.test(el.tagName) && !el.isContentEditable) { var hit = fieldAt(el, x, y); if (hit) el = hit; }
     fire(el, 'pointerdown', x, y, window.PointerEvent);
     fire(el, 'mousedown', x, y);
     fire(el, 'pointerup', x, y, window.PointerEvent);
@@ -153,15 +173,21 @@
     });
   }
 
-  function post(msg) { msg.madar = 1; try { window.parent.postMessage(msg, MADAR); } catch (e) {} }
+  // a frame inside the page talks to Madar (the app's top frame) directly
+  var NESTED = (function () { try { return window.parent !== window.top; } catch (e) { return true; } })();
+  function post(msg) { msg.madar = 1; if (NESTED) msg.nested = 1; try { (NESTED ? window.top : window.parent).postMessage(msg, MADAR); } catch (e) {} }
 
   var lastPath = '';
   function where() { return window.__MADAR_PROXY ? window.__MADAR_PROXY.url : location.pathname; }
   setInterval(function () { var w = where(); if (w !== lastPath) { lastPath = w; post({ type: 'path', path: location.pathname, url: window.__MADAR_PROXY ? w : undefined }); } }, 500);
 
   window.addEventListener('message', function (e) {
-    if (e.origin !== MADAR) return;
     var d = e.data; if (!d || d.madar !== 1) return;
+    // from Madar, or relayed by the page around this frame
+    if (e.origin !== MADAR && !(d.relay && e.source === window.parent)) return;
+    // the field being typed into lives in a frame inside this page: pass the keys on
+    var fr = document.activeElement;
+    if (fr && fr.tagName === 'IFRAME' && /^(text|key|clear|caret)$/.test(d.type)) { try { d.relay = 1; fr.contentWindow.postMessage(d, '*'); } catch (x) {} return; }
     if (d.type === 'hello') post({ type: 'ready', path: location.pathname, url: window.__MADAR_PROXY ? window.__MADAR_PROXY.url : undefined });
     else if (d.type === 'snap') snap(d);
     else if (d.type === 'key') {
