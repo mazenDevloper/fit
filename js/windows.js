@@ -1357,6 +1357,7 @@ export class WebWindow extends SpatialWindow {
     }
     if (!hit || !hit.uv) return false;
     const [x, y] = this.content.userData.interact.toPx(hit.uv);
+    this.mgr.lastWebTap = this;
     this.send({ type: 'tap', x, y });
     blip('tap', settings.sounds);
     return true;
@@ -1452,6 +1453,13 @@ export class WebWindow extends SpatialWindow {
   ytToggle() { const p = !this.ytState.playing; this.ytState.playing = p; [0, 1].forEach(e => this.cmd(e, p ? 'playVideo' : 'pauseVideo')); }
   ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
   handleMessage(e) {
+    // a field inside a frame of the page (iPhone app): its bridge talks to Madar directly; it belongs to the window last tapped
+    const nested = window.MadarIOS && e.data && e.data.madar === 1 && e.data.nested && this.mgr.lastWebTap === this && /^(focus|field)$/.test(e.data.type);
+    if (nested) {
+      if (e.data.type === 'focus') this.mgr.openKeyboardFor(this, !!e.data.numeric);
+      else { const kb = this.mgr.windows.find(w => w.kind === 'keyboard'); if (kb?.field === this) kb.syncField(e.data.value, e.data.caret); }
+      return;
+    }
     if ((e.origin === this.base || window.MadarIOS) && e.data && e.data.madar === 1 && this.css.some(c => c.f.contentWindow === e.source)) {
       if (e.data.type === 'snap') { if (this.css[0].f.contentWindow === e.source) this.onSnap(e.data); return; }
       if (e.data.type === 'field') { if (this.css[0].f.contentWindow === e.source) { const kb = this.mgr.windows.find(w => w.kind === 'keyboard'); if (kb?.field === this) kb.syncField(e.data.value, e.data.caret); } return; }
