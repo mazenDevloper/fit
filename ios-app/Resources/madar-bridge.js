@@ -30,7 +30,16 @@
   // Field Madar's keyboard types into, and where the cursor is inside it.
   var field = null;
   function isText(el) { return el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(button|submit|checkbox|radio|range|color|file|image|reset|hidden)$/i.test(el.type || ''))); }
-  function cur() { var a = document.activeElement; return isText(a) ? a : (isText(field) && field.isConnected ? field : null); }
+  // Flutter / canvas apps keep their text field hidden (and iOS won't focus it without a real touch):
+  // find it anyway, also inside shadow roots
+  function hiddenField() {
+    var q = 'flt-text-editing-host input, flt-text-editing-host textarea, input.flt-text-editing, textarea.flt-text-editing';
+    var f = document.querySelector(q); if (f) return f;
+    var hosts = document.querySelectorAll('flutter-view, flt-glass-pane, [flt-renderer]');
+    for (var i = 0; i < hosts.length; i++) { var r = hosts[i].shadowRoot; if (r) { f = r.querySelector(q) || r.querySelector('input,textarea'); if (f) return f; } }
+    return null;
+  }
+  function cur() { var a = document.activeElement; if (isText(a)) return a; if (isText(field) && field.isConnected) return field; var h = hiddenField(); return isText(h) ? h : null; }
   function setVal(el, v, caret) {
     var proto = el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
     Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
@@ -104,6 +113,15 @@
     var el = document.elementFromPoint(x, y);
     if (!el) return;
     tappedAt = Date.now();
+    // a canvas app (Flutter) makes its hidden text field when one of its fields is tapped: open Madar's keyboard then
+    var hfBefore = hiddenField();
+    setTimeout(function () {
+      var h = hiddenField(); if (!h || h === hfBefore && h.__madarSeen) return;
+      h.__madarSeen = 1; noSysKb(h); field = h; h.__mc = (h.value || '').length;
+      var ty = (h.type || '').toLowerCase(), im = (h.getAttribute('data-madar-im') || '').toLowerCase();
+      post({ type: 'field', value: h.value || '', caret: h.__mc });
+      post({ type: 'focus', numeric: ty === 'number' || ty === 'tel' || im === 'numeric' || im === 'decimal' || im === 'tel', input: ty });
+    }, 450);
     // a frame inside the page (an embedded player / form): the tap goes into it
     if (el.tagName === 'IFRAME') { try { var r = el.getBoundingClientRect(); el.focus(); el.contentWindow.postMessage({ madar: 1, relay: 1, type: 'tap', x: x - r.left, y: y - r.top }, '*'); } catch (e) {} return; }
     if (!/^(INPUT|TEXTAREA)$/.test(el.tagName) && !el.isContentEditable) { var hit = fieldAt(el, x, y); if (hit) el = hit; }
