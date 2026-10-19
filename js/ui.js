@@ -65,6 +65,11 @@ export function text(ctx, str, x, y, size, opts = {}) {
   ctx.textAlign = opts.align || 'center';
   ctx.textBaseline = opts.baseline || 'middle';
   ctx.direction = opts.dir === 'auto' ? (/[؀-ۿ]/.test(str) ? 'rtl' : 'ltr') : (opts.dir || 'rtl');
+  // fit: shrink the text (down to 62%) so the whole label shows, before cutting it with …
+  if (opts.maxWidth && opts.fit && ctx.measureText(str).width > opts.maxWidth) {
+    const k = Math.max(0.5, opts.maxWidth / ctx.measureText(str).width);
+    size *= k; ctx.font = `${opts.weight || 500} ${size}px ${FONT}`;
+  }
   if (opts.maxWidth) {
     let s = str;
     while (s.length > 1 && ctx.measureText(s).width > opts.maxWidth) s = s.slice(0, -2);
@@ -85,6 +90,11 @@ export function icon(ctx, name, cx, cy, s, color = COLORS.text) {
   const P = (pts, fill = true) => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x * h, y * h) : ctx.moveTo(x * h, y * h)); ctx.closePath(); fill ? ctx.fill() : ctx.stroke(); };
   switch (name) {
     case 'play': P([[-0.45, -0.65], [0.7, 0], [-0.45, 0.65]]); break;
+    case 'eye': case 'eyeOff':
+      ctx.beginPath(); ctx.moveTo(-0.85 * h, 0); ctx.quadraticCurveTo(0, -0.75 * h, 0.85 * h, 0); ctx.quadraticCurveTo(0, 0.75 * h, -0.85 * h, 0); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 0.26 * h, 0, 7); ctx.fill();
+      if (name === 'eyeOff') { ctx.beginPath(); ctx.moveTo(-0.7 * h, -0.7 * h); ctx.lineTo(0.7 * h, 0.7 * h); ctx.stroke(); }
+      break;
     case 'pause': ctx.fillRect(-0.55 * h, -0.62 * h, 0.36 * h, 1.24 * h); ctx.fillRect(0.19 * h, -0.62 * h, 0.36 * h, 1.24 * h); break;
     case 'close': ctx.beginPath(); ctx.moveTo(-0.45 * h, -0.45 * h); ctx.lineTo(0.45 * h, 0.45 * h); ctx.moveTo(0.45 * h, -0.45 * h); ctx.lineTo(-0.45 * h, 0.45 * h); ctx.stroke(); break;
     case 'plus': ctx.beginPath(); ctx.moveTo(-0.55 * h, 0); ctx.lineTo(0.55 * h, 0); ctx.moveTo(0, -0.55 * h); ctx.lineTo(0, 0.55 * h); ctx.stroke(); break;

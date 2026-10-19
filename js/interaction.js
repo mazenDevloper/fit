@@ -72,7 +72,7 @@ export class Interaction {
     const it = hit.object.userData.interact;
     if (it.type === 'button' || it.type === 'resize') return true;
     if (it.type === 'panel') return it.panel.isButtonAt(hit);
-    if (it.type === 'surface') return true;   // video, web page: gaze can tap them too
+    if (it.type === 'surface') return !(it.window && it.window.gazeOff);   // video, web page: gaze can tap them too (unless «watch» mode)
     return false;
   }
   // Tap the corner circle (gaze, screen tap, quick press) → move the pointer to resize → tap again or hold still.

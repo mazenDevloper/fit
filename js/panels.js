@@ -8,6 +8,14 @@ import { ENVS, envKey } from './envs.js';
 const ENV_LABEL = new Proxy({}, { get: (_, k) => ENVS[envKey(k)].label });
 const TABS = [['apps', 'التطبيقات'], ['devices', 'الأجهزة'], ['library', 'مكتبتي'], ['links', 'المواقع'], ['settings', 'الإعدادات']];
 
+// app icon colours (top → bottom), like the iPhone's
+const ICON_COLORS = {
+  clock: ['#34d399', '#059669'], mic: ['#fb7185', '#e11d48'], sun: ['#fbbf24', '#d97706'], grid: ['#60a5fa', '#2563eb'],
+  stack: ['#a78bfa', '#7c3aed'], video: ['#f87171', '#dc2626'], image: ['#f472b6', '#db2777'], keyboard: ['#94a3b8', '#475569'],
+  reset: ['#38bdf8', '#0284c7'], target: ['#2dd4bf', '#0d9488'], globe: ['#60a5fa', '#1d4ed8'], play: ['#fb923c', '#ea580c'],
+  music: ['#f472b6', '#be185d'], folder: ['#7dd3fc', '#0ea5e9'], settings: ['#9ca3af', '#4b5563'], eye: ['#818cf8', '#4f46e5'],
+  _: ['#7c8db5', '#4a5a85'],
+};
 export class Launcher {
   constructor(app) {
     this.app = app;
@@ -43,14 +51,17 @@ export class Launcher {
     const hov = p.isHover(id);
     glass(ctx, x, y, w, h, 34, hov);
     if (hov) { roundRect(ctx, x, y, w, h, 34); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 4; ctx.stroke(); }
-    const cx = x + w / 2, cy = y + h * 0.4;
-    ctx.beginPath(); ctx.arc(cx, cy, h * 0.2, 0, 7);
-    const g = ctx.createLinearGradient(cx, cy - h * 0.2, cx, cy + h * 0.2);
-    g.addColorStop(0, 'rgba(255,255,255,0.20)'); g.addColorStop(1, 'rgba(255,255,255,0.06)');
-    ctx.fillStyle = g; ctx.fill();
-    icon(ctx, ic, cx, cy, h * 0.2, tint);
-    text(ctx, label, cx, y + h * 0.75, h * 0.117, { weight: 800, maxWidth: w - 20 });
-    if (sub) text(ctx, sub, cx, y + h * 0.9, h * 0.095, { color: '#d5ddef', weight: 600, maxWidth: w - 24, dir: 'auto' });
+    // an Apple-style app icon: a coloured rounded square with a white symbol
+    const cx = x + w / 2, cy = y + h * 0.38, r = h * 0.22, [c1, c2] = ICON_COLORS[ic] || ICON_COLORS._;
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = r * 0.35; ctx.shadowOffsetY = r * 0.08;
+    roundRect(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.46);
+    const g = ctx.createLinearGradient(cx, cy - r, cx, cy + r); g.addColorStop(0, c1); g.addColorStop(1, c2);
+    ctx.fillStyle = g; ctx.fill(); ctx.restore();
+    roundRect(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.46); ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2; ctx.stroke();
+    icon(ctx, ic, cx, cy, r * 0.95, '#ffffff');
+    // the whole name (shrunk to fit instead of cut), the description under it
+    text(ctx, label, cx, y + h * 0.74, h * 0.11, { weight: 800, maxWidth: w - 16, fit: true });
+    if (sub) text(ctx, sub, cx, y + h * 0.89, h * 0.085, { color: '#d5ddef', weight: 600, maxWidth: w - 16, dir: 'auto', fit: true });
     p.region(x, y, w, h, () => { blip('tap', settings.sounds); action(); }, id);
   }
 

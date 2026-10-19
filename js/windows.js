@@ -221,6 +221,8 @@ class SpatialWindow {
     if (this.toolbar) this.toolbar.mesh.position.set(0, y - 0.075, 0.004);
     if (this.more) this.more.mesh.position.set(0, y - 0.075 - 0.06 - this.more.heightM / 2 - (this.opts?.mesh.parent ? 0.13 : 0), 0.004);
     if (this.glow) this.glow.scale.set(w * 1.7, h * 2.1, 1);
+    if (this.matchSide) this.matchSide.mesh.position.set(w / 2 + 0.05 + 0.23 + (this.pic?.mesh.parent ? 0.36 : 0), 0, 0.004);
+    if (this.modeSide) this.modeSide.mesh.position.set(-w / 2 - 0.05 - 0.17, 0, 0.004);
   }
   setAspect(a) { if (a && isFinite(a) && Math.abs(a - this.aspect) > 0.001) { this.aspect = a; this.layout(); } }
   // Immersive 180°/360° video: a sphere around you, the window stays as the remote control.
@@ -285,9 +287,47 @@ class SpatialWindow {
       ['مسرح ضخم', this.theater ? 'مفعّل' : 'إيقاف', () => this.setTheater(!this.theater)],
       ['فوق رأسك', this.overhead ? 'مفعّل' : 'إيقاف', () => this.setOverhead(!this.overhead)],
       ['أمام عينيك', this.headLock ? 'يتبعك' : 'ثابتة', () => { this.headLock = !this.headLock; if (this.headLock) this.pin = null; }],
+      ['وضع المباريات', this.matchSide ? 'مفعّل' : 'إيقاف', () => this.setMatchMode(!this.matchSide)],
       ['لقطة', 'حفظ', () => this.snapshot()],
       [window.MadarIOS ? 'على الجدار' : 'على التلفاز', (app.room?.tv() || app.room?.wallAhead?.()) ? 'ضع هنا' : 'امسح الغرفة', () => this.onTv()],
     ];
+  }
+  // «وضع المباريات» (like Football AI on sports TVs): today's matches docked on the right, picture modes and
+  // controls docked on the left. The page / video stays in the middle.
+  setMatchMode(on) {
+    const M = this.mgr;
+    if (!on) {
+      for (const k of ['matchSide', 'modeSide']) if (this[k]) { this.group.remove(this[k].mesh); this[k].dispose?.(); this[k] = null; }
+      this.layout(); M.refreshTargets(); return;
+    }
+    const H = Math.max(0.45, this.h);
+    this.matchSide = new CanvasPanel(0.46, H, (ctx, W, Hh) => { drawMatches(ctx, W, Hh, M.app.sports); }, { pxPerM: 1400 });
+    this.modeSide = new CanvasPanel(0.34, H, (ctx, W, Hh, p) => {
+      glass(ctx, 2, 2, W - 4, Hh - 4, 34);
+      text(ctx, 'وضع المباريات', W / 2, 44, 30, { weight: 800 });
+      const pic = picture(), items = [
+        ...Object.keys(PIC_PRESETS).map(k => [PIC_PRESETS[k][0], pic.preset === k, () => { saveSettings({ picture: Object.assign(picture(), { ...PIC_PRESETS[k][1], preset: k }) }); M.applyPicture(); }]),
+        ['تركيز (بلا نقر بالنظر)', !!this.gazeOff, () => { this.gazeOff = !this.gazeOff; this.toolbar?.redraw(); }],
+        ['السينما', M.cinema === this, () => { M.cinema = M.cinema === this ? null : this; }],
+        ['إضاءة محيطة', !!this.glow, () => this.setGlow(!this.glow)],
+        ['إيقاف / تشغيل', false, () => this.mediaToggle?.()],
+      ];
+      const top = 84, rh = Math.min(70, (Hh - top - 16) / items.length);
+      items.forEach(([l, on, act], i) => {
+        const y = top + i * rh, id = 'mm' + i, hov = p.isHover(id);
+        roundRect(ctx, 14, y + 4, W - 28, rh - 8, (rh - 8) / 2);
+        ctx.fillStyle = on ? 'rgba(52,211,153,0.85)' : hov ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
+        text(ctx, l, W / 2, y + rh / 2 + 1, Math.min(24, rh * 0.36), { weight: 800, color: on ? '#04140d' : COLORS.text, maxWidth: W - 40, fit: true });
+        p.region(14, y, W - 28, rh, () => { blip('tap', settings.sounds); act(); this.modeSide?.redraw(); }, id);
+      });
+    }, { pxPerM: 1400 });
+    this.matchSide.mesh.userData.interact = null;
+    this.group.add(this.matchSide.mesh, this.modeSide.mesh);
+    this.layout(); this.matchSide.redraw(); this.modeSide.redraw(); M.refreshTargets();
+    M.app.sports?.refresh?.(true);
+  }
+  matchTick() {
+    if (this.matchSide && this.matchDrawn !== this.mgr.app.sports?.version) { this.matchDrawn = this.mgr.app.sports?.version; this.matchSide.redraw(); }
   }
   // Put this window exactly over your real TV (found by «مسح الغرفة»).
   onTv() {
@@ -636,6 +676,7 @@ export class VideoWindow extends SpatialWindow {
     this.setProjection(this.proj);
     this.opts?.redraw();
   }
+  mediaToggle() { const v = this.video; if (!v) return; if (v.paused) v.play?.().catch(() => {}); else v.pause(); }
   moreItems() {
     const v = this.video, base = super.moreItems();
     if (this.remote) {
@@ -1104,6 +1145,9 @@ export class WebWindow extends SpatialWindow {
       { icon: () => this.curved ? 'flat' : 'curve', active: () => this.curved, action: () => this.viewCurved(!this.curved) },
     );
     items.push({ icon: 'grid', action: () => this.cycleShape() });
+    // eye: looking at the page doesn't tap it (watch without pausing by accident) · play/pause the page's video
+    items.push({ icon: () => this.gazeOff ? 'eyeOff' : 'eye', active: () => !this.gazeOff, action: () => { this.gazeOff = !this.gazeOff; this.mgr.app.toast(this.gazeOff ? 'وضع المشاهدة: النظر لا ينقر الصفحة' : 'النقر بالنظر مفعّل', 1800); } });
+    if (!this.yt) items.push({ icon: 'play', action: () => this.mediaToggle() });
     // a keyboard joined to this page: it types into the page's field and sits right under the window
     items.push({ icon: 'keyboard', active: () => this.mgr.windows.some(w => w.kind === 'keyboard' && w.field === this), action: () => this.toggleKeyboard() });
     items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) }, { icon: 'dots', active: () => !!this.more?.mesh.parent, action: () => this.toggleMore() });
@@ -1454,6 +1498,7 @@ export class WebWindow extends SpatialWindow {
   cmd(eye, func, args = []) { try { this.css[eye].f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com'); } catch {} }
   ytToggle() { const p = !this.ytState.playing; this.ytState.playing = p; [0, 1].forEach(e => this.cmd(e, p ? 'playVideo' : 'pauseVideo')); }
   ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
+  mediaToggle() { this.send({ type: 'media', a: 'toggle' }); }
   toggleKeyboard() {
     const kb = this.mgr.windows.find(w => w.kind === 'keyboard');
     if (kb && kb.field === this) { this.mgr.close?.(kb); return; }
@@ -1782,7 +1827,7 @@ export class WindowManager {
     for (const w of this.windows) {
       // Cinema: only the chosen window stays visible.
       w.group.visible = !this.guard && (!this.cinema || w === this.cinema);
-      w.update(dt, now);
+      w.update(dt, now); w.matchTick?.();
       if (w.glow) w.updateGlow(now);
       // Pinned to the view: the window glides to stay straight ahead at the same distance.
       if (w.headLock && w.kind !== 'model') {

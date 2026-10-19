@@ -141,6 +141,14 @@ export function drawWidget(ctx, W, H, list, { heading = 'مباريات فرقي
   list.slice(0, rows).forEach((m, i) => drawRow(ctx, pad * 0.7, top + i * rowH + gap / 2, W - pad * 1.4, rowH - gap, m, favOf(m)));
   if (list.length > rows) { ctx.font = font(700, headH * 0.3); ctx.fillStyle = a(WHITE, 0.35); ctx.textAlign = 'left'; ctx.fillText('+' + (list.length - rows), pad, H - pad * 0.5); }
 }
+// "غداً" / the weekday for a match that isn't today (Oman time), so tomorrow's games don't look like today's
+const AR_DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+export function dayTag(m) {
+  if (!m || !m.timestamp) return '';
+  const d = t => { const x = new Date(t + 4 * 3600e3); return Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()) / 864e5; };
+  const diff = d(m.timestamp * 1000) - d(Date.now());
+  return diff === 0 ? '' : diff === 1 ? 'غداً' : diff === -1 ? 'أمس' : AR_DAYS[new Date(m.timestamp * 1000 + 4 * 3600e3).getUTCDay()];
+}
 function drawRow(ctx, x0, y0, w, h, m, fav) {
   const live = m.status === 'live', fin = m.status === 'finished', favLive = live && fav, rad = h / 2, cy = y0 + h / 2;
   if (favLive) { glow(ctx, x0, y0, w, h, rad, 'rgba(250,204,21,0.35)', h * 0.22); fill(ctx, x0, y0, w, h, rad, '#0a0a0c'); stroke(ctx, x0, y0, w, h, rad, a(YELLOW, 0.7), Math.max(1.5, h / 30)); }
@@ -148,7 +156,7 @@ function drawRow(ctx, x0, y0, w, h, m, fav) {
   const x = x0 + h * 0.18, bh = h * 0.52; let sw;
   if (live) { const s = minuteText(m); sw = badgeWidth(ctx, s, bh); minuteBadge(ctx, s, x + sw / 2, cy, bh); }
   else {
-    const s = fin ? 'انتهت' : to12h(m.omanTime), f = font(fin ? 700 : 500, h * (fin ? 0.26 : 0.32));
+    const day = fin ? '' : dayTag(m), s = fin ? 'انتهت' : (day ? day + ' ' : '') + to12h(m.omanTime), f = font(fin ? 700 : 500, h * (fin ? 0.26 : day ? 0.27 : 0.32));
     ctx.font = f; sw = Math.max(ctx.measureText(s).width, h * 0.6); centerText(ctx, s, x + sw / 2, cy, f, a(WHITE, fin ? 0.4 : 0.6));
   }
   const cl = x + sw + h * 0.22, cr = x0 + w - h * 0.12, lr = h * 0.38, hcx = cl + lr, acx = cr - lr;
