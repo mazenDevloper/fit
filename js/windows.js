@@ -1104,6 +1104,8 @@ export class WebWindow extends SpatialWindow {
       { icon: () => this.curved ? 'flat' : 'curve', active: () => this.curved, action: () => this.viewCurved(!this.curved) },
     );
     items.push({ icon: 'grid', action: () => this.cycleShape() });
+    // a keyboard joined to this page: it types into the page's field and sits right under the window
+    items.push({ icon: 'keyboard', active: () => this.mgr.windows.some(w => w.kind === 'keyboard' && w.field === this), action: () => this.toggleKeyboard() });
     items.push({ icon: 'minus', action: () => this.scaleBy(1 / 1.15) }, { icon: 'plus', action: () => this.scaleBy(1.15) }, { icon: 'dots', active: () => !!this.more?.mesh.parent, action: () => this.toggleMore() });
     this.toolbar = new Toolbar(items).install();
     this.group.add(this.toolbar.mesh);
@@ -1452,6 +1454,11 @@ export class WebWindow extends SpatialWindow {
   cmd(eye, func, args = []) { try { this.css[eye].f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com'); } catch {} }
   ytToggle() { const p = !this.ytState.playing; this.ytState.playing = p; [0, 1].forEach(e => this.cmd(e, p ? 'playVideo' : 'pauseVideo')); }
   ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
+  toggleKeyboard() {
+    const kb = this.mgr.windows.find(w => w.kind === 'keyboard');
+    if (kb && kb.field === this) { this.mgr.close?.(kb); return; }
+    this.mgr.openKeyboardFor(this, false);
+  }
   handleMessage(e) {
     // a field inside a frame of the page (iPhone app): its bridge talks to Madar directly; it belongs to the window last tapped
     const nested = window.MadarIOS && e.data && e.data.madar === 1 && e.data.nested && this.mgr.lastWebTap === this && /^(focus|field)$/.test(e.data.type);
@@ -1674,6 +1681,13 @@ export class WindowManager {
     let kb = this.windows.find(w => w.kind === 'keyboard');
     if (!kb) kb = this.open({ kind: 'keyboard' });
     kb.forField(win, numeric);
+    // right under the page it types into, facing the same way
+    if (win?.group) {
+      win.group.updateMatrixWorld(true);
+      const below = new THREE.Vector3(0, -((win.height || 0.6) * (win.group.scale?.y || 1)) / 2 - 0.2, 0.08).applyQuaternion(win.group.quaternion);
+      kb.group.position.copy(win.group.position).add(below);
+      kb.group.quaternion.copy(win.group.quaternion);
+    }
     return kb;
   }
   openKeyboard(text = '') {
