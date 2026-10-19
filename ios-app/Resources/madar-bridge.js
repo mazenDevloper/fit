@@ -208,6 +208,12 @@
     if (fr && fr.tagName === 'IFRAME' && /^(text|key|clear|caret)$/.test(d.type)) { try { d.relay = 1; fr.contentWindow.postMessage(d, '*'); } catch (x) {} return; }
     if (d.type === 'hello') post({ type: 'ready', path: location.pathname, url: window.__MADAR_PROXY ? window.__MADAR_PROXY.url : undefined });
     else if (d.type === 'snap') snap(d);
+    else if (d.type === 'media') {
+      // play / pause the page's main video (or pass it to the frames inside the page)
+      var vs = [].slice.call(document.querySelectorAll('video')).filter(function (v) { var r = v.getBoundingClientRect(); return r.width > 60 && r.height > 40; });
+      if (vs.length) { var v = vs.sort(function (a, b) { var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return rb.width * rb.height - ra.width * ra.height; })[0]; if (v.paused) { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); } else v.pause(); }
+      else { var fs = document.querySelectorAll('iframe'); for (var i = 0; i < fs.length; i++) try { fs[i].contentWindow.postMessage({ madar: 1, relay: 1, type: 'media', a: d.a }, '*'); } catch (x) {} }
+    }
     else if (d.type === 'key') {
       // Keys from a real keyboard: delete, enter (submit), tab (next field).
       var el = cur() || document.activeElement;
