@@ -1685,6 +1685,10 @@ export class WindowManager {
     if (win?.group) {
       win.group.updateMatrixWorld(true);
       const below = new THREE.Vector3(0, -((win.height || 0.6) * (win.group.scale?.y || 1)) / 2 - 0.2, 0.08).applyQuaternion(win.group.quaternion);
+      // as wide as most of the window (a far window gets a big keyboard: it reads the same size)
+      const k = Math.max(1, Math.min(3, ((win.width || 1) * (win.group.scale?.x || 1)) * 0.8 / 0.62));
+      kb.group.scale.setScalar(k);
+      below.set(0, -((win.height || 0.6) * (win.group.scale?.y || 1)) / 2 - 0.16 * k, 0.1).applyQuaternion(win.group.quaternion);
       kb.group.position.copy(win.group.position).add(below);
       kb.group.quaternion.copy(win.group.quaternion);
     }
