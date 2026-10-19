@@ -1,0 +1,14 @@
+4 {"tap":[500,322],"wait":2500} active=BODY:
+5 {"tap":[500,386],"wait":2000} active=INPUT:
+blur INPUT -> INPUT
+6 {"blur":1} active=INPUT:
+7 {"text":"232425"} active=INPUT:232425
+8 {"tap":[500,455],"wait":8000} active=FLUTTER-VIEW:
+messages:
+{"type":"ready","path":"/","madar":1}
+{"type":"ready","path":"/","madar":1}
+{"type":"field","value":"","caret":0,"madar":1}
+{"type":"focus","numeric":false,"input":"text","madar":1}
+{"type":"field","value":"","caret":0,"madar":1}
+{"type":"focus","numeric":false,"input":"text","madar":1}
+{"type":"field","value":"232425","caret":6,"madar":1}
