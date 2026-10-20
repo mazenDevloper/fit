@@ -13,6 +13,7 @@ export function lib() {
   if (!libP) libP = Promise.all([
     loadScript(new URL('../lib/peer/peerjs.min.js', import.meta.url).href),
     loadScript(new URL('../lib/peer/qrcode.js', import.meta.url).href),
+    cloudTurn(),
   ]);
   return libP;
 }
@@ -22,6 +23,15 @@ export const rtc = { config: { iceServers: [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
   { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
 ] } };
+// Cloudflare's TURN relay (our server hands out short-lived keys): the screen connects even when the two devices
+// are on different networks (4G ↔ home Wi-Fi). Put first; the free public relay stays as a fallback.
+async function cloudTurn() {
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 3000);
+    const d = await (await fetch('https://studio.c-p.workers.dev/turn', { signal: ctl.signal })).json();
+    if (Array.isArray(d.iceServers) && d.iceServers.length) rtc.config.iceServers = [...d.iceServers, ...rtc.config.iceServers];
+  } catch (e) {}
+}
 // Optional own signalling server (set localStorage 'madar.peerServer' to {"host":..,"port":..,"path":..,"secure":..}).
 try { const own = JSON.parse(localStorage.getItem('madar.peerServer') || 'null'); if (own && own.host) Object.assign(rtc, own); } catch {}
 
