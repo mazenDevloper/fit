@@ -187,8 +187,10 @@ export class StereoRenderer {
     // Match the screen's pixel density at the lens centre (1:1), within memory limits.
     // Leave memory for web pages when one is open; cool mode renders a little lighter to keep the iPhone cool.
     // light mode: the rest is lightened elsewhere, the windows keep the full resolution (no adaptive drop)
-    const cap = settings.lite ? (this.cssCount > 0 ? 1536 : 1664) : this.cssCount > 0 ? 1280 : settings.coolMax ? 1216 : settings.cool ? 1408 : 1664;
-    this.quality = settings.lite ? 1 : this.quality || 1;
+    let cap = settings.lite ? (this.cssCount > 0 ? 1536 : 1664) : this.cssCount > 0 ? 1280 : settings.coolMax ? 1216 : settings.cool ? 1408 : 1664;
+    // a tablet / laptop screen is open: its text needs the sharp resolution, cool mode or not
+    if (this.readCount > 0) cap = Math.max(cap, 1600);
+    this.quality = settings.lite || this.readCount > 0 ? 1 : this.quality || 1;
     const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr * this.quality / 64) * 64, 896, cap);
     if (want !== this.rtSize) this.makeTargets(want);
     this.layoutCss();
@@ -314,7 +316,7 @@ export class StereoRenderer {
 
   // Dynamic resolution: drop render size a little only while frames run slow, restore when smooth.
   adapt(dt) {
-    if (settings.lite) return;
+    if (settings.lite || this.readCount > 0) return;
     this.ft = this.ft ? this.ft * 0.95 + dt * 0.05 : dt;
     const now = performance.now();
     if (now - (this.lastAdapt || 0) < 2500) return;
@@ -426,7 +428,7 @@ export class StereoRenderer {
     this.distMat.uniforms.tR.value = this.rts[1].texture;
     r.render(this.distScene, this.distCam);
 
-    if (this.cssCount !== this.lastCss) { this.lastCss = this.cssCount; this.resize(); }
+    if (this.cssCount !== this.lastCss || (this.readCount || 0) !== this.lastRead) { this.lastCss = this.cssCount; this.lastRead = this.readCount || 0; this.resize(); }
     this.afterRender?.();
     if (false) for (let i = 0; i < 2; i++) {
       const c = this.cssCams[i];

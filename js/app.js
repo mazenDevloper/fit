@@ -9,6 +9,7 @@ import { HandTracker } from './hands.js';
 import { Interaction } from './interaction.js';
 import { WindowManager } from './windows.js';
 import { Launcher, Calibration, Toast } from './panels.js';
+import { ControlCenter, LookUp, Notifier } from './control.js';
 import { Slam } from './slam.js';
 import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
@@ -24,7 +25,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '72';
+export const APP_VERSION = '73';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -76,7 +77,8 @@ class App {
     this.room = new Room(this);
     this.webHost = window.MadarAndroid?.hasBrowser ? new WebHost(this) : null;   // this device can serve the built-in browser
     this.toastUI = new Toast();
-    this.renderer.scene.add(this.launcher.group, this.calibration.group);
+    this.control = new ControlCenter(this); this.lookUp = new LookUp(this); this.notifier = new Notifier(this);
+    this.renderer.scene.add(this.launcher.group, this.calibration.group, this.control.group, this.lookUp.mesh, this.notifier.mesh);
     this.renderer.overlay.add(this.toastUI.mesh);
     this.interaction = new Interaction(this);
     this.slam = IOS ? new NativeSlam(this) : new Slam(this);
@@ -139,7 +141,8 @@ class App {
     n.hidden = false;
   }
 
-  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || [])]; }
+  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || [])]; }
+  notify(n) { if (this.active && this.notifier) this.notifier.push(n); else this.toast(n.title, 3000); }
   links() { return loadLinks(); }
   toast(msg, ms) { this.toastUI.show(msg, ms); }
   toggleLauncher() { this.launcher.toggle(); }
@@ -398,7 +401,10 @@ class App {
     saveSettings({ mirrorCode: code });
     if (this.active) this.connectMirror(code);
   }
-  receiveText(d, from) { this.toast((from?.name || 'جهاز') + ': ' + String(d.text || '').slice(0, 80), 5000); }
+  receiveText(d, from) {
+    const t = String(d.text || '');
+    this.notify({ icon: '💬', title: from?.name || 'جهاز', body: t.slice(0, 120), actions: /^https?:\/\//.test(t) ? [['افتح', () => this.windows.open({ kind: 'web', url: t.trim() })]] : [] });
+  }
   receiveProgress(f) {
     const now = performance.now(); if (now - (this.lastRecvToast || 0) < 1200) return; this.lastRecvToast = now;
     if (this.active) this.toast('استلام ' + f.meta.name + ' ' + Math.round(f.got / Math.max(1, f.meta.size) * 100) + '%', 1300);
@@ -1028,6 +1034,7 @@ class App {
     else if (has('ترتيب', 'رتب')) this.windows.arrange();
     else if (has('cplay', 'سي بلاي', 'كبلاي')) this.openCplay();
     else if (has('كيبورد', 'لوحة المفاتيح')) this.windows.open({ kind: 'keyboard' });
+    else if (has('مركز التحكم', 'التحكم')) this.control.open();
     else if (has('ساعة', 'الساعه')) this.windows.open({ kind: 'panel', panel: 'clock' });
     else if (has('مكة', 'الحرم', 'الكعبة')) this.openMakkah?.();
     else if (has('بيئة', 'البيئه')) this.cycleEnvironment();
@@ -1050,9 +1057,18 @@ class App {
     this.controls.applyLook(this.renderQ);
     // Cool mode: while your head is still, draw 30 times a second instead of 60 (the GPU does half
     // the work, the iPhone stays much cooler); any head movement goes straight back to full smoothness.
+    if (this.lastQ && this.lastQ.angleTo(this.renderQ) > 0.004) this.movingAt = now;
+    // Smart drawing: inside a virtual room (no live camera picture to keep moving) with your head still and
+    // nothing animating, the picture is identical frame after frame — draw it 10 times a second instead of 30–60.
+    // Any head turn, hand, playing video, dwell countdown, island or toast brings full speed back at once.
+    if (settings.smartRender !== false && this.lastQ && this.envModeNow === 'immersive' && now - (this.movingAt || 0) > 400 && now - this.last < 100) {
+      const g = this.interaction.pointers[2];
+      const busy = (g.dwellObj && !g.dwellDone) || this.hands.slots?.some(s => s.active) || this.launcher.group.visible || this.control.group.visible || this.lookUp.mesh.visible || this.notifier.mesh.visible
+        || this.toastUI.mesh.visible || this.sports?.island?.mesh.visible || this.sports?.goal?.active
+        || this.windows.windows.some(w => w.kind === 'web' || w.kind === 'game' || (w.video && !w.video.paused) || w.moving);
+      if (!busy) return;
+    }
     if ((settings.cool || settings.lite) && this.lastQ) {
-      const moving = this.lastQ.angleTo(this.renderQ) > 0.004;
-      if (moving) this.movingAt = now;
       if ((settings.coolMax || settings.lite || now - (this.movingAt || 0) > 250) && now - this.last < 28) return;
     }
     (this.lastQ ||= new THREE.Quaternion()).copy(this.renderQ);
@@ -1070,6 +1086,7 @@ class App {
     this.sports?.update(now, this.renderQ);
     if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }
     if (this.launcher.group.visible) this.launcher.group.updateMatrixWorld();
+    this.control.update(now); this.lookUp.update(); this.notifier.update(now);
     const ek = envKey(settings.environment);
     // A 360° picture surrounds you completely: hide the room/sky so nothing cuts into it.
     const around = this.windows.windows.some(w => w.sphere), cinema = !!this.windows.cinema;

@@ -112,7 +112,9 @@ export class HandTracker {
     for (const s of this.slots) if (s.active && now - s.seen > 260) { s.active = false; s.pinch = false; s.fx.reset(); s.fy.reset(); s.fd.reset(); }
     if (this.native || this.state !== 'ready' || !video || video.readyState < 2) return;
     if (video.currentTime === this.lastVideoTime) return;
-    const interval = settings.lite ? 95 : settings.coolMax ? (this.delegate === 'GPU' ? 60 : 80) : settings.cool ? (this.delegate === 'GPU' ? 45 : 60) : (this.delegate === 'GPU' ? 38 : 50);   // ~25 Hz is enough for gestures and saves GPU
+    // no hand in view for 3 s: look 4 times a second only (a raised hand is still caught within a quarter second)
+    const asleep = now - Math.max(0, ...this.slots.map(s => s.seen || 0)) > 3000;
+    const interval = asleep ? 250 : settings.lite ? 95 : settings.coolMax ? (this.delegate === 'GPU' ? 60 : 80) : settings.cool ? (this.delegate === 'GPU' ? 45 : 60) : (this.delegate === 'GPU' ? 38 : 50);   // ~25 Hz is enough for gestures and saves GPU
     if (now - this.lastDetect < interval) return;
     this.lastVideoTime = video.currentTime;
     this.lastDetect = now;

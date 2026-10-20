@@ -112,12 +112,17 @@ export class Sports {
     } catch (e) { this.error = 'تعذّر جلب المباريات'; this.app.log('المباريات: ' + (e && e.message || e)); this.version++; }
     this.island.redraw();
   }
-  mine(m) { return m.favorite || this.teams().some(t => [m.home.name, m.away.name].some(n => n && (n.includes(t.name) || t.name.includes(n)))); }
+  mine(m) { return m.favorite || m.mine || this.teams().some(t => [m.home.name, m.away.name].some(n => n && (n.includes(t.name) || t.name.includes(n)))); }
   liveMine() { return (this.data?.matches || []).filter(m => m.status === 'live' && this.mine(m)); }
   checkGoals(list) {
     for (const m of list) {
       const k = m.id, s = (m.score.home ?? 0) + (m.score.away ?? 0), prev = this.scores.get(k);
-      if (prev != null && s > prev && m.status === 'live' && (this.mine(m) || settings.allGoals)) {
+      const was = this.prevById?.get(k);
+      if (was && was.status !== 'live' && m.status === 'live' && this.mine(m))   // kick-off of one of your teams
+        this.app.notify?.({ icon: '⚽', title: 'بدأت: ' + m.home.name + ' × ' + m.away.name, body: m.league?.name || '', actions: [['المباريات', () => this.app.openMatches()]] });
+      if (prev != null && s > prev && m.status === 'live' && !m.favorite && this.mine(m) && !settings.allGoals) {   // other teams: a notification
+        this.app.notify?.({ icon: '⚽', title: 'هدف! ' + m.home.name + ' ' + (m.score.home ?? 0) + '-' + (m.score.away ?? 0) + ' ' + m.away.name, body: m.league?.name || '', actions: [['المباريات', () => this.app.openMatches()]] });
+      } else if (prev != null && s > prev && m.status === 'live' && (this.mine(m) || settings.allGoals)) {
         const prevM = this.prevById?.get(k);
         const side = prevM && (m.score.away ?? 0) > (prevM.score.away ?? 0) ? 'away' : 'home';
         const last = [...(this.goals?.[m.id] || [])].reverse().find(g => g.side === side);
@@ -169,8 +174,11 @@ class Island {
   nextEvent() { const now = Date.now(); return (this.events || []).find(e => e.at > now - 30000); }
   rows() {
     // sports mode: only the matches of the teams you marked for the island, bigger
-    const pool = settings.sportsMode ? this.sports.liveMine().filter(m => m.favorite) : this.sports.liveMine();
-    const live = pool.slice(0, ROWS - 1);
+    // the island teams' live matches, one at a time — they take turns every 3 s; the rest live in the matches widget
+    const all = this.sports.liveMine(), fav = all.filter(m => m.favorite), pool = fav.length ? fav : all;
+    const i = pool.length ? Math.floor(Date.now() / 3000) % pool.length : 0;
+    const live = pool.length ? [pool[i]] : [];
+    this.count = pool.length; this.idx = i;
     const ev = settings.prayerBar !== false ? this.nextEvent() : null;
     return { live, ev };
   }
@@ -180,6 +188,10 @@ class Island {
     for (const m of live) {
       const w = Math.min(W - 8, islandWidth(ctx, m, h, true));
       drawIsland(ctx, (W - w) / 2, y + (rh - h) / 2, w, h, m, performance.now(), { fav: true, expanded: true });
+      if (this.count > 1) for (let k = 0; k < this.count; k++) {   // which one of the turns this is
+        ctx.beginPath(); ctx.arc(W / 2 + (k - (this.count - 1) / 2) * h * 0.16, y + rh - (rh - h) / 4, h * 0.035, 0, 7);
+        ctx.fillStyle = k === this.idx ? '#fff' : 'rgba(255,255,255,0.35)'; ctx.fill();
+      }
       y += rh;
     }
     if (ev) drawEvent(ctx, W, y + (rh - h) / 2, h, ev);
@@ -261,7 +273,8 @@ export function drawMatches(ctx, W, H, sports) {
   const d = sports?.data;
   if (!d) { ctx.clearRect(0, 0, W, H); drawWidget(ctx, W, H, [], { empty: sports?.error || 'جاري التحميل…' }); return; }
   const mine = sports.teams().length > 0;
-  const list = [...d.matches].sort((a, b) => (sports.mine(b) - sports.mine(a)) || ((b.status === 'live') - (a.status === 'live')) || a.timestamp - b.timestamp);
+  const inIsland = m => settings.island !== false && m.status === 'live' && m.favorite;
+  const list = [...d.matches].filter(m => !inIsland(m)).sort((a, b) => (sports.mine(b) - sports.mine(a)) || ((b.status === 'live') - (a.status === 'live')) || a.timestamp - b.timestamp);
   ctx.clearRect(0, 0, W, H);
   drawWidget(ctx, W, H, list, { heading: mine ? 'مباريات فرقي ⚽' : 'المباريات ⚽', favOf: m => sports.mine(m) });
 }
@@ -270,6 +283,6 @@ export function drawMatches(ctx, W, H, sports) {
 export function drawBoard(ctx, W, H, sports) {
   const d = sports?.data;
   const rank = m => (m.status === 'live' ? 0 : m.status === 'upcoming' ? 2 : 3) - (m.favorite ? 0.5 : 0);
-  const list = d ? [...d.matches].filter(m => sports.mine(m)).sort((a, b) => rank(a) - rank(b) || a.timestamp - b.timestamp) : [];
-  drawScoreboard(ctx, W, H, list, { empty: d ? 'لا مباريات لفرقك الآن' : (sports?.error || 'جاري التحميل…') });
+  const list = d ? [...d.matches].sort((a, b) => rank(a) - rank(b) || a.timestamp - b.timestamp) : [];
+  drawScoreboard(ctx, W, H, list, { empty: d ? 'لا مباريات الآن' : (sports?.error || 'جاري التحميل…') });
 }

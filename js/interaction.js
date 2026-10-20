@@ -117,6 +117,7 @@ export class Interaction {
     // Second hand grabbing the same object → two-hand scale/rotate instead of a second drag.
     const other = this.pointers.find(o => o !== p && o.kind === 'hand' && o.drag && o.drag.win === win);
     if (other) { this.beginScale(win); p.scaleHelper = true; p.fired = true; return; }
+    if (win.wallLock) { if (!p.lockHint) { p.lockHint = true; this.app.toast('📌 مثبّتة على الجدار — ألغِ من ⋯', 2200); setTimeout(() => { p.lockHint = false; }, 3000); } return; }
     const obj = win.group;
     const rq = new THREE.Quaternion().setFromUnitVectors(FWD, p.dir);
     const wp = obj.getWorldPosition(new THREE.Vector3());

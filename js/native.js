@@ -106,8 +106,16 @@ export function setupNative(app) {
     if (app.active) app.openLocalFiles([f]); else app.toast('أُضيف إلى المكتبة: ' + f.name, 2500);
   });
   // Hand tracking settings follow the page's settings.
-  const sendHands = () => M.send('hands', { on: settings.handsEnabled !== false, every: settings.lite ? 95 : settings.coolMax ? 60 : settings.cool ? 45 : 35 });
-  sendHands(); setInterval(sendHands, 5000);
+  // no hand seen for 3 s → the iPhone looks 4 times a second only (less heat); a hand brings the full rate back
+  let sentEvery = 0, sentAt = 0;
+  const sendHands = () => {
+    const asleep = performance.now() - Math.max(0, ...(app.hands?.slots || []).map(s => s.seen || 0)) > 3000;
+    const every = asleep ? 250 : settings.lite ? 95 : settings.coolMax ? 60 : settings.cool ? 45 : 35;
+    if (every === sentEvery && performance.now() - sentAt < 5000) return;
+    sentEvery = every; sentAt = performance.now();
+    M.send('hands', { on: settings.handsEnabled !== false, every });
+  };
+  sendHands(); setInterval(sendHands, 500);
   M.send('guard', { on: !!settings.roomGuard });
   M.on('record', p => {
     if (p.state === 'started') { app.recording = true; app.toast('⏺ التسجيل بدأ — اضغط «تسجيل» مرة أخرى للإيقاف', 3000); }

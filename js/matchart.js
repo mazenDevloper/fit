@@ -292,7 +292,9 @@ export function drawScoreboard(ctx, W, H, list, { empty = 'لا مباريات �
       if (live) { const s = minuteText(m), bh = h * 0.27; minuteBadge(ctx, s, mid, cy + h * 0.3, bh); }
       else centerText(ctx, 'انتهت', mid, cy + h * 0.32, font(800, h * 0.18), a(WHITE, 0.45));
     } else {
-      centerText(ctx, to12h(m.omanTime), mid, cy, font(900, h * 0.38), a(WHITE, 0.75));
+      const day = dayTag(m);
+      centerText(ctx, to12h(m.omanTime), mid, day ? cy - h * 0.06 : cy, font(900, h * 0.38), a(WHITE, 0.75));
+      if (day) centerText(ctx, day, mid, cy + h * 0.3, font(800, h * 0.2), a(WHITE, 0.55));
     }
   });
 }

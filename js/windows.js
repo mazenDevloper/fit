@@ -31,6 +31,13 @@ const CONTENT_FRAG = /* glsl */`
     vec4 R = uEye > 0.5 ? uR : uL;
     vec2 tc = R.xy + vUv * R.zw;
     vec3 s = texture2D(map, tc).rgb;
+    // a screen shown smaller than its own pixels (a tablet or laptop mirror): 4 rotated-grid samples over the
+    // pixel's footprint instead of one, so thin text stays whole instead of breaking up and shimmering
+    vec2 fw = fwidth(tc);
+    if (uVideo > 0.5 && max(fw.x / uTexel.x, fw.y / uTexel.y) > 1.15) {
+      vec2 a = vec2(0.375, 0.125) * fw, b = vec2(-0.125, 0.375) * fw;
+      s = 0.25 * (texture2D(map, tc + a).rgb + texture2D(map, tc - a).rgb + texture2D(map, tc + b).rgb + texture2D(map, tc - b).rgb);
+    }
     if (uPic.z > 0.01) {
       vec3 n = texture2D(map, tc + vec2(uTexel.x, 0.0)).rgb + texture2D(map, tc - vec2(uTexel.x, 0.0)).rgb
              + texture2D(map, tc + vec2(0.0, uTexel.y)).rgb + texture2D(map, tc - vec2(0.0, uTexel.y)).rgb;
@@ -289,7 +296,7 @@ class SpatialWindow {
       ['أمام عينيك', this.headLock ? 'يتبعك' : 'ثابتة', () => { this.headLock = !this.headLock; if (this.headLock) this.pin = null; }],
       ['وضع المباريات', this.matchSide ? 'مفعّل' : 'إيقاف', () => this.setMatchMode(!this.matchSide)],
       ['لقطة', 'حفظ', () => this.snapshot()],
-      [window.MadarIOS ? 'على الجدار' : 'على التلفاز', (app.room?.tv() || app.room?.wallAhead?.()) ? 'ضع هنا' : 'امسح الغرفة', () => this.onTv()],
+      ['على الجدار', this.wallLock ? 'مثبّتة · إلغاء' : (app.room?.tv() || app.room?.wallAhead?.()) ? 'ثبّت هنا' : 'ثبّت', () => this.toggleWall()],
     ];
   }
   // «وضع المباريات» (like Football AI on sports TVs): today's matches docked on the right, picture modes and
@@ -328,6 +335,16 @@ class SpatialWindow {
   }
   matchTick() {
     if (this.matchSide && this.matchDrawn !== this.mgr.app.sports?.version) { this.matchDrawn = this.mgr.app.sports?.version; this.matchSide.redraw(); }
+  }
+  // Pin to the wall (visionOS 26): on the real wall / TV you look at when the room is known, otherwise upright
+  // right where it is. A pinned window can't be dragged by mistake, stays out of «ترتيب» and is remembered.
+  toggleWall() {
+    const app = this.mgr.app;
+    if (this.wallLock) { this.wallLock = false; this.mgr.changed(); app.toast('أُلغي التثبيت — يمكنك تحريكها', 2000); return; }
+    if (app.room?.tv() || app.room?.wallAhead?.()) this.onTv();
+    else { const g = this.group; g.lookAt(new THREE.Vector3(0, g.position.y, 0)); this.updateRadius?.(); this.layout(); }
+    this.wallLock = true; this.mgr.changed();
+    app.toast('📌 مثبّتة على الجدار', 2000);
   }
   // Put this window exactly over your real TV (found by «مسح الغرفة»).
   onTv() {
@@ -445,7 +462,7 @@ class SpatialWindow {
   ref() { return null; }
   serialize() {
     const g = this.group;
-    return { kind: this.kind, ref: this.ref(), p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), c: this.curved };
+    return { kind: this.kind, ref: this.ref(), p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), c: this.curved, wl: this.wallLock || undefined };
   }
   dispose() {
     if (this.mgr.cinema === this) this.mgr.cinema = null;
@@ -463,7 +480,7 @@ const PIC_PRESETS = {
   vivid: ['حيوي', { bright: 1.15, contrast: 1.15, sat: 1.35, sharp: 0.45, green: 0 }],
 };
 const QUALITY = [['game', 'ألعاب'], ['medium', 'متوسطة'], ['high', 'عالية'], ['max', 'قصوى']];
-function picture() { return Object.assign({ preset: 'normal', quality: 'high' }, PIC_PRESETS.normal[1], settings.picture || {}); }
+function picture() { return Object.assign({ preset: 'normal', quality: 'max' }, PIC_PRESETS.normal[1], settings.picture || {}); }
 class PicturePanel {
   constructor(win) {
     this.win = win;
@@ -528,6 +545,8 @@ export class VideoWindow extends SpatialWindow {
     if (browser) this.canReshape = true;
     this.fmt = fmt || '2d'; this.proj = proj || 'flat'; this.fmtSet = !!fmt;
     this.stream = stream; this.remote = remote; this.control = false;
+    if (remote) setTimeout(() => { try { remote.send({ type: 'quality', level: picture().quality }); } catch {} }, 1500);   // sharp text from the start
+    if (stream || remote) { mgr.app.renderer.readCount = (mgr.app.renderer.readCount || 0) + 1; this.reading = true; }
     this.itemId = itemId; this.url = url; this.name = name;
     this.video = mgr.app.media.acquire();
     this.mat.uniforms.uVideo.value = 1;
@@ -877,6 +896,7 @@ export class VideoWindow extends SpatialWindow {
   }
   dispose() {
     this.disposed = true;
+    if (this.reading) { this.reading = false; this.mgr.app.renderer.readCount--; }
     if (this.sphere) { this.mgr.root.remove(this.sphere); this.sphere.geometry.dispose(); this.sphere.material.dispose(); this.sphere = null; }
     this.opts?.dispose(); this.pic?.dispose(); this.bbar?.dispose();
     if (this.browser) { try { this.remote?.close(); } catch {} }
@@ -1699,12 +1719,23 @@ export class WindowManager {
       if (win.kind === 'model') { this.place(win.group, dist, y); win.group.rotation.set(0, 0, 0); }
       else this.place(win.group, dist, y);
     }
+    if (settings.curveAll && this.curvable(win)) setTimeout(() => { if (!win.disposed && !win.curved) win.setCurved(true); }, 0);
     this.root.add(win.group);
     this.windows.push(win);
     this.refreshTargets();
     this.changed();
     blip('open', settings.sounds);
     return win;
+  }
+  // visionOS 27 curved windows: every video / picture window bends around you (live web pages stay flat so
+  // they keep working; the 🌀 button on a page curves it as a picture).
+  curvable(w) { return (w.kind === 'video' || w.kind === 'image') && !w.sphere && typeof w.setCurved === 'function'; }
+  setCurveAll(on) {
+    saveSettings({ curveAll: on });
+    let n = 0;
+    for (const w of this.windows) if (this.curvable(w) && w.curved !== on) { w.setCurved(on); n++; }
+    this.changed();
+    this.app.toast(on ? 'النوافذ منحنية حولك' + (n ? '' : ' · الجديدة ستنحني') : 'النوافذ مستوية', 2000);
   }
   close(win) {
     const i = this.windows.indexOf(win); if (i < 0) return;
@@ -1777,6 +1808,7 @@ export class WindowManager {
     const list = this.windows;
     const n = list.length;
     list.forEach((w, i) => {
+      if (w.wallLock) return;   // pinned to a wall: stays there
       const a = yaw + (i - (n - 1) / 2) * 0.55;
       const d = w.kind === 'model' ? 1.25 : 2.1;
       const y = w.kind === 'model' ? -0.38 : 0;
@@ -1814,6 +1846,7 @@ export class WindowManager {
         win.group.position.fromArray(s.p);
         if (s.q) win.group.quaternion.fromArray(s.q);
         win.group.scale.setScalar(s.s || 1);
+        win.wallLock = !!s.wl;
         if (s.kind === 'model') { win.rot = s.r || 0; win.spin = !!s.spin; }
         else if (s.c) { win.curved = true; win.updateRadius(); win.layout(); }
         this.root.add(win.group);

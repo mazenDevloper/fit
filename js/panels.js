@@ -14,6 +14,9 @@ const ICON_COLORS = {
   stack: ['#a78bfa', '#7c3aed'], video: ['#f87171', '#dc2626'], image: ['#f472b6', '#db2777'], keyboard: ['#94a3b8', '#475569'],
   reset: ['#38bdf8', '#0284c7'], target: ['#2dd4bf', '#0d9488'], globe: ['#60a5fa', '#1d4ed8'], play: ['#fb923c', '#ea580c'],
   music: ['#f472b6', '#be185d'], folder: ['#7dd3fc', '#0ea5e9'], settings: ['#9ca3af', '#4b5563'], eye: ['#818cf8', '#4f46e5'],
+  sound: ['#f472b6', '#db2777'], hand: ['#fbbf24', '#ea580c'], trash: ['#f87171', '#b91c1c'], exit: ['#f87171', '#b91c1c'],
+  sliders: ['#9ca3af', '#4b5563'], cube: ['#818cf8', '#4338ca'], snow: ['#67e8f9', '#0891b2'], walk: ['#4ade80', '#16a34a'],
+  shield: ['#a3e635', '#4d7c0f'], ball: ['#4ade80', '#15803d'], moon: ['#a5b4fc', '#4338ca'], cursor: ['#38bdf8', '#0369a1'],
   _: ['#7c8db5', '#4a5a85'],
 };
 export class Launcher {
@@ -47,17 +50,18 @@ export class Launcher {
   toggle() { this.group.visible ? this.close() : this.open(); }
   setTab(t) { this.tab = t; this.page = 0; this.panel.redraw(); }
 
-  tile(ctx, p, x, y, w, h, ic, label, sub, action, id, tint = COLORS.accent) {
+  tile(ctx, p, x, y, w, h, ic, label, sub, action, id, tint = COLORS.accent, round = false) {
     const hov = p.isHover(id);
     glass(ctx, x, y, w, h, 34, hov);
     if (hov) { roundRect(ctx, x, y, w, h, 34); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 4; ctx.stroke(); }
     // an Apple-style app icon: a coloured rounded square with a white symbol
-    const cx = x + w / 2, cy = y + h * 0.38, r = h * 0.22, [c1, c2] = ICON_COLORS[ic] || ICON_COLORS._;
+    const cx = x + w / 2, cy = y + h * 0.38, r = h * 0.22, [c1, c2] = round && /^(متوقف|مخفية)$/.test(sub) ? ['#6b7280', '#374151'] : ICON_COLORS[ic] || ICON_COLORS._;
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = r * 0.35; ctx.shadowOffsetY = r * 0.08;
-    roundRect(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.46);
+    const shape = () => { if (round) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); } else roundRect(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.46); };
+    shape();
     const g = ctx.createLinearGradient(cx, cy - r, cx, cy + r); g.addColorStop(0, c1); g.addColorStop(1, c2);
     ctx.fillStyle = g; ctx.fill(); ctx.restore();
-    roundRect(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.46); ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2; ctx.stroke();
+    shape(); ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2; ctx.stroke();
     icon(ctx, ic, cx, cy, r * 0.95, '#ffffff');
     // the whole name (shrunk to fit instead of cut), the description under it
     text(ctx, label, cx, y + h * 0.74, h * 0.11, { weight: 800, maxWidth: w - 16, fit: true });
@@ -94,6 +98,7 @@ export class Launcher {
     if (this.tab === 'apps') {
       const list = [
         ['clock', 'المباريات', 'فرقي ونتائج اليوم', () => { a.openMatches(); this.close(); }],
+        ['sliders', 'مركز التحكم', 'أو انظر للأعلى', () => { this.close(); a.control.open(); }],
         ['mic', 'أمر صوتي', 'أو اضغط △ مطوّلاً', () => { this.close(); a.listen('command'); }],
         ['sun', 'مكة المكرمة', 'بيئة 360 حولك', () => { this.close(); a.openMakkah(); }],
         ['grid', 'التطبيقات', 'يوتيوب، شاهد، نتفليكس…', () => { this.close(); a.windows.open({ kind: 'panel', panel: 'store' }); }],
@@ -168,30 +173,32 @@ export class Launcher {
         if (pages > 1) this.pager(ctx, p, W, H, pages);
       }
     } else {
+      const on = v => v ? 'يعمل' : 'متوقف';
       const list = [
-        ['target', 'النقر بالنظر', settings.dwell ? 'مفعّل' : 'متوقف', () => { saveSettings({ dwell: !settings.dwell }); this.panel.redraw(); }],
-        ['sound', 'أصوات الواجهة', settings.sounds ? 'مفعّلة' : 'متوقفة', () => { saveSettings({ sounds: !settings.sounds }); this.panel.redraw(); }],
-        ['hand', 'تتبع اليد', settings.handsEnabled ? 'مفعّل' : 'متوقف', () => { saveSettings({ handsEnabled: !settings.handsEnabled }); this.panel.redraw(); }],
-        ['stack', 'التحرك في البيئة', settings.moveEnabled ? 'مفعّل' : 'متوقف', () => { saveSettings({ moveEnabled: !settings.moveEnabled }); this.panel.redraw(); }],
-        ['reset', 'العودة لمكاني', 'إلغاء التحرك والدوران', () => { a.controls.reset(); a.toast('عدت إلى مكانك'); this.close(); }],
-        ['target', 'تتبع العين', settings.eyeTrack ? 'مفعّل · لابتوب' : 'متوقف', () => { a.toggleEyeTrack(); this.panel.redraw(); }],
-        ['trash', 'إغلاق كل النوافذ', a.windows.windows.length + ' مفتوحة', () => { a.windows.closeAll(); this.panel.redraw(); }],
-        ['grid', 'وضع العرض', { sbs: 'نظارة', mono: 'هاتف', desktop: 'لابتوب' }[settings.viewMode], () => { const o = ['sbs', 'mono', 'desktop']; a.setViewMode(o[(o.indexOf(settings.viewMode) + 1) % 3]); this.panel.redraw(); }],
-        ['hand', 'الإصبع كفأرة', settings.handDwell ? 'ثبّته ثانيتين للنقر' : 'متوقف', () => { saveSettings({ handDwell: !settings.handDwell }); this.panel.redraw(); }],
-        ['target', 'مثبّت المؤشر', settings.stabilizer ? 'مفعّل' : 'متوقف', () => { saveSettings({ stabilizer: !settings.stabilizer }); this.panel.redraw(); }],
-        ['target', 'حارس الغرفة', settings.roomGuard ? 'مفعّل · يخفي النوافذ إذا وقف شخص أمامك' : 'متوقف', async () => { saveSettings({ roomGuard: !settings.roomGuard }); if (settings.roomGuard) { try { await a.room.load(); } catch { a.toast('تعذّر تحميل التعرف'); } } this.panel.redraw(); }],
-        ['clock', 'الصلوات والتذكيرات', settings.prayerBar !== false ? 'أعلى الرؤية مع العد التنازلي' : 'مخفية', () => { saveSettings({ prayerBar: settings.prayerBar === false }); this.panel.redraw(); }],
-        ['clock', 'الساعة', settings.clock !== false ? 'ظاهرة أعلى الرؤية' : 'مخفية', () => { saveSettings({ clock: settings.clock === false }); this.panel.redraw(); }],
-        ['sun', 'الوضع الخفيف', settings.lite ? 'مفعّل · النوافذ بجودة فائقة' : 'متوقف', () => { saveSettings({ lite: !settings.lite }); this.panel.redraw(); }],
-        ['target', 'الوضع الرياضي', settings.sportsMode ? 'مفعّل · البث + لوحة النتائج' : 'متوقف', () => { saveSettings({ sportsMode: !settings.sportsMode }); this.panel.redraw(); }],
-        ['sun', 'التبريد الأقصى', settings.coolMax ? 'مفعّل · 30 إطاراً وأقل حرارة' : 'متوقف', () => { saveSettings({ coolMax: !settings.coolMax, cool: settings.cool || !settings.coolMax }); a.renderer.resize(); this.panel.redraw(); }],
-        ['sun', 'وضع التبريد', settings.cool ? 'مفعّل · حرارة أقل' : 'متوقف · أعلى جودة', () => { saveSettings({ cool: !settings.cool }); a.renderer.resize(); a.toast(settings.cool ? 'وضع التبريد: يعمل بالكامل بعد الدخول التالي' : 'الجودة القصوى: حرارة أعلى', 3000); this.panel.redraw(); }],
-        ['target', 'المشي (تجريبي)', settings.walk ? 'مفعّل' : 'متوقف', () => { a.toggleWalk(); this.panel.redraw(); }],
-        ['exit', 'الخروج', 'للشاشة الرئيسية', () => { this.close(); a.exit(); }],
+        ['eye', 'النقر بالنظر', on(settings.dwell), () => { saveSettings({ dwell: !settings.dwell }); this.panel.redraw(); }],
+        ['sound', 'الأصوات', on(settings.sounds), () => { saveSettings({ sounds: !settings.sounds }); this.panel.redraw(); }],
+        ['hand', 'تتبع اليد', on(settings.handsEnabled), () => { saveSettings({ handsEnabled: !settings.handsEnabled }); this.panel.redraw(); }],
+        ['walk', 'التحرك', on(settings.moveEnabled), () => { saveSettings({ moveEnabled: !settings.moveEnabled }); this.panel.redraw(); }],
+        ['reset', 'مكاني', 'إلغاء التحرك', () => { a.controls.reset(); a.toast('عدت إلى مكانك'); this.close(); }],
+        ['eye', 'تتبع العين', settings.eyeTrack ? 'لابتوب' : 'متوقف', () => { a.toggleEyeTrack(); this.panel.redraw(); }],
+        ['trash', 'إغلاق الكل', a.windows.windows.length + ' نوافذ', () => { a.windows.closeAll(); this.panel.redraw(); }],
+        ['grid', 'العرض', { sbs: 'نظارة', mono: 'هاتف', desktop: 'لابتوب' }[settings.viewMode], () => { const o = ['sbs', 'mono', 'desktop']; a.setViewMode(o[(o.indexOf(settings.viewMode) + 1) % 3]); this.panel.redraw(); }],
+        ['cursor', 'الإصبع فأرة', on(settings.handDwell), () => { saveSettings({ handDwell: !settings.handDwell }); this.panel.redraw(); }],
+        ['target', 'المثبّت', on(settings.stabilizer), () => { saveSettings({ stabilizer: !settings.stabilizer }); this.panel.redraw(); }],
+        ['shield', 'حارس الغرفة', on(settings.roomGuard), async () => { saveSettings({ roomGuard: !settings.roomGuard }); if (settings.roomGuard) { try { await a.room.load(); } catch { a.toast('تعذّر تحميل التعرف'); } } this.panel.redraw(); }],
+        ['moon', 'الصلوات', settings.prayerBar !== false ? 'ظاهرة' : 'مخفية', () => { saveSettings({ prayerBar: settings.prayerBar === false }); this.panel.redraw(); }],
+        ['clock', 'الساعة', settings.clock !== false ? 'ظاهرة' : 'مخفية', () => { saveSettings({ clock: settings.clock === false }); this.panel.redraw(); }],
+        ['sun', 'الوضع الخفيف', on(settings.lite), () => { saveSettings({ lite: !settings.lite }); this.panel.redraw(); }],
+        ['ball', 'الرياضي', on(settings.sportsMode), () => { saveSettings({ sportsMode: !settings.sportsMode }); this.panel.redraw(); }],
+        ['snow', 'تبريد أقصى', settings.coolMax ? '30 إطاراً' : 'متوقف', () => { saveSettings({ coolMax: !settings.coolMax, cool: settings.cool || !settings.coolMax }); a.renderer.resize(); this.panel.redraw(); }],
+        ['snow', 'التبريد', settings.cool ? 'يعمل' : 'جودة قصوى', () => { saveSettings({ cool: !settings.cool }); a.renderer.resize(); a.toast(settings.cool ? 'التبريد: يكتمل بعد الدخول التالي' : 'الجودة القصوى', 3000); this.panel.redraw(); }],
+        ['sun', 'رسم ذكي', settings.smartRender !== false ? 'رسم عند الحركة' : 'متوقف', () => { saveSettings({ smartRender: settings.smartRender === false }); this.panel.redraw(); }],
+        ['walk', 'المشي', on(settings.walk), () => { a.toggleWalk(); this.panel.redraw(); }],
+        ['exit', 'الخروج', 'الرئيسية', () => { this.close(); a.exit(); }],
       ];
       const per = 10, pages = Math.ceil(list.length / per);
       this.page = Math.min(this.page, pages - 1);
-      list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, l === 'الخروج' ? COLORS.danger : COLORS.accent); });
+      list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, l === 'الخروج' ? COLORS.danger : COLORS.accent, true); });
       if (pages > 1) this.pager(ctx, p, W, H, pages);
     }
   }
