@@ -1,6 +1,4 @@
-/ 200 {"ok":true,"endpoints":["/now","/matches","/favourites","/events","/live (ws)","/ask","/ipa/madar","/ipa/drivecast","/f/assets/…","/push"]}
-/push/key 200 {"key":"BANwJ7YnsKUjuBjkZSzOGBLrWuI0PPfNE-GIJNLlWIayHhe8As20ELyMZUShY_BsJSuOYvjXoRPPhNy72ggEthc"}
-/ask 200 {"say":"المباراة القادمة لفريق النصر الساعة 10:00 مساءً ضد نيوم.","action":{"type":"none","value":"none"}}
-/ask2 200 {"say":"أنا أفتح يوتيوب الآن.","action":{"type":"open_app","value":"youtube"}}
-ws open 1477ms
-ws msg 1483ms {"type":"now","at":1792508205257,"matches":[{"id":"3654789448","homeNum":8941,"status":"upcoming","statusText":"لم تبدأ","timestamp":1792509000,"home":{"id":"89
+/turn 200 53B 322ms {"iceServers":[],"error":"TURN_TOKEN secret missing"}
+/f/assets/helmet.glb 200 1247624B 2015ms 
+/ipa/madar 200 47026768B 7849ms 
+again /ipa/madar 200 47026768B 1248ms
