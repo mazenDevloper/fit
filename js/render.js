@@ -192,7 +192,7 @@ export class StereoRenderer {
     if (this.readCount > 0) cap = Math.max(cap, this.cssCount > 0 ? 1280 : 1408);   // more crashed iOS (memory)
     this.quality = settings.lite || this.readCount > 0 ? 1 : this.quality || 1;
     const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr * this.quality / 64) * 64, 896, cap);
-    if (want !== this.rtSize) this.makeTargets(want);
+    if (want !== this.rtSize) { this.makeTargets(want); window.madar?.log?.('دقة الرسم: ' + want + (this.readCount > 0 ? ' · شاشة جهاز' : '') + (this.cssCount > 0 ? ' · صفحات ' + this.cssCount : '')); }
     this.layoutCss();
   }
 

@@ -1714,6 +1714,7 @@ export class WindowManager {
     if (group.parent) group.lookAt(0, 0, 0); else { group.lookAt(h.x, h.y + y, h.z); }
   }
   add(win, { dist = 2, y = 0, scale = 1, place = true } = {}) {
+    this.app.log?.('نافذة: ' + win.kind + (win.stream || win.remote ? ' (شاشة جهاز)' : '') + ' · المجموع ' + (this.windows.length + 1));
     win.group.scale.setScalar(scale);
     if (place) {
       if (win.kind === 'model') { this.place(win.group, dist, y); win.group.rotation.set(0, 0, 0); }
