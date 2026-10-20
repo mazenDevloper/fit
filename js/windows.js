@@ -1410,7 +1410,39 @@ export class WebWindow extends SpatialWindow {
     if (this.bridge) this.send({ type: 'nav', path });
     else { this.url = this.base + path; this.reload(); }
   }
+  // Memory guard (iPhone app): a sleeping page is unloaded (its two copies freed) and shows a still card;
+  // a tap, or opening it, wakes it - reloaded where it was.
+  sleep() {
+    if (this.asleep || this.disposed) return;
+    this.asleep = true;
+    const u = this.mat.uniforms;
+    this.slept = { map: u.map.value, hole: u.uHole.value, has: u.uHas.value };
+    this.css.forEach(c => { c.f.src = 'about:blank'; c.el.style.display = 'none'; });
+    if (!this.sleepTex) {
+      const { ctx, texture } = canvasTexture(640, 400);
+      ctx.fillStyle = '#10131c'; ctx.fillRect(0, 0, 640, 400);
+      text(ctx, '💤', 320, 140, 90, {});
+      text(ctx, 'نائمة لتوفير الذاكرة', 320, 250, 40, { weight: 800 });
+      text(ctx, (this.title || this.url || '').slice(0, 40), 320, 310, 26, { color: '#9aa4bd', dir: 'auto' });
+      text(ctx, 'انقر لإيقاظها', 320, 360, 28, { color: '#7cc4ff', weight: 700 });
+      texture.needsUpdate = true; this.sleepTex = texture;
+    }
+    u.map.value = this.sleepTex; u.uHole.value = 0; u.uHas.value = 1;
+    this.mgr.app.log('حارس الذاكرة: نامت ' + this.url);
+  }
+  wake() {
+    if (!this.asleep) return;
+    this.asleep = false;
+    const u = this.mat.uniforms, s = this.slept || {};
+    u.map.value = s.map ?? null; u.uHole.value = s.hole ?? 1; u.uHas.value = s.has ?? 0;
+    this.css.forEach(c => { c.el.style.display = ''; c.key = ''; });
+    this.lastUse = performance.now();
+    this.reload();
+    this.mgr.guardMemory(this);
+  }
   onContentClick(hit) {
+    if (this.asleep) { this.wake(); return true; }
+    this.lastUse = performance.now();
     if (!this.bridge) {
       // Pages from other sites can't receive clicks from Madar's eye/hand pointer unless they include madar-bridge.js.
       const now = performance.now();
@@ -1455,6 +1487,7 @@ export class WebWindow extends SpatialWindow {
   }
   // Called after each render with the current eye cameras: place both iframes over the window.
   placeCss() {
+    if (this.asleep) return;
     const r = this.mgr.app.renderer, m = this.content.matrixWorld, h = this.h, k = WEB_INFLATE;
     const head = this.mgr.app.headForward, toWin = this.group.getWorldPosition(new THREE.Vector3()).normalize();
     const vis = head.dot(toWin) > 0.2 && this.group.visible;
@@ -1723,6 +1756,7 @@ export class WindowManager {
     if (settings.curveAll && this.curvable(win)) setTimeout(() => { if (!win.disposed && !win.curved) win.setCurved(true); }, 0);
     this.root.add(win.group);
     this.windows.push(win);
+    if (win.kind === 'web') { win.lastUse = performance.now(); this.guardMemory(win); }
     this.refreshTargets();
     this.changed();
     blip('open', settings.sounds);
@@ -1730,6 +1764,15 @@ export class WindowManager {
   }
   // visionOS 27 curved windows: every video / picture window bends around you (live web pages stay flat so
   // they keep working; the 🌀 button on a page curves it as a picture).
+  // iPhone app: at most 3 live web pages at once (each one is two page copies in memory); the least recently
+  // used one sleeps. Safari on its own copes; inside the app ARKit and Metal share the same memory budget.
+  guardMemory(keep) {
+    const max = window.MadarIOS ? 3 : 6;
+    const live = this.windows.filter(w => w.kind === 'web' && !w.asleep && !w.disposed);
+    if (live.length <= max) return;
+    live.filter(w => w !== keep).sort((a, b) => (a.lastUse || 0) - (b.lastUse || 0)).slice(0, live.length - max).forEach(w => w.sleep());
+    this.app.toast('💤 حارس الذاكرة: نامت صفحة قديمة — انقرها لإيقاظها', 3000);
+  }
   curvable(w) { return (w.kind === 'video' || w.kind === 'image') && !w.sphere && typeof w.setCurved === 'function'; }
   setCurveAll(on) {
     saveSettings({ curveAll: on });
@@ -1786,9 +1829,7 @@ export class WindowManager {
     if (k === 'web') {
       // In the headset, sites open in a paired tablet's built-in browser when one is available.
       if (!spec.direct && this.app.useBuiltinBrowser?.(spec.url)) { this.app.openBrowser(spec.url); return null; }
-      // Each site runs twice (one copy per eye), so keep a single web window to stay within iPhone memory.
-      const old = this.windows.filter(w => w.kind === 'web');
-      if (old.length) { old.forEach(w => this.close(w)); this.app.toast('أُغلق الموقع السابق لتوفير الذاكرة'); }
+      // Each site runs twice (one copy per eye): the memory guard keeps the live ones within the limit.
       return this.add(new WebWindow(this, spec), { dist: 2.1, scale: 1.6 });
     }
     if (k === 'panel') return this.add(new PanelWindow(this, spec), { dist: 1.6, scale: spec.panel === 'clock' ? 0.55 : 0.95, y: spec.panel === 'clock' ? 0.45 : 0 });
@@ -1851,7 +1892,7 @@ export class WindowManager {
         if (s.kind === 'model') { win.rot = s.r || 0; win.spin = !!s.spin; }
         else if (s.c) { win.curved = true; win.updateRadius(); win.layout(); }
         this.root.add(win.group);
-        this.windows.push(win);
+        this.windows.push(win); if (win.kind === 'web') this.guardMemory(win);
       } catch (e) { console.warn('restore failed', e); }
     }
     this.refreshTargets();
