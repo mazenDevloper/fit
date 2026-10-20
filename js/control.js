@@ -34,6 +34,13 @@ export class ControlCenter {
   constructor(app) {
     this.app = app;
     this.group = new THREE.Group(); this.group.visible = false;
+    this.battery = null;
+    try { navigator.getBattery?.().then(b => { this.battery = b; b.addEventListener('levelchange', () => this.redraw()); b.addEventListener('chargingchange', () => this.redraw()); }); } catch {}
+    window.MadarIOS?.on?.('battery', b => { this.battery = { level: b.level, charging: b.charging }; this.redraw(); });
+  }
+  // the panels are made on first open (no memory used until then)
+  build() {
+    if (this.env) return;
     const mk = (w, h, fn) => { const c = new CanvasPanel(w, h, fn, { pxPerM: 1300 }); c.mesh.material.depthTest = false; c.mesh.renderOrder = 950; this.group.add(c.mesh); return c; };
     // left → right as you see them: environment · quick controls · status
     this.env = mk(0.42, 0.56, (ctx, W, H, p) => this.drawEnv(ctx, W, H, p));
@@ -41,13 +48,11 @@ export class ControlCenter {
     this.status = mk(0.42, 0.56, (ctx, W, H, p) => this.drawStatus(ctx, W, H, p));
     // three panels on a gentle arc around you
     [[this.env, -0.5, 0.32], [this.quick, 0, 0], [this.status, 0.5, -0.32]].forEach(([c, x, ry]) => { c.mesh.position.set(x, 0, Math.abs(x) * 0.18); c.mesh.rotation.y = ry; });
-    this.battery = null;
-    try { navigator.getBattery?.().then(b => { this.battery = b; b.addEventListener('levelchange', () => this.redraw()); b.addEventListener('chargingchange', () => this.redraw()); }); } catch {}
-    window.MadarIOS?.on?.('battery', b => { this.battery = { level: b.level, charging: b.charging }; this.redraw(); });
   }
   get targets() { return this.group.visible ? [this.env.mesh, this.quick.mesh, this.status.mesh] : []; }
-  redraw() { if (!this.group.visible) return; this.env.redraw(); this.quick.redraw(); this.status.redraw(); }
+  redraw() { if (!this.group.visible || !this.env) return; this.env.redraw(); this.quick.redraw(); this.status.redraw(); }
   open() {
+    this.build();
     placeAhead(this.app, this.group, settings.viewMode !== 'sbs' ? 1.6 : 1.15, 0.06);
     this.group.visible = true; this.redraw(); this.app.interaction?.setTargets(); blip('open', settings.sounds);
   }

@@ -189,7 +189,7 @@ export class StereoRenderer {
     // light mode: the rest is lightened elsewhere, the windows keep the full resolution (no adaptive drop)
     let cap = settings.lite ? (this.cssCount > 0 ? 1536 : 1664) : this.cssCount > 0 ? 1280 : settings.coolMax ? 1216 : settings.cool ? 1408 : 1664;
     // a tablet / laptop screen is open: its text needs the sharp resolution, cool mode or not
-    if (this.readCount > 0) cap = Math.max(cap, 1600);
+    if (this.readCount > 0) cap = Math.max(cap, this.cssCount > 0 ? 1280 : 1408);   // more crashed iOS (memory)
     this.quality = settings.lite || this.readCount > 0 ? 1 : this.quality || 1;
     const want = THREE.MathUtils.clamp(Math.round(cssSize * dpr * this.quality / 64) * 64, 896, cap);
     if (want !== this.rtSize) this.makeTargets(want);
