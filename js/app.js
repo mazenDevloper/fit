@@ -25,7 +25,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '76';
+export const APP_VERSION = '77';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -400,6 +400,31 @@ class App {
     this.toast((from?.name || 'جهاز') + ' يعرض هنا شاشة ' + code, 3000);
     saveSettings({ mirrorCode: code });
     if (this.active) this.connectMirror(code);
+  }
+  // «مساعد مدار» (Workers AI on the DriveCast server): answers aloud and in a notification, and may act.
+  async askAssistant(q) {
+    this.notify({ icon: '✨', title: 'مساعد مدار', body: '«' + q + '» …' });
+    let r;
+    try {
+      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar' }) });
+      r = await res.json();
+    } catch (e) { this.toast('المساعد غير متاح الآن', 2500); return; }
+    if (!r || !r.say) { this.toast('لم أفهم: «' + q + '»', 2500); return; }
+    this.aiHist = [...(this.aiHist || []), { role: 'user', content: q }, { role: 'assistant', content: r.say }].slice(-8);
+    this.notifier.cur = null; this.notifier.queue = [];
+    const a = r.action || {};
+    const run = () => {
+      const v = String(a.value || '');
+      if (a.type === 'open_matches') this.openMatches();
+      else if (a.type === 'open_url' && /^https?:\/\//.test(v)) this.windows.open({ kind: 'web', url: v, title: v });
+      else if (a.type === 'environment' && v) { saveSettings({ environment: v }); this.renderEnvChoices?.(); }
+      else if (a.type === 'open_app') ({ youtube: () => this.windows.open({ kind: 'web', url: 'https://m.youtube.com', title: 'YouTube' }), shahid: () => this.windows.open({ kind: 'web', url: 'https://shahid.mbc.net', title: 'شاهد' }),
+        netflix: () => this.windows.open({ kind: 'web', url: 'https://www.netflix.com', title: 'Netflix' }), makkah: () => this.openMakkah?.(), games: () => this.openGames(), keyboard: () => this.windows.open({ kind: 'keyboard' }) })[v]?.();
+    };
+    if (a.type && a.type !== 'none') run();
+    this.notify({ icon: '✨', title: 'مساعد مدار', body: r.say, actions: a.type === 'open_matches' ? [] : [['المباريات', () => this.openMatches()]] });
+    try { const u = new SpeechSynthesisUtterance(r.say); u.lang = 'ar-SA'; u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {}
+    this.log('المساعد: ' + q + ' → ' + r.say);
   }
   receiveText(d, from) {
     const t = String(d.text || '');
@@ -1015,6 +1040,8 @@ class App {
     const has = (...w) => w.some(x => t.includes(x));
     const after = (...w) => { for (const x of w) { const i = t.indexOf(x); if (i >= 0) return t.slice(i + x.length).trim(); } return ''; };
     const pointed = () => this.controls.pointedWindow() || [...this.windows.windows].reverse().find(w => w.kind !== 'keyboard');
+    // a question (or «يا مساعد …»): the assistant answers from the live situation and can act
+    if (/^(متى|كم|من |هل|ماذا|ماذا|ما |شو|كيف|أين|وين|ليش|لماذا|اي |أي )|النتيجة|سجّل|سجل الهدف|يا مساعد|المساعد/.test(t)) { this.askAssistant(t); return; }
     if (has('امسح الغرفة', 'مسح الغرفة', 'تعرف على الغرفة')) { this.room.scan(); return; }
     if (has('على التلفاز', 'فوق التلفاز')) { const w = pointed(); if (w?.onTv) w.onTv(); return; }
     if (has('السينما')) { const w = pointed(); if (w) { this.windows.cinema = this.windows.cinema === w ? null : w; } return; }
@@ -1044,7 +1071,7 @@ class App {
       const v = this.windows.windows.filter(w => w.kind === 'video');
       v.forEach(w => (has('شغل', 'تشغيل') ? (w.userPaused = false, w.video.play().catch(() => {})) : (w.userPaused = true, w.video.pause())));
     }
-    else { this.toast('لم أفهم: «' + t + '»', 2500); return; }
+    else { this.askAssistant(t); return; }   // not a known command: the assistant takes it
     this.toast('🎙 ' + t, 1800);
     this.log('أمر صوتي: ' + t);
   }

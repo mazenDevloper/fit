@@ -55,6 +55,26 @@ export class Sports {
     setLogoListener(() => { this.version++; this.island.redraw(); });
   }
   teams() { return settings.myTeams || []; }
+  // Live scores pushed by the server (WebSocket, Durable Object): goals arrive within seconds, no polling.
+  applyNow(d) {
+    if (!d || !Array.isArray(d.matches)) return;
+    if (d.teams?.length && JSON.stringify(d.teams.map(t => t.id)) !== JSON.stringify(this.teams().map(t => t.id))) { saveSettings({ myTeams: d.teams }); this.app.renderTeams?.(); }
+    this.goals = d.goals || {};
+    if (Array.isArray(d.events) && d.events.length) { this.island.events = d.events; this.island.evAt = Date.now(); }
+    this.checkGoals(d.matches); this.data = d; this.version++; this.error = null; this.island.redraw();
+  }
+  live() {
+    if (this.ws && this.ws.readyState <= 1) return;
+    if (Date.now() - (this.wsTried || 0) < 15000) return;   // retry at most every 15 s
+    this.wsTried = Date.now();
+    try {
+      const ws = new WebSocket('wss://studio.c-p.workers.dev/live?lang=27');
+      ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.type === 'now') { this.wsAt = Date.now(); this.applyNow(d); } } catch {} };
+      ws.onopen = () => this.app.log('النتائج المباشرة: متصل (WebSocket)');
+      ws.onclose = () => { this.ws = null; };
+      this.ws = ws;
+    } catch (e) {}
+  }
   // Your favourite teams from cplay2 (same list as the APK) — read once from cplay2's own storage via a tiny page.
   async syncFavorites() {
     if (this.syncing) return;
@@ -88,9 +108,7 @@ export class Sports {
         const d = r.ok && await r.json();
         if (d && Array.isArray(d.matches) && d.teams?.length) {
           if (JSON.stringify(d.teams.map(t => t.id)) !== JSON.stringify(this.teams().map(t => t.id))) { saveSettings({ myTeams: d.teams }); this.app.renderTeams?.(); }
-          this.goals = d.goals || {};
-          if (Array.isArray(d.events) && d.events.length) { this.island.events = d.events; this.island.evAt = Date.now(); }
-          this.checkGoals(d.matches); this.data = d; this.version++; this.error = null; this.island.redraw(); return;
+          this.applyNow(d); return;
         }
       } catch (e) {}
       if (!this.teams().some(t => t.id) && !this.binTried) {
@@ -140,7 +158,10 @@ export class Sports {
     if (!this.app.active) return;
     const live = this.liveMine().length > 0;
     const board = this.app.windows.windows.some(w => w.panelKind === 'matches' || w.panelKind === 'scoreboard');
-    const every = live || (settings.sportsMode && this.data?.matches?.some(m => m.status === 'live')) ? 5000 : (board || settings.island !== false) ? 60000 : 0;
+    // the live socket keeps everything fresh: polling only as a slow safety net while it works
+    if (settings.island !== false || board) this.live();
+    const sock = this.ws && this.ws.readyState === 1 && Date.now() - (this.wsAt || 0) < 90000;
+    const every = sock ? 120000 : live || (settings.sportsMode && this.data?.matches?.some(m => m.status === 'live')) ? 5000 : (board || settings.island !== false) ? 60000 : 0;
     if (every && now - this.timer > every) { this.timer = now; this.refresh(true); }
     this.island.update(now, Q);
     this.goal.update(now, Q);

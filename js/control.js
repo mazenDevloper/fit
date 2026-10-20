@@ -183,7 +183,13 @@ export class Notifier {
     text(ctx, (n.icon || '🔔') + ' ' + n.title, W / 2, y0 + th / 2 + 2, th * 0.4, { weight: 800, maxWidth: w - 50, fit: true, dir: 'auto' });
     if (g < 0.6) return;
     ctx.globalAlpha = (g - 0.6) / 0.4;
-    if (n.body) text(ctx, n.body, W / 2, y0 + th + H * 0.12, H * 0.09, { weight: 600, color: '#d5ddef', maxWidth: w - 60, fit: true, dir: 'auto' });
+    if (n.body) {   // up to 3 lines (the assistant's answers are a sentence or two)
+      const fs = H * 0.075; ctx.font = `600 ${fs}px system-ui, sans-serif`;
+      const lines = []; let cur = '';
+      for (const word of n.body.split(/\s+/)) { const t = cur ? cur + ' ' + word : word; if (ctx.measureText(t).width > w - 90 && cur) { lines.push(cur); cur = word; } else cur = t; }
+      if (cur) lines.push(cur);
+      lines.slice(0, 3).forEach((l, i) => text(ctx, i === 2 && lines.length > 3 ? l + '…' : l, W / 2, y0 + th + H * 0.07 + i * fs * 1.25, fs, { weight: 600, color: '#d5ddef', maxWidth: w - 60, fit: true, dir: 'auto' }));
+    }
     const acts = [...(n.actions || []), ['إغلاق', () => {}]], bw = (w - 40 - (acts.length - 1) * 14) / acts.length, by = ph - H * 0.2;
     acts.forEach(([l, fn], i) => {
       const x = x0 + 20 + i * (bw + 14), id = 'a' + i, hov = p.isHover(id);
