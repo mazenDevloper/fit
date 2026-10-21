@@ -149,7 +149,7 @@ export class Gallery {
     g.children.forEach(c => { c.geometry?.dispose(); c.material?.map?.dispose(); c.material?.dispose(); });
     g.clear();
     const sphere = new THREE.Mesh(new THREE.SphereGeometry(60, 64, 32), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, depthWrite: false }));
-    sphere.scale.x = -1; sphere.material.side = THREE.FrontSide;   // seen from inside, not mirrored
+    sphere.scale.x = -1;   // seen from inside without mirroring (three keeps BackSide right under the flip)
     sphere.renderOrder = -20;
     g.add(sphere);
     g.userData.dim = 1;
