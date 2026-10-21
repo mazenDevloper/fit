@@ -90,6 +90,9 @@ export function setupNative(app) {
     if (p.state === 'relocalized') { app.toast('✅ تعرّفت على غرفتك — النوافذ في أماكنها', 3000); app.log('ARKit: الغرفة معروفة'); }
   });
   M.on('hands', p => app.hands.ingestNative?.(p.hands, performance.now(), (x, y) => { const [sx, sy] = app.renderer.imageToStage(x, y); return app.renderer.stageToTan(sx, sy); }));
+  const cm = document.getElementById('castMe');
+  if (cm) { cm.hidden = false; cm.onclick = () => M.send('broadcast'); }
+  M.on('broadcastPicker', p => { if (!p.extension) app.toast('جزء البث غير موجود في التطبيق المثبّت — أداة التثبيت حذفته (فعّل الإضافات/Extensions فيها) أو ثبّت آخر نسخة', 8000); });
   M.on('openUrl', p => { if (app.active && p.url) app.windows.open({ kind: 'web', url: p.url }); });
   M.on('files', p => {
     if (p.state === 'loading') app.toast(`جاري نقل ${p.count} ملف…`, 2500);
