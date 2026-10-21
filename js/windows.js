@@ -1620,8 +1620,8 @@ export class WebWindow extends SpatialWindow {
 // --- 3D model volume ---
 let shadowTex = null;
 export class ModelVolume {
-  constructor(mgr, { itemId = null, url = null, name = '', files = null }) {
-    this.mgr = mgr; this.kind = 'model'; this.id = ++winId; this.files = files;
+  constructor(mgr, { itemId = null, url = null, name = '', files = null, includes = null }) {
+    this.mgr = mgr; this.kind = 'model'; this.id = ++winId; this.files = files; this.includes = includes;
     mgr.app.log('فتح مجسم: ' + (name || url || itemId));
     this.itemId = itemId; this.url = url; this.name = name;
     this.group = new THREE.Group();
@@ -1668,7 +1668,7 @@ export class ModelVolume {
         this.name = item.name;
         res = await loadModelFromFiles(item.files, item.format);
       } else if (this.files) res = await loadModelFromFiles(this.files.map(f => ({ name: f.name, blob: f })));
-      else res = await loadModelFromUrl(this.url);
+      else res = await loadModelFromUrl(this.url, this.includes);
       this.revoke = res.revoke;
       const { radius, height } = normalize(res.object);
       this.pivot.add(res.object);
@@ -1703,7 +1703,7 @@ export class ModelVolume {
   }
   serialize() {
     const g = this.group;
-    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : this.files ? null : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin };
+    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : this.files ? null : this.includes ? { url: this.url, name: this.name, includes: this.includes } : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin };
   }
   dispose() {
     this.toolbar.dispose();
@@ -1873,7 +1873,7 @@ export class WindowManager {
       const key = s.kind + JSON.stringify(s.ref);
       if (seen.has(key)) continue;          // drop duplicates saved by older versions
       seen.add(key);
-      if (s.kind === 'web' && ++webs > 1) continue;
+      if (s.kind === 'web' && ++webs > 6) continue;   // the memory guard puts the extra ones to sleep
       try {
         const spec = Object.assign({ kind: s.kind }, s.ref);
         if (s.ref.item) spec.itemId = s.ref.item;

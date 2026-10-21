@@ -10,6 +10,7 @@ import { Interaction } from './interaction.js';
 import { WindowManager } from './windows.js';
 import { Launcher, Calibration, Toast } from './panels.js';
 import { ControlCenter, LookUp, Notifier } from './control.js';
+import { Gallery } from './gallery.js';
 import { Slam } from './slam.js';
 import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
@@ -25,7 +26,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '78';
+export const APP_VERSION = '79';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -77,7 +78,7 @@ class App {
     this.room = new Room(this);
     this.webHost = window.MadarAndroid?.hasBrowser ? new WebHost(this) : null;   // this device can serve the built-in browser
     this.toastUI = new Toast();
-    this.control = new ControlCenter(this); this.lookUp = new LookUp(this); this.notifier = new Notifier(this);
+    this.control = new ControlCenter(this); this.lookUp = new LookUp(this); this.notifier = new Notifier(this); this.gallery = new Gallery(this);
     this.renderer.scene.add(this.launcher.group, this.calibration.group, this.control.group, this.lookUp.mesh, this.notifier.mesh);
     this.renderer.overlay.add(this.toastUI.mesh);
     this.interaction = new Interaction(this);
@@ -141,7 +142,7 @@ class App {
     n.hidden = false;
   }
 
-  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || [])]; }
+  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || []), ...(this.gallery?.targets || [])]; }
   notify(n) { if (this.active && this.notifier) this.notifier.push(n); else this.toast(n.title, 3000); }
   links() { return loadLinks(); }
   toast(msg, ms) { this.toastUI.show(msg, ms); }
@@ -1062,6 +1063,8 @@ class App {
     else if (has('cplay', 'سي بلاي', 'كبلاي')) this.openCplay();
     else if (has('كيبورد', 'لوحة المفاتيح')) this.windows.open({ kind: 'keyboard' });
     else if (has('مركز التحكم', 'التحكم')) this.control.open();
+    else if (has('المكتبات', 'مكتبة البيئات', 'البيئات')) this.gallery.open('hdris');
+    else if (has('المجسمات')) this.gallery.open('models');
     else if (has('ساعة', 'الساعه')) this.windows.open({ kind: 'panel', panel: 'clock' });
     else if (has('مكة', 'الحرم', 'الكعبة')) this.openMakkah?.();
     else if (has('بيئة', 'البيئه')) this.cycleEnvironment();
@@ -1090,7 +1093,7 @@ class App {
     // Any head turn, hand, playing video, dwell countdown, island or toast brings full speed back at once.
     if (settings.smartRender !== false && this.lastQ && this.envModeNow === 'immersive' && now - (this.movingAt || 0) > 400 && now - this.last < 100) {
       const g = this.interaction.pointers[2];
-      const busy = (g.dwellObj && !g.dwellDone) || this.hands.slots?.some(s => s.active) || this.launcher.group.visible || this.control.group.visible || this.lookUp.mesh.visible || this.notifier.mesh.visible
+      const busy = (g.dwellObj && !g.dwellDone) || this.hands.slots?.some(s => s.active) || this.launcher.group.visible || this.control.group.visible || this.gallery.group.visible || this.lookUp.mesh.visible || this.notifier.mesh.visible
         || this.toastUI.mesh.visible || this.sports?.island?.mesh.visible || this.sports?.goal?.active
         || this.windows.windows.some(w => w.kind === 'web' || w.kind === 'game' || (w.video && !w.video.paused) || w.moving);
       if (!busy) return;

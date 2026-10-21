@@ -74,8 +74,15 @@ export async function loadModelFromFiles(files, format) {
   } catch (e) { revoke(); throw e; }
 }
 
-export async function loadModelFromUrl(url) {
-  const g = await gltfLoader().loadAsync(url);
+// `includes`: the model's other files by their relative name → full address (Poly Haven keeps textures elsewhere)
+export async function loadModelFromUrl(url, includes = null) {
+  let manager;
+  if (includes) {
+    manager = new THREE.LoadingManager();
+    const keys = Object.keys(includes);
+    manager.setURLModifier(u => { const d = decodeURIComponent(u); const k = keys.find(k => d.endsWith(k)); return k ? includes[k] : u; });
+  }
+  const g = await gltfLoader(manager).loadAsync(url);
   return { object: g.scene, animations: g.animations || [], revoke() {} };
 }
 

@@ -99,6 +99,8 @@ export class Launcher {
       const list = [
         ['clock', 'المباريات', 'فرقي ونتائج اليوم', () => { a.openMatches(); this.close(); }],
         ['sliders', 'مركز التحكم', 'أو انظر للأعلى', () => { this.close(); a.control.open(); }],
+        ['globe', 'مكتبة البيئات', 'ألف بيئة 360° مجانية', () => { this.close(); a.gallery.open('hdris'); }],
+        ['cube', 'مكتبة المجسمات', 'أثاث ونباتات وأغراض', () => { this.close(); a.gallery.open('models'); }],
         ['mic', 'أمر صوتي', 'أو اضغط △ مطوّلاً', () => { this.close(); a.listen('command'); }],
         ['sun', 'مكة المكرمة', 'بيئة 360 حولك', () => { this.close(); a.openMakkah(); }],
         ['grid', 'التطبيقات', 'يوتيوب، شاهد، نتفليكس…', () => { this.close(); a.windows.open({ kind: 'panel', panel: 'store' }); }],

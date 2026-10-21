@@ -14,8 +14,9 @@ export const ENVS = {
   realStudio:  { label: 'المكتب البنفسجي · واقعي', note: 'نفس الغرفة بخامات وإضاءة حقيقية', immersive: true },
   lounge:      { label: 'صالة المدفأة', note: 'غرفة حقيقية · واقعية', immersive: true },
   realStudy:   { label: 'الصالة المضيئة', note: 'غرفة حقيقية بضوء النهار', immersive: true },
+  gallery:     { label: 'من المكتبة', note: 'بيئة اخترتها من مكتبة البيئات', immersive: true },
 };
-export const ENV_ORDER = Object.keys(ENVS);
+export const ENV_ORDER = Object.keys(ENVS).filter(k => k !== 'gallery');
 export const envKey = k => (k === 'immersive' ? 'night' : ENVS[k] ? k : 'passthrough');
 export const isImmersive = k => ENVS[envKey(k)].immersive;
 
@@ -39,7 +40,7 @@ function floorGrid(color, opacity) {
 }
 
 export function makeEnvironments() {
-  const all = {};
+  const all = { gallery: new THREE.Group() };   // filled by the environments library (gallery.js)
   // Night sky
   let g = new THREE.Group();
   g.add(dome(`varying vec3 vP; void main(){ float h = vP.y; vec3 top = vec3(0.012,0.02,0.06); vec3 mid = vec3(0.05,0.06,0.13); vec3 low = vec3(0.10,0.07,0.12);

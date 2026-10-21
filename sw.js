@@ -1,7 +1,7 @@
 // Offline cache: network-first for the app shell (so updates arrive), cache-first for heavy libraries and assets.
-const VERSION = 'madar-v78';
+const VERSION = 'madar-v79';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'apple-touch-icon.png',
-  'js/app.js', 'js/config.js', 'js/db.js', 'js/orient.js', 'js/render.js', 'js/hands.js', 'js/ui.js', 'js/windows.js', 'js/models.js', 'js/panels.js', 'js/interaction.js', 'js/controls.js', 'js/slam.js', 'js/gaze.js', 'js/envs.js', 'js/rooms.js', 'js/mirror.js', 'js/lens.js', 'js/devices.js', 'tv.html', 'emu.html', 'js/sports.js', 'js/games.js', 'js/room.js', 'js/matchart.js', 'js/native.js', 'js/control.js',
+  'js/app.js', 'js/config.js', 'js/db.js', 'js/orient.js', 'js/render.js', 'js/hands.js', 'js/ui.js', 'js/windows.js', 'js/models.js', 'js/panels.js', 'js/interaction.js', 'js/controls.js', 'js/slam.js', 'js/gaze.js', 'js/envs.js', 'js/rooms.js', 'js/mirror.js', 'js/lens.js', 'js/devices.js', 'tv.html', 'emu.html', 'js/sports.js', 'js/games.js', 'js/room.js', 'js/matchart.js', 'js/native.js', 'js/control.js', 'js/gallery.js',
   'lib/three/three.module.js', 'assets/sample.mp4'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION && k.startsWith('madar-v')).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
