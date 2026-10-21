@@ -51,7 +51,7 @@ export class IPhoneScreens {
         },
         error: e => { this.app.log('آيفون: خطأ فك ' + e.message); ready = false; try { ws.send('key'); } catch (x) {} },
       });
-      dec.configure({ codec, description: a, optimizeForLatency: true, hardwareAcceleration: 'prefer-hardware' });
+      dec.configure({ codec, description: a, optimizeForLatency: true });
       ready = false;
     };
     ws.onmessage = e => {
