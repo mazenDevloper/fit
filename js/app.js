@@ -11,6 +11,7 @@ import { WindowManager } from './windows.js';
 import { Launcher, Calibration, Toast } from './panels.js';
 import { ControlCenter, LookUp, Notifier } from './control.js';
 import { Gallery } from './gallery.js';
+import { IPhoneScreens } from './iphone.js';
 import { Slam } from './slam.js';
 import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
@@ -26,7 +27,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '82';
+export const APP_VERSION = '83';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -78,7 +79,7 @@ class App {
     this.room = new Room(this);
     this.webHost = window.MadarAndroid?.hasBrowser ? new WebHost(this) : null;   // this device can serve the built-in browser
     this.toastUI = new Toast();
-    this.control = new ControlCenter(this); this.lookUp = new LookUp(this); this.notifier = new Notifier(this); this.gallery = new Gallery(this);
+    this.control = new ControlCenter(this); this.lookUp = new LookUp(this); this.notifier = new Notifier(this); this.gallery = new Gallery(this); this.iphone = new IPhoneScreens(this);
     this.renderer.scene.add(this.launcher.group, this.calibration.group, this.control.group, this.lookUp.mesh, this.notifier.mesh);
     this.renderer.overlay.add(this.toastUI.mesh);
     this.interaction = new Interaction(this);
@@ -1065,6 +1066,7 @@ class App {
     else if (has('مركز التحكم', 'التحكم')) this.control.open();
     else if (has('المكتبات', 'مكتبة البيئات', 'البيئات')) this.gallery.open('hdris');
     else if (has('المجسمات')) this.gallery.open('models');
+    else if (has('الآيفون', 'الايفون', 'آيفون', 'ايفون')) this.iphone.pick();
     else if (has('ساعة', 'الساعه')) this.windows.open({ kind: 'panel', panel: 'clock' });
     else if (has('مكة', 'الحرم', 'الكعبة')) this.openMakkah?.();
     else if (has('بيئة', 'البيئه')) this.cycleEnvironment();
@@ -1116,7 +1118,7 @@ class App {
     this.sports?.update(now, this.renderQ);
     if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }
     if (this.launcher.group.visible) this.launcher.group.updateMatrixWorld();
-    this.control.update(now); this.lookUp.update(); this.notifier.update(now);
+    this.control.update(now); this.lookUp.update(); this.notifier.update(now); this.iphone.update(now);
     const ek = envKey(settings.environment);
     // A 360° picture surrounds you completely: hide the room/sky so nothing cuts into it.
     const around = this.windows.windows.some(w => w.sphere), cinema = !!this.windows.cinema;

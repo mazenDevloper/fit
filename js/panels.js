@@ -99,6 +99,7 @@ export class Launcher {
       const list = [
         ['clock', 'المباريات', 'فرقي ونتائج اليوم', () => { a.openMatches(); this.close(); }],
         ['sliders', 'مركز التحكم', 'أو انظر للأعلى', () => { this.close(); a.control.open(); }],
+        ['video', 'شاشة الآيفون', 'بث من مركز التحكم ← مدار', () => { this.close(); a.iphone.pick(); }],
         ['globe', 'مكتبة البيئات', 'ألف بيئة 360° مجانية', () => { this.close(); a.gallery.open('hdris'); }],
         ['cube', 'مكتبة المجسمات', 'أثاث ونباتات وأغراض', () => { this.close(); a.gallery.open('models'); }],
         ['mic', 'أمر صوتي', 'أو اضغط △ مطوّلاً', () => { this.close(); a.listen('command'); }],
