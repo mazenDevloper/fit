@@ -43,6 +43,33 @@ jobs:
           printf 'UxPlay (GPL-3.0) https://github.com/FDH2/UxPlay\r\nGStreamer (LGPL) https://gstreamer.freedesktop.org\r\n' > $OUT/LICENSES.txt
           du -sh $OUT
           zip -qr Madar-AirPlay-Windows.zip $OUT
+      - name: One installer (Madar-AirPlay-Setup.exe)
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress | Out-Null
+          @'
+          [Setup]
+          AppName=مدار AirPlay
+          AppVersion=1.0
+          AppPublisher=Madar
+          DefaultDirName={localappdata}\MadarAirPlay
+          DisableProgramGroupPage=yes
+          PrivilegesRequired=lowest
+          OutputDir=.
+          OutputBaseFilename=Madar-AirPlay-Setup
+          Compression=lzma2/ultra
+          SolidCompression=yes
+          WizardStyle=modern
+          [Files]
+          Source: "Madar-AirPlay\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+          [Icons]
+          Name: "{userdesktop}\مدار AirPlay"; Filename: "{app}\تشغيل مدار AirPlay.bat"; WorkingDir: "{app}"
+          Name: "{userprograms}\مدار AirPlay"; Filename: "{app}\تشغيل مدار AirPlay.bat"; WorkingDir: "{app}"
+          [Run]
+          Filename: "{app}\تشغيل مدار AirPlay.bat"; Description: "شغّل مدار AirPlay الآن"; Flags: postinstall shellexec nowait
+          '@ | Out-File -Encoding utf8BOM madar.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" madar.iss
+          Get-Item Madar-AirPlay-Setup.exe | Select-Object Length
       - name: Quick start test (version)
         run: |
           cd Madar-AirPlay && GST_PLUGIN_PATH=$PWD/lib/gstreamer-1.0 timeout 20 ./uxplay.exe -h 2>&1 | head -5 || true
@@ -51,4 +78,4 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           gh release delete airplay-windows --yes --cleanup-tag -R ${{ github.repository }} || true
-          gh release create airplay-windows Madar-AirPlay-Windows.zip -R ${{ github.repository }} --target "$GITHUB_SHA" --prerelease --title "مدار AirPlay (ويندوز)" --notes "فك الضغط ثم شغّل «تشغيل مدار AirPlay.bat». على الآيفون: مركز التحكم ← انعكاس الشاشة ← مدار."
+          gh release create airplay-windows Madar-AirPlay-Setup.exe Madar-AirPlay-Windows.zip -R ${{ github.repository }} --target "$GITHUB_SHA" --prerelease --title "مدار AirPlay (ويندوز)" --notes "Madar-AirPlay-Setup.exe: ثبّت وشغّل «مدار AirPlay» من سطح المكتب. أو الملف المضغوط: فك الضغط ثم شغّل «تشغيل مدار AirPlay.bat». على الآيفون: مركز التحكم ← انعكاس الشاشة ← مدار."
