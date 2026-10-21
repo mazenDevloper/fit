@@ -109,8 +109,8 @@ export function setupNative(app) {
   // no hand seen for 3 s → the iPhone looks 4 times a second only (less heat); a hand brings the full rate back
   let sentEvery = 0, sentAt = 0;
   const sendHands = () => {
-    const asleep = performance.now() - Math.max(0, ...(app.hands?.slots || []).map(s => s.seen || 0)) > 3000;
-    const every = asleep ? 250 : settings.lite ? 95 : settings.coolMax ? 60 : settings.cool ? 45 : 35;
+    // (no sleeping here: at 4 a second the iPhone's own hand tracking lost hands - Vision is light enough)
+    const every = settings.lite ? 95 : settings.coolMax ? 60 : settings.cool ? 45 : 35;
     if (every === sentEvery && performance.now() - sentAt < 5000) return;
     sentEvery = every; sentAt = performance.now();
     M.send('hands', { on: settings.handsEnabled !== false, every });
