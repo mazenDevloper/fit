@@ -1,0 +1,52 @@
+# «مدار» as an AirPlay receiver on Windows: builds UxPlay (open source, GPL-3) with MSYS2 and packs it with its
+# GStreamer plugins into one zip. Run «تشغيل مدار AirPlay.bat», then on the iPhone: Control Center → Screen
+# Mirroring → «مدار». Show its window inside Madar with «عرض شاشة».
+name: uxplay-windows
+on: { push: { branches: [airplay-win] }, workflow_dispatch: {} }
+permissions: { contents: write }
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults: { run: { shell: msys2 {0} } }
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git zip
+            mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-libplist mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-gstreamer mingw-w64-ucrt-x86_64-gst-plugins-base mingw-w64-ucrt-x86_64-gst-plugins-good
+            mingw-w64-ucrt-x86_64-gst-plugins-bad mingw-w64-ucrt-x86_64-gst-libav
+      - name: Build UxPlay
+        run: |
+          git clone --depth 1 https://github.com/FDH2/UxPlay.git
+          cd UxPlay && mkdir build && cd build && cmake .. -G Ninja && ninja
+          ls -la
+      - name: Pack with its libraries and GStreamer plugins
+        run: |
+          set -e
+          OUT=Madar-AirPlay; mkdir -p $OUT/lib/gstreamer-1.0
+          cp UxPlay/build/uxplay.exe $OUT/
+          cp /ucrt64/lib/gstreamer-1.0/*.dll $OUT/lib/gstreamer-1.0/
+          cp /ucrt64/bin/gst-*.exe $OUT/ 2>/dev/null || true
+          # every DLL the program and the plugins need, from the MSYS2 tree
+          for f in $OUT/uxplay.exe $OUT/lib/gstreamer-1.0/*.dll; do
+            ldd "$f" | awk '{print $3}' | grep -i '^/ucrt64' || true
+          done | sort -u | while read d; do cp -n "$d" $OUT/; done
+          # the GStreamer plugin scanner, needed at start
+          cp /ucrt64/libexec/gstreamer-1.0/gst-plugin-scanner.exe $OUT/ 2>/dev/null || true
+          printf '@echo off\r\nchcp 65001 >nul\r\ncd /d "%%~dp0"\r\nset GST_PLUGIN_PATH=%%~dp0lib\\gstreamer-1.0\r\nset GST_PLUGIN_SYSTEM_PATH=%%~dp0lib\\gstreamer-1.0\r\nset GST_PLUGIN_SCANNER=%%~dp0gst-plugin-scanner.exe\r\necho مدار AirPlay: على الآيفون افتح مركز التحكم - انعكاس الشاشة - مدار\r\nuxplay.exe -n "مدار" -nh -fs 0\r\npause\r\n' > "$OUT/تشغيل مدار AirPlay.bat"
+          printf 'UxPlay (GPL-3.0) https://github.com/FDH2/UxPlay\r\nGStreamer (LGPL) https://gstreamer.freedesktop.org\r\n' > $OUT/LICENSES.txt
+          du -sh $OUT
+          zip -qr Madar-AirPlay-Windows.zip $OUT
+      - name: Quick start test (version)
+        run: |
+          cd Madar-AirPlay && GST_PLUGIN_PATH=$PWD/lib/gstreamer-1.0 timeout 20 ./uxplay.exe -h 2>&1 | head -5 || true
+      - name: Release
+        shell: bash
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release delete airplay-windows --yes --cleanup-tag -R ${{ github.repository }} || true
+          gh release create airplay-windows Madar-AirPlay-Windows.zip -R ${{ github.repository }} --target "$GITHUB_SHA" --prerelease --title "مدار AirPlay (ويندوز)" --notes "فك الضغط ثم شغّل «تشغيل مدار AirPlay.bat». على الآيفون: مركز التحكم ← انعكاس الشاشة ← مدار."
