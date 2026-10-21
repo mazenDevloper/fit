@@ -1,3 +1,3 @@
 ver true
-pick {"a":"Kloofendal 48d Partly Cloudy (Pure Sky)","n":1,"vis":false,"env":"immersive","set":"gallery","tex":[2048,1016],"wv":"Scene"}
-logs 07:18:14  دخول البيئة | 07:18:50  بيئة من المكتبة: Kloofendal 48d Partly Cloudy (Pure Sky) | 07:19:12  فتح مجسم: Wooden Table 02 | 07:19:12  نافذة: model · المجموع 1
+pick {"a":"Dikhololo Night","n":1,"vis":false,"env":"immersive","set":"gallery","tex":[2048,1016],"wv":"Scene"}
+logs 07:22:14  دخول البيئة | 07:22:48  بيئة من المكتبة: Dikhololo Night | 07:23:08  فتح مجسم: Wooden Table 02 | 07:23:08  نافذة: model · المجموع 1
