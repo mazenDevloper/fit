@@ -1,3 +1,3 @@
 has iphone true
-list [{"room":"testphone1","name":"آيفون تجريبي","since":1792571912096}]
-logs 08:38:38  دخول البيئة | 08:38:54  فتح فيديو: 📱 آيفون تجريبي | 08:38:54  نافذة: video (شاشة جهاز) · المجموع 1 | 08:38:54  آيفون: خطأ فك Unsupported configuration. Check isConfigSupported() prior to calling configure().
+list [{"room":"testphone1","name":"آيفون تجريبي","since":1792572179435}]
+logs 08:43:06  دخول البيئة | 08:43:23  فتح فيديو: 📱 آيفون تجريبي | 08:43:23  نافذة: video (شاشة جهاز) · المجموع 1 | 08:43:24  آيفون: أول صورة 590×1280
