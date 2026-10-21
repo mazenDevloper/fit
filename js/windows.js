@@ -1767,7 +1767,7 @@ export class WindowManager {
   // iPhone app: at most 3 live web pages at once (each one is two page copies in memory); the least recently
   // used one sleeps. Safari on its own copes; inside the app ARKit and Metal share the same memory budget.
   guardMemory(keep) {
-    const max = window.MadarIOS ? 3 : 6;
+    const max = window.MadarIOS ? 2 : 6;   // the iPhone app: ARKit + Metal share the page's memory
     const live = this.windows.filter(w => w.kind === 'web' && !w.asleep && !w.disposed);
     if (live.length <= max) return;
     live.filter(w => w !== keep).sort((a, b) => (a.lastUse || 0) - (b.lastUse || 0)).slice(0, live.length - max).forEach(w => w.sleep());
@@ -1892,7 +1892,9 @@ export class WindowManager {
         if (s.kind === 'model') { win.rot = s.r || 0; win.spin = !!s.spin; }
         else if (s.c) { win.curved = true; win.updateRadius(); win.layout(); }
         this.root.add(win.group);
-        this.windows.push(win); if (win.kind === 'web') this.guardMemory(win);
+        this.windows.push(win);
+        // the iPhone app starts light: only the first saved page loads, the others wait asleep (tap to wake)
+        if (win.kind === 'web') { if (window.MadarIOS && webs > 1) win.sleep(); else this.guardMemory(win); }
       } catch (e) { console.warn('restore failed', e); }
     }
     this.refreshTargets();
