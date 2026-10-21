@@ -27,7 +27,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '86';
+export const APP_VERSION = '87';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
@@ -582,6 +582,8 @@ class App {
   startSportsMode() {
     if (!this.active) return;
     const W = this.windows;
+    // the demo pieces (welcome, clock, sample video, helmet) have no place next to the match
+    [...W.windows].filter(w => w.panelKind === 'welcome' || w.panelKind === 'clock' || /sample\.mp4$/.test(w.url || '') || /helmet\.glb$/.test(w.url || '')).forEach(w => W.close(w));
     if (!W.windows.some(w => w.panelKind === 'scoreboard')) {
       const sb = W.open({ kind: 'panel', panel: 'scoreboard' });
       W.placeBeside?.(sb, -0.62, 2.0, -0.02);
@@ -829,6 +831,7 @@ class App {
       return;
     }
     if (saved && saved.windows && saved.windows.length && !first) { this.windows.restore(saved.windows); return; }
+    if (settings.sportsMode || !first) { try { localStorage.setItem(FIRST_RUN, '1'); } catch {} return; }   // the demo scene: first run only, never in sports mode
     // Default first scene.
     const w = this.windows;
     const yaw0 = w.forwardYaw();
