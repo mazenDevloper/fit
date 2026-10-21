@@ -89,6 +89,10 @@ export function setupNative(app) {
   M.on('world', p => {
     if (p.state === 'relocalized') { app.toast('✅ تعرّفت على غرفتك — النوافذ في أماكنها', 3000); app.log('ARKit: الغرفة معروفة'); }
   });
+  // a line in the log every 10 s while in the environment: does the app send hands, and how many it sees
+  let hEv = 0, hSeen = 0, hAt = performance.now();
+  M.on('hands', p => { hEv++; hSeen += (p.hands || []).length; const n = performance.now(); if (n - hAt > 10000 && app.active) { app.log(`اليد (التطبيق): ${hEv} قراءة، ${hSeen} يد، التتبع ${settings.handsEnabled ? 'يعمل' : 'متوقف'}`); hEv = 0; hSeen = 0; hAt = n; } });
+  setInterval(() => { if (app.active && performance.now() - hAt > 15000) { app.log('اليد (التطبيق): لا قراءات من التطبيق منذ 15 ث'); hAt = performance.now(); } }, 5000);
   M.on('hands', p => app.hands.ingestNative?.(p.hands, performance.now(), (x, y) => { const [sx, sy] = app.renderer.imageToStage(x, y); return app.renderer.stageToTan(sx, sy); }));
   const cm = document.getElementById('castMe');
   if (cm) { cm.hidden = false; cm.onclick = () => M.send('broadcast'); }
