@@ -1,6 +1,7 @@
 import UIKit
 import ARKit
 import WebKit
+import ReplayKit
 
 /// The whole app: the camera picture drawn natively (Metal, lens-matched for the headset) underneath,
 /// and Madar's web interface on top with a transparent background. Native modules feed the page.
@@ -103,6 +104,7 @@ final class MainViewController: UIViewController {
         case "saveWorld": ar.saveWorldMap()
         case "speechStart": speech.start(lang: d["lang"] as? String ?? "ar-SA", interim: (d["interim"] as? Bool) ?? false)
         case "speechStop": speech.stop()
+        case "broadcast": showBroadcastPicker()
         case "rumble": haptics.rumble(strength: (d["s"] as? NSNumber)?.floatValue ?? 0.6, ms: (d["ms"] as? NSNumber)?.intValue ?? 200)
         case "recordStart": recorder.start()
         case "recordStop": recorder.stop()
@@ -116,5 +118,20 @@ final class MainViewController: UIViewController {
             if let s = d["url"] as? String, let u = URL(string: s) { UIApplication.shared.open(u) }
         default: break
         }
+    }
+}
+
+
+// «اعرض شاشة الآيفون»: Apple's own broadcast sheet, with «مدار» already chosen (no Control Center hunting).
+extension MainViewController {
+    func showBroadcastPicker() {
+        let p = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        p.preferredExtension = "com.madar.app.broadcast"
+        p.showsMicrophoneButton = false
+        view.addSubview(p)
+        let has = Bundle.main.builtInPlugInsURL.flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.path) }?.contains { $0.hasPrefix("MadarBroadcast") } ?? false
+        web.emit("broadcastPicker", ["extension": has])
+        for case let b as UIButton in p.subviews { b.sendActions(for: .allTouchEvents) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { p.removeFromSuperview() }
     }
 }
