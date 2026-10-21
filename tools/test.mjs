@@ -12,12 +12,13 @@ await p.evaluate(() => window.madar.gallery.open('hdris')); await p.waitForTimeo
 await p.screenshot({ path: 'out/g1-hdris.png' });
 await p.evaluate(() => { const g = window.madar.gallery; g.cat = 'night'; g.redraw(); }); await p.waitForTimeout(6000);
 await p.screenshot({ path: 'out/g2-night.png' });
-await p.evaluate(async () => { const g = window.madar.gallery; g.cat = 'nature'; await g.pick(g.shown()[0]); }); await p.waitForTimeout(4000);
+log.push('pick ' + await p.evaluate(async () => { const g = window.madar.gallery; g.cat = 'nature'; const a = g.shown()[0]; await g.pick(a); const ga = window.madar.envs.gallery; const m = ga.children[0]; return JSON.stringify({ a: a.name, n: ga.children.length, vis: ga.visible, env: window.madar.envModeNow, set: JSON.parse(localStorage.getItem('madar.settings.v1')).environment, tex: m && m.material.map && [m.material.map.image?.width, m.material.map.type], wv: ga.parent && ga.parent.type }); }));
+await p.waitForTimeout(4000);
 await p.screenshot({ path: 'out/g3-env.png' });
 await p.evaluate(() => window.madar.gallery.open('models')); await p.waitForTimeout(8000);
 await p.screenshot({ path: 'out/g4-models.png' });
 await p.evaluate(async () => { const g = window.madar.gallery; g.cat = 'furniture'; await g.pick(g.shown()[1]); }); await p.waitForTimeout(8000);
 await p.screenshot({ path: 'out/g5-model.png' });
-log.push('logs ' + await p.evaluate(() => JSON.stringify((window.madar.logs || window.madar.logLines || []).slice?.(-6) || '')));
+log.push('logs ' + await p.evaluate(() => JSON.parse(localStorage.getItem('madar.log') || '[]').slice(-8).join(' | ')));
 await b.close();
 fs.writeFileSync('out/server.txt', log.join('\n'));
