@@ -416,6 +416,82 @@ export function gaming(theme = 'neon') {
   return ticking(R, (dt, t) => { hexU.uT.value = t; ledU.uT.value = t; });
 }
 
+// ---------------------------------------------------------------- the gym: a clear floor for the coach
+// Rubber floor and a wooden training platform in front of you, a long mirror, windows on the mountains to the right,
+// a dumbbell rack, kettlebells, a bench, wall bars and a punching bag - and nothing standing between you and the coach.
+export function gym() {
+  const R = new THREE.Group(), W = 7.5, D = 9, H = 3.4, FZ = -D / 2 + 0.6;
+  R.add(new THREE.HemisphereLight(0xf6f8ff, 0x5a5e66, 1.6)); R.add(new THREE.AmbientLight(0xffffff, 0.35));
+  const sunL = new THREE.DirectionalLight(0xfff2de, 1.3); sunL.position.set(5, 4, -2); R.add(sunL);
+  // rubber tiles everywhere, a light wooden platform where the coach trains
+  const rubber = tex(512, 512, (g, w, h) => { g.fillStyle = '#2b2e34'; g.fillRect(0, 0, w, h); noise(g, w, h, 26000, () => `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},${Math.random() * 0.12})`); g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 3; g.strokeRect(0, 0, w, h); });
+  rubber.wrapS = rubber.wrapT = THREE.RepeatWrapping; rubber.repeat.set(W / 1, D / 1);
+  plane(R, W, D, new THREE.MeshStandardMaterial({ map: rubber, roughness: 0.92, envMapIntensity: 0.1 }), 0, FLOOR, 0, 0, -Math.PI / 2);
+  plane(R, 3.2, 3.0, pbr('laminate_floor_02', { color: 0xe8d2b4, repeat: [3, 3], envI: 0.2 }), 0, FLOOR + 0.004, -2.6, 0, -Math.PI / 2);
+  // an exercise mat on the platform
+  plane(R, 0.7, 1.8, std(0x1f8a7a, { roughness: 0.8 }), 0, FLOOR + 0.008, -2.55, Math.PI / 2, -Math.PI / 2);
+  // walls (light concrete), ceiling with light panels
+  const wall = std(0xe3e6eb, { roughness: 0.9 }), accent = std(0x1f8a7a, { roughness: 0.8 });
+  plane(R, D, H, wall, -W / 2, FLOOR + H / 2, 0, Math.PI / 2); plane(R, W, H, wall, 0, FLOOR + H / 2, D / 2, Math.PI);
+  plane(R, W, D, std(0xe9ebef, { roughness: 0.9 }), 0, FLOOR + H, 0, 0, Math.PI / 2);
+  box(R, 0.02, 0.5, D, accent, -W / 2 + 0.012, FLOOR + 0.25, 0); box(R, W, 0.5, 0.02, accent, 0, FLOOR + 0.25, D / 2 - 0.012);
+  for (const x of [-1.8, 0, 1.8]) for (const z of [-2.8, 0, 2.8]) { box(R, 1.2, 0.03, 0.6, emit(0xfafcff), x, FLOOR + H - 0.02, z); }
+  pointL(R, 0xffffff, 0.8, 7, 0, FLOOR + H - 0.3, -2.4); pointL(R, 0xfff4e6, 0.5, 7, 0, FLOOR + H - 0.3, 1.5);
+  // the front wall: a long mirror (soft reflections of the light) and the sign above it
+  plane(R, W, H, wall, 0, FLOOR + H / 2, -D / 2, 0);
+  const mirror = tex(1024, 512, (g, w, h) => {
+    const q = g.createLinearGradient(0, 0, w, h); q.addColorStop(0, '#9aa6b2'); q.addColorStop(0.5, '#7d8995'); q.addColorStop(1, '#94a0ac'); g.fillStyle = q; g.fillRect(0, 0, w, h);
+    g.globalAlpha = 0.16; g.fillStyle = '#ffffff'; for (const [x, k] of [[120, 60], [330, 26], [610, 80], [860, 34]]) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + k, 0); g.lineTo(x + k - 220, h); g.lineTo(x - 220, h); g.fill(); }
+    g.globalAlpha = 0.5; g.fillStyle = '#c8ccd2'; g.fillRect(0, h * 0.78, w, h * 0.22);
+  });
+  plane(R, 5.2, 1.9, new THREE.MeshStandardMaterial({ map: mirror, roughness: 0.08, metalness: 0.6, envMapIntensity: 1.0 }), 0, FLOOR + 1.25, -D / 2 + 0.02);
+  box(R, 5.3, 0.05, 0.04, std(0x9aa0a8, { metalness: 0.8, roughness: 0.3 }), 0, FLOOR + 2.22, -D / 2 + 0.03);
+  box(R, 5.3, 0.05, 0.04, std(0x9aa0a8, { metalness: 0.8, roughness: 0.3 }), 0, FLOOR + 0.28, -D / 2 + 0.03);
+  const sign = tex(1024, 256, (g, w, h) => { g.font = '900 150px system-ui, "Geeza Pro", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.direction = 'rtl'; g.shadowColor = '#7dffd6'; g.shadowBlur = 30; g.fillStyle = '#eafff8'; g.fillText('مدار · لياقة', w / 2, h / 2 + 6); });
+  plane(R, 1.9, 0.48, new THREE.MeshBasicMaterial({ map: sign, transparent: true, depthWrite: false, toneMapped: false }), 0, FLOOR + 2.75, -D / 2 + 0.04).renderOrder = -2;
+  glow(R, 2.6, 0.9, 0x34d399, 0.22, 0, FLOOR + 2.75, -D / 2 + 0.05);
+  // the right wall: big windows on the mountains
+  const rw = new THREE.Shape(); rw.moveTo(-D / 2, 0); rw.lineTo(D / 2, 0); rw.lineTo(D / 2, H); rw.lineTo(-D / 2, H); rw.closePath();
+  for (const cz of [-2.4, 0.2]) { const hole = new THREE.Path(); hole.moveTo(cz - 1.1, 0.6); hole.lineTo(cz + 1.1, 0.6); hole.lineTo(cz + 1.1, 2.75); hole.lineTo(cz - 1.1, 2.75); hole.closePath(); rw.holes.push(hole); }
+  const rwm = new THREE.Mesh(new THREE.ShapeGeometry(rw), wall); rwm.position.set(W / 2, FLOOR, 0); rwm.rotation.y = -Math.PI / 2; R.add(rwm);
+  const frameM = std(0x2a2d33, { metalness: 0.6, roughness: 0.35 });
+  for (const cz of [-2.4, 0.2]) { box(R, 0.1, 0.06, 2.24, frameM, W / 2 - 0.02, FLOOR + 0.6, cz); box(R, 0.1, 0.06, 2.24, frameM, W / 2 - 0.02, FLOOR + 2.75, cz); for (const dz of [-1.1, 0, 1.1]) box(R, 0.1, 2.2, 0.05, frameM, W / 2 - 0.02, FLOOR + 1.67, cz + dz); }
+  const view = photoSphere('alps_field.jpg', -Math.PI * 0.35); view.scale.set(-1.5, 1.5, 1.5); view.position.y = 0.6; R.add(view);
+  glow(R, 2.6, 2.2, 0xfff0d0, 0.2, W / 2 - 1.6, FLOOR + 0.01, 1.0, 0, -Math.PI / 2);
+  // the left wall: a dumbbell rack (one draw call per material), kettlebells, a bench and the wall bars
+  const steel = std(0x9ea4ac, { metalness: 0.85, roughness: 0.3, envMapIntensity: 0.8 }), rubberM = std(0x17191d, { roughness: 0.55 }), rack = std(0x1d1f24, { metalness: 0.4, roughness: 0.45 });
+  const rx = -W / 2 + 0.45, rz0 = -1.4;
+  for (const [y, d] of [[0.45, 0.32], [0.85, 0.24]]) { const b = box(R, d + 0.04, 0.04, 2.4, rack, rx + (0.32 - d) / 2, FLOOR + y, rz0); b.rotation.z = 0.12; }
+  for (const dz of [-1.2, 1.2]) for (const dx of [0, 0.28]) box(R, 0.04, 0.9, 0.04, rack, rx - 0.14 + dx, FLOOR + 0.45, rz0 + dz);
+  const n = 10, heads = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.06, 0.07, 6), rubberM, n * 2), bars = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.015, 0.015, 0.26, 10), steel, n);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+  for (let i = 0; i < n; i++) {
+    const upper = i >= 6, z = rz0 - 1.05 + (upper ? (i - 6) * 0.55 + 0.25 : i * 0.42), y = FLOOR + (upper ? 0.92 : 0.52), x = rx - (upper ? 0.02 : 0.05), k = upper ? 0.75 : 1 - i * 0.04;
+    bars.setMatrixAt(i, m4.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1)));
+    for (const s of [-1, 1]) heads.setMatrixAt(i * 2 + (s > 0 ? 1 : 0), m4.compose(new THREE.Vector3(x, y, z + s * 0.11), q, new THREE.Vector3(k, 1, k)));
+  }
+  R.add(heads, bars);
+  for (let i = 0; i < 5; i++) {
+    const kb = new THREE.Group(), s = 0.8 + i * 0.1; kb.position.set(-W / 2 + 0.4, FLOOR, 0.6 + i * 0.42); kb.scale.setScalar(s); R.add(kb);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 16), std([0x2b6cb0, 0x2f855a, 0xd69e2e, 0xc53030, 0x553c9a][i], { roughness: 0.4, metalness: 0.2 })); ball.position.y = 0.11; kb.add(ball);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.016, 10, 24, Math.PI), rubberM); handle.position.y = 0.19; kb.add(handle);
+  }
+  const bench = new THREE.Group(); bench.position.set(-2.3, FLOOR, 1.9); bench.rotation.y = 0.5; R.add(bench);
+  box(bench, 0.32, 0.07, 1.25, std(0x222428, { roughness: 0.5 }), 0, 0.45, 0); box(bench, 0.3, 0.02, 1.22, std(0x34d399, { roughness: 0.6 }), 0, 0.49, 0);
+  for (const z of [-0.5, 0.5]) { box(bench, 0.06, 0.42, 0.06, rack, 0, 0.21, z); box(bench, 0.42, 0.04, 0.06, rack, 0, 0.02, z); }
+  for (const dz of [-0.45, 0.45]) box(R, 0.05, 2.6, 0.05, std(0xc9a77a, { roughness: 0.6 }), -W / 2 + 0.06, FLOOR + 1.3, -3.6 + dz);
+  for (let j = 0; j < 14; j++) cyl(R, 0.018, 0.018, 0.9, std(0xd9bb8c, { roughness: 0.55 }), -W / 2 + 0.07, FLOOR + 0.18 + j * 0.17, -3.6, 10).rotation.x = Math.PI / 2;
+  // the punching bag (hangs in the right corner, swaying a little)
+  const bag = new THREE.Group(); bag.position.set(W / 2 - 1.1, FLOOR + H, -3.4); R.add(bag);
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.65, 6), steel); chain.position.y = -0.83; bag.add(chain);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 1.15, 28), std(0x9b1c1c, { roughness: 0.45 })); body.position.y = -2.23; bag.add(body);
+  for (const y of [-1.67, -2.79]) { const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.192, 0.192, 0.06, 28), rubberM); cap.position.y = y; bag.add(cap); }
+  // a wall clock, the time training
+  glb('wall_clock').then(c => R.add(place(tame(c, 0.4), { x: -W / 2 + 0.05, z: 1.4, ry: Math.PI / 2, height: 0.42, y0: FLOOR + 2.2 }))).catch(() => {});
+  R.userData.dim = 0.3;
+  return ticking(R, (dt, t) => { bag.rotation.z = Math.sin(t * 0.9) * 0.025; bag.rotation.x = Math.sin(t * 0.7 + 1) * 0.02; });
+}
+
 // ---------------------------------------------------------------- photo-real reading room (a 360° photo + furniture)
 export function readingRoom() {
   return realRoom('reading_room.jpg', 0.35, { sky: 0xfff2e0, ground: 0x6a5a4a, amb: 1.1, key: 0xfff0d8, keyI: 1.4, dir: [-2, 3, -1] }, async R => {

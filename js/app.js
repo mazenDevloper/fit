@@ -34,7 +34,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '89';
+export const APP_VERSION = '90';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -99,7 +99,7 @@ class App {
     this.setupScene();
     this.windows = new WindowManager(this);
     registerKind('reader', (m, sp) => new ReaderWindow(m, sp), { dist: 1.3, y: -0.05, scale: 1, single: true });
-    registerKind('shelf', m => new ShelfWindow(m), { dist: 1.9, y: -0.75, scale: 1, single: true });
+    registerKind('shelf', m => new ShelfWindow(m), { dist: 1.7, y: -0.62, scale: 1, single: true });
     registerKind('manuscript', (m, sp) => new ManuscriptWindow(m, sp), { dist: 2.0, y: 0.1, scale: 1 });
     registerKind('coach', (m, sp) => new CoachWindow(m, sp), { dist: 2.3, y: 0, scale: 1, single: true });
     this.ambient = new Ambient();

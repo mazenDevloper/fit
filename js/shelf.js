@@ -35,7 +35,7 @@ export class ShelfWindow {
     const list = [{ id: 'quran', book: 'quran', title: 'المصحف الشريف', color: '#174a3c', gold: true, pages: 604 }, ...docs.map((d, i) => ({ id: 'doc:' + d.id, book: 'doc', item: d.id, title: d.name, color: COLS[i % COLS.length], kind: d.format }))];
     this.books.children.forEach(c => { c.geometry.dispose(); [].concat(c.material).forEach(m => { m.map?.dispose(); m.dispose(); }); });
     this.books.clear();
-    const row = [0, 0], rowY = [0.0, 0.38];
+    const row = [0, 0], rowY = [0.38, 0.0];   // the upper shelf (at eye level) first
     for (const b of list) {
       const pr = progress.get(b.id), frac = pr && pr.count > 1 ? Math.min(1, (pr.page - 1) / (pr.count - 1) + 2 / pr.count) : 0;
       const th = b.id === 'quran' ? 0.075 : 0.035 + Math.min(0.04, (pr?.count || 120) / 9000), h = b.id === 'quran' ? 0.3 : 0.24 + (b.title.length % 4) * 0.012;

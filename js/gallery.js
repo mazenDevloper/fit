@@ -24,11 +24,11 @@ const TABS = [['rooms', 'غرف وأماكن', 'home'], ['views', 'إطلالا�
 const HDRI_CATS = [['all', 'الكل'], ['nature', 'طبيعة'], ['urban', 'مدن'], ['indoor', 'داخلي'], ['skies', 'سماء'], ['sunrise-sunset', 'غروب'], ['night', 'ليل'], ['studio', 'استوديو']];
 const MODEL_CATS = [['all', 'الكل'], ['furniture', 'أثاث'], ['seating', 'كراسي'], ['table', 'طاولات'], ['shelves', 'رفوف'], ['lighting', 'إضاءة'], ['electronics', 'أجهزة'], ['decorative', 'زينة'], ['plants', 'نباتات']];
 // Madar's own places: [key, category]
-const OWN = [['gaming', 'games'], ['gamingRed', 'games'], ['viewOffice', 'office'], ['nightOffice', 'office'], ['library', 'read'], ['reading', 'read'], ['space', 'read'], ['realNeon', 'office'], ['realStudio', 'office'], ['neonDesk', 'office'], ['study', 'office'], ['lounge', 'real'], ['realStudy', 'real'], ['night', 'mood'], ['cinema', 'mood'], ['sunset', 'mood']];
-const OWN_THUMBS = new Set(['cinema', 'gaming', 'gamingRed', 'library', 'lounge', 'neonDesk', 'night', 'nightOffice', 'reading', 'realNeon', 'realStudio', 'realStudy', 'space', 'study', 'sunset', 'viewOffice']);
-const OWN_COL = { gaming: ['#8a3cff', '#18d8ff'], gamingRed: ['#ff2a3c', '#ff9a1a'], viewOffice: ['#f7b267', '#5a3a50'], nightOffice: ['#0b1030', '#ffcf6a'], library: ['#4a2f1c', '#c9a24a'], reading: ['#8a7a60', '#f2e6cc'], space: ['#01020a', '#3a7bd5'],
+const OWN = [['gym', 'sport'], ['gaming', 'games'], ['gamingRed', 'games'], ['viewOffice', 'office'], ['nightOffice', 'office'], ['library', 'read'], ['reading', 'read'], ['space', 'read'], ['realNeon', 'office'], ['realStudio', 'office'], ['neonDesk', 'office'], ['study', 'office'], ['lounge', 'real'], ['realStudy', 'real'], ['night', 'mood'], ['cinema', 'mood'], ['sunset', 'mood']];
+const OWN_THUMBS = new Set(['gym', 'cinema', 'gaming', 'gamingRed', 'library', 'lounge', 'neonDesk', 'night', 'nightOffice', 'reading', 'realNeon', 'realStudio', 'realStudy', 'space', 'study', 'sunset', 'viewOffice']);
+const OWN_COL = { gym: ['#1f8a7a', '#c8d0da'], gaming: ['#8a3cff', '#18d8ff'], gamingRed: ['#ff2a3c', '#ff9a1a'], viewOffice: ['#f7b267', '#5a3a50'], nightOffice: ['#0b1030', '#ffcf6a'], library: ['#4a2f1c', '#c9a24a'], reading: ['#8a7a60', '#f2e6cc'], space: ['#01020a', '#3a7bd5'],
   realNeon: ['#223a8a', '#5fdcff'], realStudio: ['#e4c6f6', '#a88cc4'], neonDesk: ['#4b5688', '#ff5fd6'], study: ['#c8afe0', '#f4f3f6'], lounge: ['#5a3020', '#ffb070'], realStudy: ['#d8d0c0', '#fff4e0'], night: ['#070b1a', '#2a3a70'], cinema: ['#0b0910', '#2a3550'], sunset: ['#3a2f6a', '#ff8c52'] };
-const ROOM_CATS = [['all', 'الكل'], ['games', 'ألعاب'], ['office', 'مكاتب'], ['read', 'قراءة'], ['real', 'غرف حقيقية'], ['mood', 'أجواء']];
+const ROOM_CATS = [['all', 'الكل'], ['games', 'ألعاب'], ['sport', 'رياضة'], ['office', 'مكاتب'], ['read', 'قراءة'], ['real', 'غرف حقيقية'], ['mood', 'أجواء']];
 const PH_ROOMS = ['reading_room', 'wooden_lounge', 'comfy_cafe', 'pine_attic', 'lythwood_room', 'cayley_interior', 'aft_lounge', 'hotel_room', 'ballroom', 'photo_studio_loft_hall', 'colorful_studio', 'brown_photostudio_06', 'kiara_interior', 'artist_workshop'];
 const VIEWS = [
   ['citynight', 'مدن ليلاً', ['shanghai_bund', 'hansaplatz', 'neuer_zollhof', 'modern_buildings_night', 'golden_bay', 'blue_lagoon_night', 'st_peters_square_night', 'cobblestone_street_night', 'vignaioli_night', 'rooftop_night', 'winter_evening', 'night_bridge']],
@@ -207,7 +207,7 @@ export class Gallery {
         if (a.note) { const sh = ctx.createLinearGradient(0, y + h * 0.45, 0, y + h * 0.78); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.55)'); ctx.fillStyle = sh; ctx.fillRect(x, y + h * 0.45, w, h * 0.33); text(ctx, a.note, x + w / 2, y + h * 0.66, 17, { color: 'rgba(255,255,255,0.92)', maxWidth: w - 20, fit: true }); }
         return;
       }
-      icon(ctx, { games: 'grid', office: 'home', read: 'book', real: 'image', mood: 'moon' }[OWN.find(o => o[0] === a.id)?.[1]] || 'home', x + w / 2, y + h * 0.4, h * 0.3, 'rgba(255,255,255,0.85)');
+      icon(ctx, { sport: 'dumbbell', games: 'grid', office: 'home', read: 'book', real: 'image', mood: 'moon' }[OWN.find(o => o[0] === a.id)?.[1]] || 'home', x + w / 2, y + h * 0.4, h * 0.3, 'rgba(255,255,255,0.85)');
       if (a.note) text(ctx, a.note, x + w / 2, y + h * 0.66, 17, { color: 'rgba(255,255,255,0.85)', maxWidth: w - 20, fit: true });
       return;
     }

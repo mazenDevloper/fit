@@ -357,10 +357,17 @@ export class Motion {
 
 // ---------------------------------------------------------------- the coach window
 let cid = 5000;
+const CLEAR_ENVS = ['passthrough', 'dim', 'space', 'night', 'sunset', 'gym', 'gallery', 'mine'];
 const MODES = [['train', 'التمارين', 'muscle'], ['box', 'الملاكمة', 'glove'], ['eyes', 'العين والرقبة', 'eye'], ['tread', 'جهاز المشي', 'walk']];
 export class CoachWindow {
-  constructor(mgr, { mode = 'train', ex = null } = {}) {
+  constructor(mgr, { mode = 'train', ex = null, prevEnv = null } = {}) {
     this.mgr = mgr; this.app = mgr.app; this.kind = 'coach'; this.id = ++cid;
+    // a furnished room would stand between you and the coach: train in the gym, your room comes back when you close it
+    this.prevEnv = prevEnv;
+    if (!CLEAR_ENVS.includes(settings.environment)) {
+      this.prevEnv = settings.environment; saveSettings({ environment: 'gym' }); this.app.renderEnvChoices?.();
+      setTimeout(() => this.app.toast('🏋️ صالة التمرين — تعود بيئتك حين تغلق المدرب', 3200), 400);
+    }
     this.group = new THREE.Group(); this.group.userData.window = this;
     this.mode = mode;
     this.ex = exerciseById(ex || settings.coachEx || (settings.hasBand ? 'curl' : 'squat'));
@@ -588,8 +595,9 @@ export class CoachWindow {
   }
   busy() { return this.group.visible; }   // the figure moves: full frame rate
   scaleBy(f) { this.group.scale.setScalar(THREE.MathUtils.clamp(this.group.scale.x * f, 0.4, 3)); this.mgr.changed(); }
-  serialize() { const g = this.group; return { kind: 'coach', ref: { mode: this.mode, ex: this.ex.id }, p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3) }; }
+  serialize() { const g = this.group; return { kind: 'coach', ref: { mode: this.mode, ex: this.ex.id, prevEnv: this.prevEnv || undefined }, p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3) }; }
   dispose() {
+    if (this.prevEnv && settings.environment === 'gym') { saveSettings({ environment: this.prevEnv }); this.app.renderEnvChoices?.(); }
     try { speechSynthesis.cancel(); } catch {}
     this.train?.dispose(); this.motion.dispose();
     [this.main, this.map, this.menu].forEach(p => p.dispose()); this.closeBtn.dispose();
