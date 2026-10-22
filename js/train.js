@@ -52,7 +52,8 @@ export class Boxing {
     const { h } = headPose(this.app), yaw = this.app.windows.forwardYaw();
     const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
     // at = [left(+)/right(-), up, forward]
-    const pos = new THREE.Vector3(h.x + fx * t.at[2] - rx * t.at[0], h.y + t.at[1] - 0.12, h.z + fz * t.at[2] - rz * t.at[0]);
+    const k = settings.viewMode === 'sbs' ? 1 : 1.8;   // a flat screen sees less around you: the pads stand further away
+    const pos = new THREE.Vector3(h.x + (fx * t.at[2] - rx * t.at[0]) * k, h.y + (t.at[1] - 0.12) * k, h.z + (fz * t.at[2] - rz * t.at[0]) * k);
     const mat = new THREE.MeshStandardMaterial({ color: t.col, emissive: t.col, emissiveIntensity: 0.35, roughness: 0.4 });
     const mesh = new THREE.Mesh(this.padGeo, mat);
     const ring = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false }));
@@ -309,6 +310,7 @@ export class Treadmill {
     const v = this.speed / 3.6;   // m/s
     this.secs += dt; this.c.secs += dt; this.km += v * dt / 1000;
     const k = metAt(this.speed) * (settings.weight || 75) / 3600 * dt; this.kcal += k; this.c.kcal += k;
+    if (this.devKm != null) { if (this.bleKm0 == null) this.bleKm0 = this.devKm - this.km; this.km = Math.max(this.km, this.devKm - this.bleKm0); }
     if (this.world.visible) {
       this.ground.offset.y += v * dt / (160 / 12);
       for (const t of this.trees) { t.z += v * dt; if (t.z > 6) { t.z -= 106; t.x = (Math.random() < 0.5 ? 1 : -1) * (3 + Math.random() * 5); } }
@@ -317,6 +319,35 @@ export class Treadmill {
     // a 360° video plays at your pace
     const vv = this.video?.video; if (vv) vv.playbackRate = THREE.MathUtils.clamp(this.speed / 5, 0.5, 2);
     if (Math.floor(this.km * 10) !== this.lastTenth) { const was = this.lastTenth; this.lastTenth = Math.floor(this.km * 10); if (was != null && this.lastTenth % 5 === 0) say(arNum(this.lastTenth / 10) + ' كيلومتر'); }
+  }
+  // a treadmill that speaks Bluetooth FTMS (Fitness Machine Service): its real speed, distance and calories
+  async connect() {
+    if (this.ble) { try { this.ble.gatt.disconnect(); } catch {} this.ble = null; this.c.main.redraw(); return; }
+    if (!navigator.bluetooth) { this.app.toast('البلوتوث غير متاح هنا (Safari لا يدعمه) — استخدم Chrome على الحاسوب أو أندرويد، أو اضبط السرعة يدوياً', 5000); return; }
+    try {
+      const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [0x1826] }], optionalServices: [0x1826] });
+      const srv = await (await dev.gatt.connect()).getPrimaryService(0x1826);
+      const ch = await srv.getCharacteristic(0x2acd);
+      ch.addEventListener('characteristicvaluechanged', e => this.onData(e.target.value));
+      await ch.startNotifications();
+      dev.addEventListener('gattserverdisconnected', () => { this.ble = null; this.app.toast('انقطع الاتصال بجهاز المشي', 2500); this.c.main.redraw(); });
+      this.ble = dev; this.bleKm0 = null; say('تم ربط جهاز المشي'); this.app.toast('🔗 ' + (dev.name || 'جهاز المشي') + ' — السرعة من الجهاز', 3000);
+    } catch (e) { if (!/cancel/i.test(e.message)) this.app.toast('لم يُربط: ' + e.message + ' — بعض الأجهزة لا تدعم بروتوكول FTMS', 4500); }
+    this.c.main.redraw();
+  }
+  onData(dv) {   // Treadmill Data (0x2ACD)
+    const f = dv.getUint16(0, true); let o = 2;
+    if (!(f & 1)) { const v = dv.getUint16(o, true) / 100; o += 2; this.speed = Math.round(v * 10) / 10; }
+    if (f & 2) o += 2;
+    if (f & 4) { const m = dv.getUint16(o, true) | (dv.getUint8(o + 2) << 16); o += 3; this.devKm = m / 1000; }
+    if (f & 8) o += 4;
+    if (f & 16) o += 4;
+    if (f & 32) o += 1;
+    if (f & 64) o += 1;
+    if (f & 128) { const k = dv.getUint16(o, true); o += 5; if (k && k !== 0xffff) this.devKcal = k; }
+    const run = this.speed >= 7.5, rate = run ? this.speed / 10 : this.speed / 5.2;
+    if (this.speed > 0.3) { this.c.figure.play(run ? 'run' : 'walk', rate); if (this.state !== 'play') this.start(); }
+    else if (this.state === 'play') this.start();   // the belt stopped: pause
   }
   cadence() { const s = this.stepTimes || []; if (s.length < 6) return 0; return (s.length - 1) / ((s[s.length - 1] - s[0]) / 60000); }
   drawPanel(ctx, W, H, p, top) {
@@ -336,12 +367,14 @@ export class Treadmill {
     ROUTES.slice(0, 3).forEach(([id, l], i) => { const x = W - 30 - (i + 1) * rw; button(ctx, p, x + 4, top + 350, rw - 8, rh, l, () => this.setRoute(id), 'r' + id, this.route === id); });
     ROUTES.slice(3).forEach(([id, l], i) => { const x = W - 30 - (i + 1) * rw; button(ctx, p, x + 4, top + 418, rw - 8, rh, l, () => this.setRoute(id), 'r' + id, this.route === id); });
     button(ctx, p, W / 2 - rw / 2 + 4 - rw - 4, top + 418, rw - 8, rh, '⚖️ جلب الوزن', () => this.c.fetchWeight(), 'wt', false);
+    button(ctx, p, 34, top + 486, W - 68, rh, this.ble ? '🔗 متصل: ' + (this.ble.name || 'جهاز المشي') + ' · اضغط لفصله' : '🔗 ربط جهاز المشي بالبلوتوث (FTMS)', () => this.connect(), 'ble', !!this.ble);
     const bw = (W - 72) / 2;
     button(ctx, p, W - 30 - bw, H - 150, bw, 116, this.state === 'play' ? 'إيقاف' : 'ابدأ', () => this.start(), 'go', true, this.state === 'play' ? 'pause' : 'play');
     button(ctx, p, 30, H - 150, bw, 116, 'حفظ في صحة', () => this.c.toHealth({ type: this.speed >= 7.5 ? 'running' : 'walking', km: +this.km.toFixed(2) }), 'hl', false, 'heart');
   }
   dispose() {
     if (this.video) { try { this.app.windows.close(this.video); } catch {} }
+    try { this.ble?.gatt.disconnect(); } catch {}
     this.app.renderer.scene.remove(this.world); if (this.app.immersiveScene === this.world) this.app.immersiveScene = null;
     this.ground.dispose(); this.c.figure.stopClip(); this.c.figure.yaw.rotation.y = 0; this.c.figure.root.position.set(0, -1.55, -0.2);
   }

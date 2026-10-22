@@ -15,6 +15,7 @@ import { IPhoneScreens } from './iphone.js';
 import { ReaderWindow } from './reader.js';
 import { ShelfWindow } from './shelf.js';
 import { ManuscriptWindow } from './manuscript.js';
+import { FurnitureWindow } from './furniture.js';
 import { CoachWindow } from './coach.js';
 import { saveWebArticle } from './books.js';
 import { Ambient } from './ambient.js';
@@ -34,7 +35,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '90';
+export const APP_VERSION = '91';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -102,6 +103,7 @@ class App {
     registerKind('shelf', m => new ShelfWindow(m), { dist: 1.7, y: -0.62, scale: 1, single: true });
     registerKind('manuscript', (m, sp) => new ManuscriptWindow(m, sp), { dist: 2.0, y: 0.1, scale: 1 });
     registerKind('coach', (m, sp) => new CoachWindow(m, sp), { dist: 2.3, y: 0, scale: 1, single: true });
+    registerKind('furniture', (m, sp) => new FurnitureWindow(m, sp), { dist: 1.8, y: -1.55, scale: 1 });
     this.ambient = new Ambient();
     this.launcher = new Launcher(this);
     this.calibration = new Calibration(this);

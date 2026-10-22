@@ -7,6 +7,7 @@
 //   أثاث ومجسمات  Poly Haven's furniture and objects - placed in the room and kept with the current environment
 //   مخطوطات    your DriveCast manuscripts, as glowing panels on your walls
 //   ملفاتي      your own: imported environments (GLB / 360° picture), models, pictures without background, videos
+import { FURNITURE, FURN_COLORS } from './furniture.js';
 import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
@@ -22,7 +23,7 @@ const COMMONS = 'https://commons.wikimedia.org/w/api.php?format=json&origin=*';
 export const MANUSCRIPTS_BIN = '69b63c5cc3097a1dd5278b25';
 const TABS = [['rooms', 'غرف وأماكن', 'home'], ['views', 'إطلالات', 'globe'], ['hdris', 'بيئات 360°', 'sun'], ['pano', 'بانوراما', 'image'], ['video', 'فيديو 360', 'video'], ['models', 'أثاث ومجسمات', 'cube'], ['manuscripts', 'مخطوطات', 'book'], ['mine', 'ملفاتي', 'stack']];
 const HDRI_CATS = [['all', 'الكل'], ['nature', 'طبيعة'], ['urban', 'مدن'], ['indoor', 'داخلي'], ['skies', 'سماء'], ['sunrise-sunset', 'غروب'], ['night', 'ليل'], ['studio', 'استوديو']];
-const MODEL_CATS = [['all', 'الكل'], ['furniture', 'أثاث'], ['seating', 'كراسي'], ['table', 'طاولات'], ['shelves', 'رفوف'], ['lighting', 'إضاءة'], ['electronics', 'أجهزة'], ['decorative', 'زينة'], ['plants', 'نباتات']];
+const MODEL_CATS = [['all', 'الكل'], ['madar', 'أثاث مدار'], ['furniture', 'أثاث'], ['seating', 'كراسي'], ['table', 'طاولات'], ['shelves', 'رفوف'], ['lighting', 'إضاءة'], ['electronics', 'أجهزة'], ['decorative', 'زينة'], ['plants', 'نباتات']];
 // Madar's own places: [key, category]
 const OWN = [['gym', 'sport'], ['gaming', 'games'], ['gamingRed', 'games'], ['viewOffice', 'office'], ['nightOffice', 'office'], ['library', 'read'], ['reading', 'read'], ['space', 'read'], ['realNeon', 'office'], ['realStudio', 'office'], ['neonDesk', 'office'], ['study', 'office'], ['lounge', 'real'], ['realStudy', 'real'], ['night', 'mood'], ['cinema', 'mood'], ['sunset', 'mood']];
 const OWN_THUMBS = new Set(['gym', 'cinema', 'gaming', 'gamingRed', 'library', 'lounge', 'neonDesk', 'night', 'nightOffice', 'reading', 'realNeon', 'realStudio', 'realStudy', 'space', 'study', 'sunset', 'viewOffice']);
@@ -93,6 +94,7 @@ export class Gallery {
         if (!this.lists[t]) {
           const d = await (await fetch(`${API}/assets?t=${t}`)).json();
           this.lists[t] = Object.entries(d).map(([id, a]) => ({ id, name: a.name, cats: a.categories || [], dl: a.download_count || 0, kind: t === 'models' ? 'model' : 'hdri' })).sort((a, b) => b.dl - a.dl);
+          if (t === 'models') this.lists.models = [...FURNITURE.map(f => ({ id: f.id, name: f.name, kind: 'furn', theme: f.theme, cats: ['madar', 'furniture'] })), ...this.lists.models];
         }
         if (this.tab === 'views') { const by = new Map(this.lists.hdris.map(a => [a.id, a])); this.lists.views = VIEWS.flatMap(([k, , ids]) => ids.map(id => ({ ...(by.get(id) || { id, name: id, kind: 'hdri' }), cats: [k] }))); }
         if (this.tab === 'rooms') {
@@ -198,6 +200,13 @@ export class Gallery {
     });
   }
   card(ctx, a, x, y, w, h) {
+    if (a.kind === 'furn') {   // Madar's own furniture
+      const [c1, c2] = FURN_COLORS[a.theme] || ['#334', '#667'];
+      const g = ctx.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, c1); g.addColorStop(1, c2); ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x, y, w, h);
+      icon(ctx, { chair: 'home', chairRed: 'home', desk: 'keyboard', monitor: 'video', led: 'sun', sign: 'sun', shelf: 'stack', bag: 'glove', dumbbells: 'dumbbell', plant: 'globe', lamp: 'sun' }[a.id] || 'cube', x + w / 2, y + h * 0.42, h * 0.32, 'rgba(255,255,255,0.9)');
+      return;
+    }
     if (a.own) {   // Madar's own room: its colours
       const [c1, c2] = OWN_COL[a.id] || ['#334', '#667'];
       const g = ctx.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, c1); g.addColorStop(1, c2); ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
@@ -232,6 +241,11 @@ export class Gallery {
   // ---- choosing
   async pick(a) {
     if (this.loadingId) return;
+    if (a.kind === 'furn') {
+      const w = this.app.windows.open({ kind: 'furniture', item: a.id });
+      if (w) { const h = this.app.windows.headLocal(), yaw = this.app.windows.forwardYaw(); w.group.position.set(h.x - Math.sin(yaw) * 1.8, -1.55, h.z - Math.cos(yaw) * 1.8); w.group.rotation.set(0, yaw, 0); if (!['passthrough', 'dim'].includes(settings.environment)) this.app.windows.pinToEnv(w, true); this.app.windows.changed(); }
+      this.close(); return;
+    }
     if (a.own) { saveSettings({ environment: a.id }); this.app.renderEnvChoices?.(); this.app.toast('🌍 ' + a.name, 2000); this.redraw(); this.app.windows.windows.find(w => w.kind === 'reader')?.applyLayout(); return; }
     this.loadingId = a.id; this.redraw();
     try {

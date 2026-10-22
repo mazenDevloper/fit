@@ -8,6 +8,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings, deviceIdentity } from './config.js';
 import { FRONT, BACK } from './musclemap.js';
+import { PoseCam, CAM } from './posecam.js';
 
 const XBOT = new URL('../assets/coach/Xbot.glb', import.meta.url).href;
 export const MUSCLES = ['none', 'chest', 'abs', 'obliques', 'traps', 'upperBack', 'lowerBack', 'delts', 'rearDelts', 'biceps', 'triceps', 'forearms', 'glutes', 'quads', 'hamstrings', 'adductors', 'calves', 'shins', 'neck'];
@@ -156,8 +157,8 @@ export class Figure {
     model.traverse(o => { if (o.isSkinnedMesh) this.paint(o, o.material === body); });
     body.onBeforeCompile = joints.onBeforeCompile = sh => {
       Object.assign(sh.uniforms, this.uniforms);
-      sh.vertexShader = 'attribute float aMuscle;\nvarying float vGlow;\nuniform float uGlow[' + MUSCLES.length + '];\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vGlow = uGlow[int(aMuscle + 0.5)];');
-      sh.fragmentShader = 'varying float vGlow;\nuniform vec3 uGlowCol;\nuniform float uT;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  float gPrim = step(0.5, vGlow);\n  vec3 gCol = mix(vec3(1.0, 0.55, 0.12), uGlowCol, gPrim);\n  float gAmt = vGlow < 0.01 ? 0.0 : gPrim > 0.5 ? 0.62 + 0.66 * (vGlow - 0.5) : 0.25 + vGlow * 0.8;\n  diffuseColor.rgb = mix(diffuseColor.rgb, gCol * 0.72, clamp(gAmt, 0.0, 0.95));\n  totalEmissiveRadiance += gCol * gAmt * (0.2 + 0.1 * sin(uT * 5.0));').replace('#include <opaque_fragment>', 'float gL = dot(outgoingLight, vec3(0.299, 0.587, 0.114));\n  outgoingLight = mix(outgoingLight, gCol * clamp(gL, 0.3, 1.1) * (1.1 + 0.3 * sin(uT * 5.0)), vGlow < 0.01 ? 0.0 : gPrim > 0.5 ? 0.97 : 0.8);\n#include <opaque_fragment>');
+      sh.vertexShader = 'attribute float aMuscle;\nvarying float vGlow;\nvarying vec3 vMp;\nuniform float uGlow[' + MUSCLES.length + '];\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vGlow = uGlow[int(aMuscle + 0.5)];\n  vMp = position;');
+      sh.fragmentShader = 'varying float vGlow;\nvarying vec3 vMp;\nuniform vec3 uGlowCol;\nuniform float uT;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  float gPrim = step(0.5, vGlow);\n  vec3 gCol = mix(vec3(1.0, 0.55, 0.12), uGlowCol, gPrim);\n  float gFib = 0.5 + 0.5 * sin((vMp.x + vMp.z) * 260.0 + sin(vMp.y * 35.0) * 3.0);\n  gCol *= mix(0.72, 1.1, gFib);\n  float gAmt = vGlow < 0.01 ? 0.0 : gPrim > 0.5 ? 0.62 + 0.66 * (vGlow - 0.5) : 0.25 + vGlow * 0.8;\n  diffuseColor.rgb = mix(diffuseColor.rgb, gCol * 0.72, clamp(gAmt, 0.0, 0.95));\n  totalEmissiveRadiance += gCol * gAmt * (0.2 + 0.1 * sin(uT * 5.0));').replace('#include <opaque_fragment>', 'float gL = dot(outgoingLight, vec3(0.299, 0.587, 0.114));\n  outgoingLight = mix(outgoingLight, gCol * clamp(gL, 0.3, 1.1) * (1.1 + 0.3 * sin(uT * 5.0)), vGlow < 0.01 ? 0.0 : gPrim > 0.5 ? 0.97 : 0.8);\n#include <opaque_fragment>');
     };
     // rest pose: every bone's own rotation and the hips' position
     this.rest = new Map();
@@ -355,6 +356,20 @@ export class Motion {
   dispose() { window.removeEventListener('devicemotion', this.onMotion); }
 }
 
+// ---------------------------------------------------------------- Apple Health inside the iPhone app
+// The app answers {stage:'asking'} at once (then waits for your permission); an older app or the plain build
+// doesn't answer or says ok:false → the Shortcut is used instead.
+let healthWait = null, healthHooked = false;
+function nativeHealth(cmd, data = {}) {
+  const M = window.MadarIOS; if (!M?.on) return Promise.resolve(null);
+  if (!healthHooked) { healthHooked = true; M.on('health', p => healthWait?.(p)); }
+  return new Promise(res => {
+    let t = setTimeout(() => { healthWait = null; res(null); }, 1500);
+    healthWait = p => { if (p?.stage === 'asking') { clearTimeout(t); t = setTimeout(() => { healthWait = null; res(null); }, 60000); return; } clearTimeout(t); healthWait = null; res(p); };
+    M.send(cmd, data);
+  });
+}
+
 // ---------------------------------------------------------------- the coach window
 let cid = 5000;
 const CLEAR_ENVS = ['passthrough', 'dim', 'space', 'night', 'sunset', 'gym', 'gallery', 'mine'];
@@ -378,6 +393,7 @@ export class CoachWindow {
     this.group.add(this.figure.root);
     this.figure.load().then(() => { this.loaded = true; this.applyEx(); }).catch(e => { this.app.toast('تعذّر تحميل المجسم', 2500); this.app.log('المدرب: ' + (e.message || e)); });
     this.motion = new Motion(this.app);
+    this.cam = new PoseCam();   // the front camera: reps + form for every exercise
     // panels: the coach (right), the muscle map (left), the exercise list (pop-up)
     this.main = new CanvasPanel(0.66, 0.86, (ctx, W, H, p) => this.drawMain(ctx, W, H, p), { pxPerM: 1500 });
     this.main.mesh.position.set(0.78, -0.12, 0.12); this.main.mesh.rotation.y = -0.35; this.group.add(this.main.mesh);
@@ -403,7 +419,14 @@ export class CoachWindow {
     this.figure.stopClip();
     this.main.redraw(); this.map.redraw();
   }
-  choose(id) { this.ex = exerciseById(id); saveSettings({ coachEx: this.ex.id }); this.state = 'idle'; this.rep = 0; this.set = 1; this.applyEx(); }
+  async toggleCam() {
+    if (this.cam.on) { this.cam.stop(); this.app.toast('📷 أُطفئت كاميرا الجسم', 1800); this.main.redraw(); return; }
+    this.app.toast('📷 جاري تشغيل كاميرا الجسم…', 2500);
+    if (await this.cam.start()) { say('أرى جسمك. قف بحيث يظهر جسمك كاملاً'); this.app.toast('📷 ضع الجهاز أمامك بحيث يظهر جسمك كاملاً', 3500); }
+    else this.app.toast('تعذّر تشغيل الكاميرا: ' + (this.cam.error || ''), 3500);
+    this.main.redraw();
+  }
+  choose(id) { this.cam?.reset(); this.ex = exerciseById(id); saveSettings({ coachEx: this.ex.id }); this.state = 'idle'; this.rep = 0; this.set = 1; this.applyEx(); }
   program() {
     const band = settings.hasBand !== false;
     return band ? ['squat', 'curl', 'press', 'row', 'lateral', 'chestpress', 'pushdown', 'lunge', 'calf', 'plank'] : ['squat', 'lunge', 'jacks', 'knees', 'pushup', 'plank', 'calf'];
@@ -464,9 +487,19 @@ export class CoachWindow {
       this.kcal += (e.met * (settings.weight || 75) / 3600) * dt;
       if (e.hold) { if (this.secs >= e.hold) { this.rep = 1; this.finishSet(); } else if (Math.floor(this.secs) !== this.lastSec) { this.lastSec = Math.floor(this.secs); if (this.lastSec % 10 === 0 && this.lastSec) say(String(e.hold - this.lastSec) + ' ثانية'); this.main.redraw(); } }
       // reps: from your own movement when the sensors see it, else with the coach's rhythm
-      const m = e.detect !== 'tempo' ? this.motion.update(now, e.detect) : null;
+      // the body camera (when on) counts every exercise and watches your form
+      const cm = this.cam.on ? this.cam.read(now) : null, spec = CAM[e.id];
+      const camCounts = !!(cm && cm.seen && spec?.sig);
+      if (cm) {
+        const r = this.cam.rep(spec, cm);
+        if (r?.rep && !e.hold) { this.sensed = now; this.countRep(); if (spec.depth && r.ext > spec.depth[0]) this.tip(spec.depth[1]); }
+        const f = !cm.seen ? 'ابتعد قليلاً حتى تراك الكاميرا' : spec?.form?.(cm);
+        this.formT = f ? (this.formT || 0) + dt : 0;
+        if (f && this.formT > 1.2) { this.tip(f); this.formT = 0; }
+      }
+      const m = !camCounts && e.detect !== 'tempo' ? this.motion.update(now, e.detect) : null;
       if (m && m.rep && settings.coachSensors !== false) { this.sensed = now; this.countRep(); if (e.detect === 'down' && m.depth && m.depth < (window.MadarIOS ? 0.25 : 0.1)) this.tip('انزل أكثر قليلاً'); }
-      else if (!e.hold && before > this.phase && (!this.sensed || now - this.sensed > 6000)) this.countRep();
+      else if (!camCounts && !e.hold && before > this.phase && (!this.sensed || now - this.sensed > 6000)) this.countRep();
     }
     if (this.state === 'rest') {
       this.restLeft -= dt;
@@ -482,7 +515,7 @@ export class CoachWindow {
     this.figure.setMuscles(e.p, e.s, effort);
     this.updateBand(e);
     if (now - (this.mapAt || 0) > 120) { this.mapAt = now; this.map.redraw(); }
-    if (this.state === 'run' && now - (this.drawnAt || 0) > 500) { this.drawnAt = now; this.main.redraw(); }
+    if ((this.state === 'run' || this.cam.on) && now - (this.drawnAt || 0) > (this.cam.on ? 150 : 500)) { if (this.cam.on && this.state !== 'run') this.cam.read(now); this.drawnAt = now; this.main.redraw(); }
   }
   updateBand(e) {
     const on = e.kind === 'band', F = this.figure, B = F.bones;
@@ -526,7 +559,7 @@ export class CoachWindow {
     ctx.restore();
     text(ctx, label, W / 2, 425, 28, { color: COLORS.dim, weight: 700 });
     text(ctx, 'المجموعة ' + arNum(this.set) + ' / ' + arNum(e.sets) + '  ·  ' + arNum(Math.round(this.kcal)) + ' سعرة', W / 2, 475, 26, { weight: 700 });
-    const src = e.detect === 'tempo' ? 'العدّ مع إيقاع المدرب' : this.motion.ok ? (window.MadarIOS ? 'العدّ من حركة رأسك (ARKit)' : 'العدّ من حساسات الحركة') : 'العدّ مع إيقاع المدرب';
+    const src = this.cam.on ? (this.cam.m?.seen ? '📷 العدّ والتصحيح من كاميرا الجسم' : '📷 لا أرى جسمك — ابتعد قليلاً') : e.detect === 'tempo' ? 'العدّ مع إيقاع المدرب' : this.motion.ok ? (window.MadarIOS ? 'العدّ من حركة رأسك (ARKit)' : 'العدّ من حساسات الحركة') : 'العدّ مع إيقاع المدرب';
     text(ctx, src, W / 2, 515, 21, { color: COLORS.dim });
     text(ctx, this.tipText || e.tips[Math.floor(performance.now() / 6000) % e.tips.length], W / 2, 560, 25, { color: '#9fe7c0', weight: 700, maxWidth: W - 60, fit: true });
     // buttons
@@ -534,8 +567,10 @@ export class CoachWindow {
       ['go', this.state === 'run' || this.state === 'count' ? 'pause' : 'play', this.state === 'run' ? 'إيقاف' : this.state === 'pause' ? 'متابعة' : 'ابدأ', () => this.start(), true],
       ['nx', 'chevL', 'التالي', () => this.next()],
       ['ls', 'grid', 'التمارين', () => this.openMenu()],
+      ['cm', 'video', this.cam.on ? 'الكاميرا ✓' : 'الكاميرا', () => this.toggleCam()],
       ['hl', 'heart', 'صحة', () => this.toHealth()],
     ];
+    if (this.cam.on) this.cam.draw(ctx, 60, 600, W - 120, H - 780);
     const bw = (W - 60) / btns.length;
     btns.forEach(([id, ic, l, act, strong], i) => {
       const x = W - 30 - (i + 1) * bw, y = H - 150, hov = p.isHover(id);
@@ -574,17 +609,22 @@ export class CoachWindow {
       p.region(x, y, cw, ch, () => { blip('tap', settings.sounds); this.choose(e.id); this.openMenu(); }, id);
     });
   }
-  // ---- Apple Health (through an iPhone Shortcut; no special permission needed in the app)
+  // ---- Apple Health (the app's HealthKit when it has it, else an iPhone Shortcut)
   toHealth(extra = {}) {
     const minutes = Math.max(1, Math.round((this.secs + (extra.secs || 0)) / 60)), kcal = Math.round(this.kcal + (extra.kcal || 0));
     const data = { type: extra.type || (this.mode === 'box' ? 'boxing' : this.mode === 'tread' ? 'walking' : 'strength'), minutes, kcal, km: extra.km || 0 };
     try { const a = JSON.parse(localStorage.getItem('madar.workouts.v1') || '[]'); a.push({ ...data, at: Date.now() }); localStorage.setItem('madar.workouts.v1', JSON.stringify(a.slice(-200))); } catch {}
-    const url = 'shortcuts://run-shortcut?name=' + encodeURIComponent('مدار تمرين') + '&input=text&text=' + encodeURIComponent(JSON.stringify(data));
-    if (window.MadarIOS) window.MadarIOS.send('openExternal', { url }); else location.href = url;
-    this.app.toast('❤️ يُرسل إلى «صحة» عبر اختصار «مدار تمرين» — ' + minutes + ' د · ' + kcal + ' سعرة', 4000);
+    nativeHealth('healthSave', data).then(r => {
+      if (r?.ok) { this.app.toast('❤️ حُفظ في «صحة» — ' + minutes + ' د · ' + kcal + ' سعرة', 3500); return; }
+      const url = 'shortcuts://run-shortcut?name=' + encodeURIComponent('مدار تمرين') + '&input=text&text=' + encodeURIComponent(JSON.stringify(data));
+      if (window.MadarIOS) window.MadarIOS.send('openExternal', { url }); else location.href = url;
+      this.app.toast('❤️ يُرسل إلى «صحة» عبر اختصار «مدار تمرين» — ' + minutes + ' د · ' + kcal + ' سعرة', 4000);
+    });
   }
   // your weight from Apple Health (the Eufy scale), sent by the «مدار وزن» Shortcut to the server
   async fetchWeight() {
+    const n = await nativeHealth('healthWeight');   // the app with Apple Health: straight from «صحة»
+    if (n?.ok && n.weight) { const w = Math.round(n.weight * 10) / 10; saveSettings({ weight: w, weightAt: n.at }); this.app.toast('⚖️ وزنك ' + w + ' كغ (من صحة Apple)', 2500); return w; }
     try {
       const d = await (await fetch('https://studio.c-p.workers.dev/health/' + deviceIdentity().code, { cache: 'no-store' })).json();
       if (d.weight) { saveSettings({ weight: d.weight, weightAt: d.at }); this.app.toast('⚖️ وزنك ' + d.weight + ' كغ (من صحة Apple)', 2500); return d.weight; }
@@ -599,7 +639,7 @@ export class CoachWindow {
   dispose() {
     if (this.prevEnv && settings.environment === 'gym') { saveSettings({ environment: this.prevEnv }); this.app.renderEnvChoices?.(); }
     try { speechSynthesis.cancel(); } catch {}
-    this.train?.dispose(); this.motion.dispose();
+    this.cam.stop(); this.train?.dispose(); this.motion.dispose();
     [this.main, this.map, this.menu].forEach(p => p.dispose()); this.closeBtn.dispose();
     this.group.traverse(o => { if (o.isMesh) o.geometry?.dispose(); });
   }
