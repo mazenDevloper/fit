@@ -25,6 +25,7 @@ const HDRI_CATS = [['all', 'الكل'], ['nature', 'طبيعة'], ['urban', 'م�
 const MODEL_CATS = [['all', 'الكل'], ['furniture', 'أثاث'], ['seating', 'كراسي'], ['table', 'طاولات'], ['shelves', 'رفوف'], ['lighting', 'إضاءة'], ['electronics', 'أجهزة'], ['decorative', 'زينة'], ['plants', 'نباتات']];
 // Madar's own places: [key, category]
 const OWN = [['gaming', 'games'], ['gamingRed', 'games'], ['viewOffice', 'office'], ['nightOffice', 'office'], ['library', 'read'], ['reading', 'read'], ['space', 'read'], ['realNeon', 'office'], ['realStudio', 'office'], ['neonDesk', 'office'], ['study', 'office'], ['lounge', 'real'], ['realStudy', 'real'], ['night', 'mood'], ['cinema', 'mood'], ['sunset', 'mood']];
+const OWN_THUMBS = new Set(['cinema', 'gaming', 'gamingRed', 'library', 'lounge', 'neonDesk', 'night', 'nightOffice', 'reading', 'realNeon', 'realStudio', 'realStudy', 'space', 'study', 'sunset', 'viewOffice']);
 const OWN_COL = { gaming: ['#8a3cff', '#18d8ff'], gamingRed: ['#ff2a3c', '#ff9a1a'], viewOffice: ['#f7b267', '#5a3a50'], nightOffice: ['#0b1030', '#ffcf6a'], library: ['#4a2f1c', '#c9a24a'], reading: ['#8a7a60', '#f2e6cc'], space: ['#01020a', '#3a7bd5'],
   realNeon: ['#223a8a', '#5fdcff'], realStudio: ['#e4c6f6', '#a88cc4'], neonDesk: ['#4b5688', '#ff5fd6'], study: ['#c8afe0', '#f4f3f6'], lounge: ['#5a3020', '#ffb070'], realStudy: ['#d8d0c0', '#fff4e0'], night: ['#070b1a', '#2a3a70'], cinema: ['#0b0910', '#2a3550'], sunset: ['#3a2f6a', '#ff8c52'] };
 const ROOM_CATS = [['all', 'الكل'], ['games', 'ألعاب'], ['office', 'مكاتب'], ['read', 'قراءة'], ['real', 'غرف حقيقية'], ['mood', 'أجواء']];
@@ -127,7 +128,7 @@ export class Gallery {
     return all.filter(a => a.cats.includes(this.cat));
   }
   thumb(a) {
-    const src = a.own ? null : a.thumb || (a.kind === 'video' ? W8 + '/m/' + a.poster : a.kind === 'mine' ? null : THUMB(a.id));
+    const src = a.own ? (OWN_THUMBS.has(a.id) ? new URL('../assets/rooms/thumbs/' + a.id + '.jpg', import.meta.url).href : null) : a.thumb || (a.kind === 'video' ? W8 + '/m/' + a.poster : a.kind === 'mine' ? null : THUMB(a.id));
     if (!src) return null;
     let t = this.thumbs.get(src);
     if (!t) {
@@ -200,6 +201,12 @@ export class Gallery {
     if (a.own) {   // Madar's own room: its colours
       const [c1, c2] = OWN_COL[a.id] || ['#334', '#667'];
       const g = ctx.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, c1); g.addColorStop(1, c2); ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+      const im = this.thumb(a);   // a real look at the room (rendered once, shipped with Madar)
+      if (im && im.complete && im.naturalWidth) {
+        const k = Math.max(w / im.naturalWidth, h / im.naturalHeight); ctx.drawImage(im, x + (w - im.naturalWidth * k) / 2, y + (h - im.naturalHeight * k) / 2, im.naturalWidth * k, im.naturalHeight * k);
+        if (a.note) { const sh = ctx.createLinearGradient(0, y + h * 0.45, 0, y + h * 0.78); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.55)'); ctx.fillStyle = sh; ctx.fillRect(x, y + h * 0.45, w, h * 0.33); text(ctx, a.note, x + w / 2, y + h * 0.66, 17, { color: 'rgba(255,255,255,0.92)', maxWidth: w - 20, fit: true }); }
+        return;
+      }
       icon(ctx, { games: 'grid', office: 'home', read: 'book', real: 'image', mood: 'moon' }[OWN.find(o => o[0] === a.id)?.[1]] || 'home', x + w / 2, y + h * 0.4, h * 0.3, 'rgba(255,255,255,0.85)');
       if (a.note) text(ctx, a.note, x + w / 2, y + h * 0.66, 17, { color: 'rgba(255,255,255,0.85)', maxWidth: w - 20, fit: true });
       return;
