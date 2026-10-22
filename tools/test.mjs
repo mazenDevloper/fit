@@ -21,12 +21,12 @@ save();
 
 // 2) wait for v88 to be published
 for (let i = 0; i < 40; i++) {
-  try { const t = await (await fetch(SITE + 'js/app.js?x=' + Date.now())).text(); if (t.includes("APP_VERSION = '88'")) { L('live v88 after', i * 15, 's'); break; } } catch {}
+  try { const t = await (await fetch(SITE + 'js/app.js?x=' + Date.now())).text(); if (t.includes("APP_VERSION = '89'")) { L('live v89 after', i * 15, 's'); break; } } catch {}
   await new Promise(r => setTimeout(r, 15000));
 }
 
-const b = await chromium.launch({ channel: 'chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream'] });
-const ctx = await b.newContext({ viewport: { width: 1400, height: 800 }, locale: 'ar', serviceWorkers: 'block' });
+const b = await chromium.launch({ channel: 'chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+const ctx = await b.newContext({ viewport: { width: 1400, height: 800 }, locale: 'ar', serviceWorkers: 'block', permissions: ['camera', 'microphone'] });
 const p = await ctx.newPage();
 p.on('pageerror', e => L('PE', e.message));
 p.on('console', m => { if (m.type() === 'error' && !/peerjs|ERR_|404|favicon/.test(m.text())) L('CE', m.text().slice(0, 200)); if (/TEST/.test(m.text())) L(m.text().slice(0, 400)); });
@@ -39,6 +39,7 @@ async function scene(env, extra = {}) {
   await p.goto(SITE + '?v=' + Date.now(), { waitUntil: 'load', timeout: 90000 });
   await wait(3000);
   await p.evaluate(() => window.madar.enter()); await wait(5000);
+  L('in-mr', env, await p.evaluate(() => document.body.classList.contains('in-mr')));
   await p.evaluate(() => { const a = window.madar; for (const w of [...a.windows.windows]) a.windows.close(w); });
   await wait(800);
 }
