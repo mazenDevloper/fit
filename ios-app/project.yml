@@ -39,6 +39,8 @@ targets:
         NSSpeechRecognitionUsageDescription: لفهم أوامرك الصوتية بالعربي على الجهاز
         NSPhotoLibraryUsageDescription: لفتح صورك وفيديوهاتك داخل مدار
         NSPhotoLibraryAddUsageDescription: لحفظ تسجيلاتك من مدار في الصور
+        NSHealthShareUsageDescription: لقراءة وزنك من «صحة» (ميزان Eufy)
+        NSHealthUpdateUsageDescription: لحفظ تمارينك من المدرب الرياضي في «صحة»
         NSLocalNetworkUsageDescription: للاتصال بأجهزتك (التابلت، اللابتوب، التلفاز) على نفس الشبكة
         NSBonjourServices: [_madar._tcp]
         NSAppTransportSecurity:

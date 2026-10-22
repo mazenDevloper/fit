@@ -71,6 +71,11 @@ jobs:
           mkdir -p Payload && cp -R "$APP" Payload/
           zip -qry Madar.ipa Payload
           ls -la Madar.ipa
+          # the same app with Apple Health (HealthKit entitlement) - if your signing tool accepts it
+          rm -rf HPayload && mkdir -p HPayload && cp -R "$APP" HPayload/
+          codesign --force --sign - --entitlements App/Health.entitlements HPayload/Madar.app
+          (mv HPayload Payload_h && mkdir -p hz && mv Payload_h hz/Payload && cd hz && zip -qry ../Madar-Health.ipa Payload)
+          ls -la Madar-Health.ipa
 
       - name: Publish the logs (on failure)
         if: failure()
@@ -92,6 +97,6 @@ jobs:
         run: |
           gh release delete ios-latest --yes --cleanup-tag || true
           echo ${{ github.run_number }} > build.txt
-          gh release create ios-latest Madar.ipa build.txt test.log build.log --target "$GITHUB_SHA" --prerelease \
+          gh release create ios-latest Madar.ipa Madar-Health.ipa build.txt test.log build.log --target "$GITHUB_SHA" --prerelease \
             --title "مدار للآيفون (build ${{ github.run_number }})" \
             --notes "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Unsigned: install with iloader, Sideloadly or AltStore (iOS 17+, iPhone XS or newer)."

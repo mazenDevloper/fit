@@ -12,6 +12,7 @@ final class MainViewController: UIViewController {
     let speech = SpeechController()
     let haptics = Haptics()
     let recorder = Recorder()
+    let health = HealthBridge()
     lazy var media = MediaImporter(host: self)
     private var thermalObserver: NSObjectProtocol?
 
@@ -114,6 +115,8 @@ final class MainViewController: UIViewController {
         case "pickMedia": media.pick(spatial: (d["spatial"] as? Bool) ?? false)
         case "update": Updater.check(silent: false)
         case "h2c": web.injectHtml2Canvas(into: frame)
+        case "healthSave": health.emit = { [weak self] p in self?.web.emit("health", p) }; health.saveWorkout(d)
+        case "healthWeight": health.emit = { [weak self] p in self?.web.emit("health", p) }; health.readWeight()
         case "openExternal":
             if let s = d["url"] as? String, let u = URL(string: s) { UIApplication.shared.open(u) }
         default: break
