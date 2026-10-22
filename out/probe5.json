@@ -1,0 +1,1137 @@
+{
+ "ph_models": 521,
+ "ph_hdris": 997,
+ "ph_tex_wood": "plywood[wood,clean,man made,natural,raw wood] ; laminate_floor_02[floor,man made,indoor,clean,wood] ; wood_table_001[wood,clean,man made] ; oak_veneer_01[wood,raw wood,natural] ; wood_table_worn[man made,wood,dirty,raw wood] ; weathered_brown_planks[man made,wood,dirty,wall,outdoor,floor] ; wood_floor[floor,wood,man made,clean] ; wood_cabinet_worn_long[man made,wood,indoor,wall,floor] ; bark_brown_02[wood,outdoor,natural,bark] ; rough_wood[wood,natural,outdoor] ; dark_wood[wood,indoor] ; kitchen_wood[wood,man made,clean] ; brown_planks_03[wood,man made,indoor,outdoor,clean,wall] ; synthetic_wood[man made,wall,wood,outdoor] ; wood_planks_dirt[wood,wall,man made,outdoor,indoor,clean] ; planks_brown_10[wood,wall,man made,outdoor] ; wood_floor_deck[man made,wood,floor,outdoor] ; fine_grained_wood[wood,man made,dirty,raw wood] ; laminate_floor_03[man made,floor,wood] ; weathered_planks[outdoor,wood,man made,wall,floor] ; wood_planks[floor,wood,raw wood,man made] ; rosewood_veneer1[natural,wood] ; bark_brown_01[wood,outdoor,natural,bark] ; old_planks_02[wood,wall,floor,man made,outdoor,indoor] ; wood_planks_grey[floor,wall,wood,outdoor,man made] ; bark_willow[outdoor,natural,bark,wood] ; bark_willow_02[outdoor,natural,wood,raw wood,bark] ; wood_floor_worn[floor,wood,man made] ; wooden_planks[wood,raw wood,outdoor] ; laminate_floor[floor,man made,wood]",
+ "ph_tex_floor": "laminate_floor_02 ; concrete_floor_worn_001 ; asphalt_02 ; marble_01 ; metal_plate ; weathered_brown_planks ; wood_floor ; wood_cabinet_worn_long ; white_plaster_02 ; concrete_floor_02 ; floor_tiles_06 ; granite_tile ; wood_floor_deck ; aerial_asphalt_01 ; laminate_floor_03 ; weathered_planks ; wood_planks ; stone_tiles_02 ; large_floor_tiles_02 ; grey_plaster ; old_planks_02 ; floor_tiles_02 ; wood_planks_grey ; sandstone_cracks ; wood_floor_worn ; large_square_pattern_01 ; rubber_tiles ; large_grey_tiles ; tiled_floor_001 ; laminate_floor",
+ "qc_page_1": {
+  "status": 200,
+  "acao": "*",
+  "verses": 7,
+  "keys": [
+   "id",
+   "verse_number",
+   "verse_key",
+   "hizb_number",
+   "rub_el_hizb_number",
+   "ruku_number",
+   "manzil_number",
+   "sajdah_number",
+   "text_uthmani",
+   "page_number",
+   "juz_number",
+   "words"
+  ],
+  "wordKeys": [
+   "id",
+   "position",
+   "audio_url",
+   "char_type_name",
+   "text_uthmani",
+   "line_number",
+   "page_number",
+   "text",
+   "translation",
+   "transliteration"
+  ],
+  "lines": {
+   "2": [
+    "بِسْمِ",
+    "ٱللَّهِ",
+    "ٱلرَّحْمَـٰنِ",
+    "ٱلرَّحِيمِ",
+    "#١"
+   ],
+   "3": [
+    "ٱلْحَمْدُ",
+    "لِلَّهِ",
+    "رَبِّ",
+    "ٱلْعَـٰلَمِينَ",
+    "#٢"
+   ],
+   "4": [
+    "ٱلرَّحْمَـٰنِ",
+    "ٱلرَّحِيمِ",
+    "#٣",
+    "مَـٰلِكِ",
+    "يَوْمِ",
+    "ٱلدِّينِ",
+    "#٤"
+   ],
+   "5": [
+    "إِيَّاكَ",
+    "نَعْبُدُ",
+    "وَإِيَّاكَ",
+    "نَسْتَعِينُ",
+    "#٥",
+    "ٱهْدِنَا"
+   ],
+   "6": [
+    "ٱلصِّرَٰطَ",
+    "ٱلْمُسْتَقِيمَ",
+    "#٦",
+    "صِرَٰطَ",
+    "ٱلَّذِينَ",
+    "أَنْعَمْتَ"
+   ],
+   "7": [
+    "عَلَيْهِمْ",
+    "غَيْرِ",
+    "ٱلْمَغْضُوبِ",
+    "عَلَيْهِمْ"
+   ],
+   "8": [
+    "وَلَا",
+    "ٱلضَّآلِّينَ",
+    "#٧"
+   ]
+  }
+ },
+ "qc_page_2": {
+  "status": 200,
+  "acao": "*",
+  "verses": 5,
+  "keys": [
+   "id",
+   "verse_number",
+   "verse_key",
+   "hizb_number",
+   "rub_el_hizb_number",
+   "ruku_number",
+   "manzil_number",
+   "sajdah_number",
+   "text_uthmani",
+   "page_number",
+   "juz_number",
+   "words"
+  ],
+  "wordKeys": [
+   "id",
+   "position",
+   "audio_url",
+   "char_type_name",
+   "text_uthmani",
+   "line_number",
+   "page_number",
+   "text",
+   "translation",
+   "transliteration"
+  ],
+  "lines": {
+   "3": [
+    "الٓمٓ",
+    "#١",
+    "ذَٰلِكَ",
+    "ٱلْكِتَـٰبُ",
+    "لَا",
+    "رَيْبَ ۛ",
+    "فِيهِ ۛ",
+    "هُدًۭى"
+   ],
+   "4": [
+    "لِّلْمُتَّقِينَ",
+    "#٢",
+    "ٱلَّذِينَ",
+    "يُؤْمِنُونَ",
+    "بِٱلْغَيْبِ",
+    "وَيُقِيمُونَ",
+    "ٱلصَّلَوٰةَ"
+   ],
+   "5": [
+    "وَمِمَّا",
+    "رَزَقْنَـٰهُمْ",
+    "يُنفِقُونَ",
+    "#٣",
+    "وَٱلَّذِينَ",
+    "يُؤْمِنُونَ",
+    "بِمَآ",
+    "أُنزِلَ"
+   ],
+   "6": [
+    "إِلَيْكَ",
+    "وَمَآ",
+    "أُنزِلَ",
+    "مِن",
+    "قَبْلِكَ",
+    "وَبِٱلْـَٔاخِرَةِ",
+    "هُمْ",
+    "يُوقِنُونَ",
+    "#٤"
+   ],
+   "7": [
+    "أُو۟لَـٰٓئِكَ",
+    "عَلَىٰ",
+    "هُدًۭى",
+    "مِّن",
+    "رَّبِّهِمْ ۖ",
+    "وَأُو۟لَـٰٓئِكَ"
+   ],
+   "8": [
+    "هُمُ",
+    "ٱلْمُفْلِحُونَ",
+    "#٥"
+   ]
+  }
+ },
+ "qc_page_3": {
+  "status": 200,
+  "acao": "*",
+  "verses": 11,
+  "keys": [
+   "id",
+   "verse_number",
+   "verse_key",
+   "hizb_number",
+   "rub_el_hizb_number",
+   "ruku_number",
+   "manzil_number",
+   "sajdah_number",
+   "text_uthmani",
+   "page_number",
+   "juz_number",
+   "words"
+  ],
+  "wordKeys": [
+   "id",
+   "position",
+   "audio_url",
+   "char_type_name",
+   "text_uthmani",
+   "line_number",
+   "page_number",
+   "text",
+   "translation",
+   "transliteration"
+  ],
+  "lines": {
+   "1": [
+    "إِنَّ",
+    "ٱلَّذِينَ",
+    "كَفَرُوا۟",
+    "سَوَآءٌ",
+    "عَلَيْهِمْ",
+    "ءَأَنذَرْتَهُمْ",
+    "أَمْ",
+    "لَمْ",
+    "تُنذِرْهُمْ"
+   ],
+   "2": [
+    "لَا",
+    "يُؤْمِنُونَ",
+    "#٦",
+    "خَتَمَ",
+    "ٱللَّهُ",
+    "عَلَىٰ",
+    "قُلُوبِهِمْ",
+    "وَعَلَىٰ",
+    "سَمْعِهِمْ ۖ",
+    "وَعَلَىٰٓ"
+   ],
+   "3": [
+    "أَبْصَـٰرِهِمْ",
+    "غِشَـٰوَةٌۭ ۖ",
+    "وَلَهُمْ",
+    "عَذَابٌ",
+    "عَظِيمٌۭ",
+    "#٧",
+    "وَمِنَ",
+    "ٱلنَّاسِ"
+   ],
+   "4": [
+    "مَن",
+    "يَقُولُ",
+    "ءَامَنَّا",
+    "بِٱللَّهِ",
+    "وَبِٱلْيَوْمِ",
+    "ٱلْـَٔاخِرِ",
+    "وَمَا",
+    "هُم",
+    "بِمُؤْمِنِينَ",
+    "#٨"
+   ],
+   "5": [
+    "يُخَـٰدِعُونَ",
+    "ٱللَّهَ",
+    "وَٱلَّذِينَ",
+    "ءَامَنُوا۟",
+    "وَمَا",
+    "يَخْدَعُونَ",
+    "إِلَّآ",
+    "أَنفُسَهُمْ"
+   ],
+   "6": [
+    "وَمَا",
+    "يَشْعُرُونَ",
+    "#٩",
+    "فِى",
+    "قُلُوبِهِم",
+    "مَّرَضٌۭ",
+    "فَزَادَهُمُ",
+    "ٱللَّهُ",
+    "مَرَضًۭا ۖ"
+   ],
+   "7": [
+    "وَلَهُمْ",
+    "عَذَابٌ",
+    "أَلِيمٌۢ",
+    "بِمَا",
+    "كَانُوا۟",
+    "يَكْذِبُونَ",
+    "#١٠",
+    "وَإِذَا",
+    "قِيلَ",
+    "لَهُمْ"
+   ],
+   "8": [
+    "لَا",
+    "تُفْسِدُوا۟",
+    "فِى",
+    "ٱلْأَرْضِ",
+    "قَالُوٓا۟",
+    "إِنَّمَا",
+    "نَحْنُ",
+    "مُصْلِحُونَ",
+    "#١١"
+   ],
+   "9": [
+    "أَلَآ",
+    "إِنَّهُمْ",
+    "هُمُ",
+    "ٱلْمُفْسِدُونَ",
+    "وَلَـٰكِن",
+    "لَّا",
+    "يَشْعُرُونَ",
+    "#١٢",
+    "وَإِذَا",
+    "قِيلَ"
+   ],
+   "10": [
+    "لَهُمْ",
+    "ءَامِنُوا۟",
+    "كَمَآ",
+    "ءَامَنَ",
+    "ٱلنَّاسُ",
+    "قَالُوٓا۟",
+    "أَنُؤْمِنُ",
+    "كَمَآ",
+    "ءَامَنَ",
+    "ٱلسُّفَهَآءُ ۗ"
+   ],
+   "11": [
+    "أَلَآ",
+    "إِنَّهُمْ",
+    "هُمُ",
+    "ٱلسُّفَهَآءُ",
+    "وَلَـٰكِن",
+    "لَّا",
+    "يَعْلَمُونَ",
+    "#١٣",
+    "وَإِذَا",
+    "لَقُوا۟"
+   ],
+   "12": [
+    "ٱلَّذِينَ",
+    "ءَامَنُوا۟",
+    "قَالُوٓا۟",
+    "ءَامَنَّا",
+    "وَإِذَا",
+    "خَلَوْا۟",
+    "إِلَىٰ",
+    "شَيَـٰطِينِهِمْ",
+    "قَالُوٓا۟",
+    "إِنَّا"
+   ],
+   "13": [
+    "مَعَكُمْ",
+    "إِنَّمَا",
+    "نَحْنُ",
+    "مُسْتَهْزِءُونَ",
+    "#١٤",
+    "ٱللَّهُ",
+    "يَسْتَهْزِئُ",
+    "بِهِمْ",
+    "وَيَمُدُّهُمْ"
+   ],
+   "14": [
+    "فِى",
+    "طُغْيَـٰنِهِمْ",
+    "يَعْمَهُونَ",
+    "#١٥",
+    "أُو۟لَـٰٓئِكَ",
+    "ٱلَّذِينَ",
+    "ٱشْتَرَوُا۟",
+    "ٱلضَّلَـٰلَةَ"
+   ],
+   "15": [
+    "بِٱلْهُدَىٰ",
+    "فَمَا",
+    "رَبِحَت",
+    "تِّجَـٰرَتُهُمْ",
+    "وَمَا",
+    "كَانُوا۟",
+    "مُهْتَدِينَ",
+    "#١٦"
+   ]
+  }
+ },
+ "qc_page_50": {
+  "status": 200,
+  "acao": "*",
+  "verses": 9,
+  "keys": [
+   "id",
+   "verse_number",
+   "verse_key",
+   "hizb_number",
+   "rub_el_hizb_number",
+   "ruku_number",
+   "manzil_number",
+   "sajdah_number",
+   "text_uthmani",
+   "page_number",
+   "juz_number",
+   "words"
+  ],
+  "wordKeys": [
+   "id",
+   "position",
+   "audio_url",
+   "char_type_name",
+   "text_uthmani",
+   "line_number",
+   "page_number",
+   "text",
+   "translation",
+   "transliteration"
+  ],
+  "lines": {
+   "3": [
+    "الٓمٓ",
+    "#١",
+    "ٱللَّهُ",
+    "لَآ",
+    "إِلَـٰهَ",
+    "إِلَّا",
+    "هُوَ",
+    "ٱلْحَىُّ",
+    "ٱلْقَيُّومُ",
+    "#٢",
+    "نَزَّلَ",
+    "عَلَيْكَ",
+    "ٱلْكِتَـٰبَ"
+   ],
+   "4": [
+    "بِٱلْحَقِّ",
+    "مُصَدِّقًۭا",
+    "لِّمَا",
+    "بَيْنَ",
+    "يَدَيْهِ",
+    "وَأَنزَلَ",
+    "ٱلتَّوْرَىٰةَ",
+    "وَٱلْإِنجِيلَ",
+    "#٣",
+    "مِن"
+   ],
+   "5": [
+    "قَبْلُ",
+    "هُدًۭى",
+    "لِّلنَّاسِ",
+    "وَأَنزَلَ",
+    "ٱلْفُرْقَانَ ۗ",
+    "إِنَّ",
+    "ٱلَّذِينَ",
+    "كَفَرُوا۟",
+    "بِـَٔايَـٰتِ",
+    "ٱللَّهِ",
+    "لَهُمْ"
+   ],
+   "6": [
+    "عَذَابٌۭ",
+    "شَدِيدٌۭ ۗ",
+    "وَٱللَّهُ",
+    "عَزِيزٌۭ",
+    "ذُو",
+    "ٱنتِقَامٍ",
+    "#٤",
+    "إِنَّ",
+    "ٱللَّهَ",
+    "لَا",
+    "يَخْفَىٰ",
+    "عَلَيْهِ"
+   ],
+   "7": [
+    "شَىْءٌۭ",
+    "فِى",
+    "ٱلْأَرْضِ",
+    "وَلَا",
+    "فِى",
+    "ٱلسَّمَآءِ",
+    "#٥",
+    "هُوَ",
+    "ٱلَّذِى",
+    "يُصَوِّرُكُمْ"
+   ],
+   "8": [
+    "فِى",
+    "ٱلْأَرْحَامِ",
+    "كَيْفَ",
+    "يَشَآءُ ۚ",
+    "لَآ",
+    "إِلَـٰهَ",
+    "إِلَّا",
+    "هُوَ",
+    "ٱلْعَزِيزُ",
+    "ٱلْحَكِيمُ",
+    "#٦",
+    "هُوَ"
+   ],
+   "9": [
+    "ٱلَّذِىٓ",
+    "أَنزَلَ",
+    "عَلَيْكَ",
+    "ٱلْكِتَـٰبَ",
+    "مِنْهُ",
+    "ءَايَـٰتٌۭ",
+    "مُّحْكَمَـٰتٌ",
+    "هُنَّ",
+    "أُمُّ",
+    "ٱلْكِتَـٰبِ"
+   ],
+   "10": [
+    "وَأُخَرُ",
+    "مُتَشَـٰبِهَـٰتٌۭ ۖ",
+    "فَأَمَّا",
+    "ٱلَّذِينَ",
+    "فِى",
+    "قُلُوبِهِمْ",
+    "زَيْغٌۭ",
+    "فَيَتَّبِعُونَ",
+    "مَا",
+    "تَشَـٰبَهَ"
+   ],
+   "11": [
+    "مِنْهُ",
+    "ٱبْتِغَآءَ",
+    "ٱلْفِتْنَةِ",
+    "وَٱبْتِغَآءَ",
+    "تَأْوِيلِهِۦ ۗ",
+    "وَمَا",
+    "يَعْلَمُ",
+    "تَأْوِيلَهُۥٓ",
+    "إِلَّا",
+    "ٱللَّهُ ۗ"
+   ],
+   "12": [
+    "وَٱلرَّٰسِخُونَ",
+    "فِى",
+    "ٱلْعِلْمِ",
+    "يَقُولُونَ",
+    "ءَامَنَّا",
+    "بِهِۦ",
+    "كُلٌّۭ",
+    "مِّنْ",
+    "عِندِ",
+    "رَبِّنَا ۗ",
+    "وَمَا",
+    "يَذَّكَّرُ"
+   ],
+   "13": [
+    "إِلَّآ",
+    "أُو۟لُوا۟",
+    "ٱلْأَلْبَـٰبِ",
+    "#٧",
+    "رَبَّنَا",
+    "لَا",
+    "تُزِغْ",
+    "قُلُوبَنَا",
+    "بَعْدَ",
+    "إِذْ",
+    "هَدَيْتَنَا",
+    "وَهَبْ"
+   ],
+   "14": [
+    "لَنَا",
+    "مِن",
+    "لَّدُنكَ",
+    "رَحْمَةً ۚ",
+    "إِنَّكَ",
+    "أَنتَ",
+    "ٱلْوَهَّابُ",
+    "#٨",
+    "رَبَّنَآ",
+    "إِنَّكَ",
+    "جَامِعُ"
+   ],
+   "15": [
+    "ٱلنَّاسِ",
+    "لِيَوْمٍۢ",
+    "لَّا",
+    "رَيْبَ",
+    "فِيهِ ۚ",
+    "إِنَّ",
+    "ٱللَّهَ",
+    "لَا",
+    "يُخْلِفُ",
+    "ٱلْمِيعَادَ",
+    "#٩"
+   ]
+  }
+ },
+ "qc_page_187": {
+  "status": 200,
+  "acao": "*",
+  "verses": 6,
+  "keys": [
+   "id",
+   "verse_number",
+   "verse_key",
+   "hizb_number",
+   "rub_el_hizb_number",
+   "ruku_number",
+   "manzil_number",
+   "sajdah_number",
+   "text_uthmani",
+   "page_number",
+   "juz_number",
+   "words"
+  ],
+  "wordKeys": [
+   "id",
+   "position",
+   "audio_url",
+   "char_type_name",
+   "text_uthmani",
+   "line_number",
+   "page_number",
+   "text",
+   "translation",
+   "transliteration"
+  ],
+  "lines": {
+   "2": [
+    "بَرَآءَةٌۭ",
+    "مِّنَ",
+    "ٱللَّهِ",
+    "وَرَسُولِهِۦٓ",
+    "إِلَى",
+    "ٱلَّذِينَ",
+    "عَـٰهَدتُّم",
+    "مِّنَ",
+    "ٱلْمُشْرِكِينَ",
+    "#١"
+   ],
+   "3": [
+    "فَسِيحُوا۟",
+    "فِى",
+    "ٱلْأَرْضِ",
+    "أَرْبَعَةَ",
+    "أَشْهُرٍۢ",
+    "وَٱعْلَمُوٓا۟",
+    "أَنَّكُمْ",
+    "غَيْرُ",
+    "مُعْجِزِى"
+   ],
+   "4": [
+    "ٱللَّهِ ۙ",
+    "وَأَنَّ",
+    "ٱللَّهَ",
+    "مُخْزِى",
+    "ٱلْكَـٰفِرِينَ",
+    "#٢",
+    "وَأَذَٰنٌۭ",
+    "مِّنَ",
+    "ٱللَّهِ",
+    "وَرَسُولِهِۦٓ"
+   ],
+   "5": [
+    "إِلَى",
+    "ٱلنَّاسِ",
+    "يَوْمَ",
+    "ٱلْحَجِّ",
+    "ٱلْأَكْبَرِ",
+    "أَنَّ",
+    "ٱللَّهَ",
+    "بَرِىٓءٌۭ",
+    "مِّنَ",
+    "ٱلْمُشْرِكِينَ ۙ"
+   ],
+   "6": [
+    "وَرَسُولُهُۥ ۚ",
+    "فَإِن",
+    "تُبْتُمْ",
+    "فَهُوَ",
+    "خَيْرٌۭ",
+    "لَّكُمْ ۖ",
+    "وَإِن",
+    "تَوَلَّيْتُمْ",
+    "فَٱعْلَمُوٓا۟"
+   ],
+   "7": [
+    "أَنَّكُمْ",
+    "غَيْرُ",
+    "مُعْجِزِى",
+    "ٱللَّهِ ۗ",
+    "وَبَشِّرِ",
+    "ٱلَّذِينَ",
+    "كَفَرُوا۟",
+    "بِعَذَابٍ",
+    "أَلِيمٍ"
+   ],
+   "8": [
+    "#٣",
+    "إِلَّا",
+    "ٱلَّذِينَ",
+    "عَـٰهَدتُّم",
+    "مِّنَ",
+    "ٱلْمُشْرِكِينَ",
+    "ثُمَّ",
+    "لَمْ",
+    "يَنقُصُوكُمْ"
+   ],
+   "9": [
+    "شَيْـًۭٔا",
+    "وَلَمْ",
+    "يُظَـٰهِرُوا۟",
+    "عَلَيْكُمْ",
+    "أَحَدًۭا",
+    "فَأَتِمُّوٓا۟",
+    "إِلَيْهِمْ",
+    "عَهْدَهُمْ",
+    "إِلَىٰ"
+   ],
+   "10": [
+    "مُدَّتِهِمْ ۚ",
+    "إِنَّ",
+    "ٱللَّهَ",
+    "يُحِبُّ",
+    "ٱلْمُتَّقِينَ",
+    "#٤",
+    "فَإِذَا",
+    "ٱنسَلَخَ",
+    "ٱلْأَشْهُرُ",
+    "ٱلْحُرُمُ"
+   ],
+   "11": [
+    "فَٱقْتُلُوا۟",
+    "ٱلْمُشْرِكِينَ",
+    "حَيْثُ",
+    "وَجَدتُّمُوهُمْ",
+    "وَخُذُوهُمْ",
+    "وَٱحْصُرُوهُمْ"
+   ],
+   "12": [
+    "وَٱقْعُدُوا۟",
+    "لَهُمْ",
+    "كُلَّ",
+    "مَرْصَدٍۢ ۚ",
+    "فَإِن",
+    "تَابُوا۟",
+    "وَأَقَامُوا۟",
+    "ٱلصَّلَوٰةَ"
+   ],
+   "13": [
+    "وَءَاتَوُا۟",
+    "ٱلزَّكَوٰةَ",
+    "فَخَلُّوا۟",
+    "سَبِيلَهُمْ ۚ",
+    "إِنَّ",
+    "ٱللَّهَ",
+    "غَفُورٌۭ",
+    "رَّحِيمٌۭ",
+    "#٥"
+   ],
+   "14": [
+    "وَإِنْ",
+    "أَحَدٌۭ",
+    "مِّنَ",
+    "ٱلْمُشْرِكِينَ",
+    "ٱسْتَجَارَكَ",
+    "فَأَجِرْهُ",
+    "حَتَّىٰ",
+    "يَسْمَعَ"
+   ],
+   "15": [
+    "كَلَـٰمَ",
+    "ٱللَّهِ",
+    "ثُمَّ",
+    "أَبْلِغْهُ",
+    "مَأْمَنَهُۥ ۚ",
+    "ذَٰلِكَ",
+    "بِأَنَّهُمْ",
+    "قَوْمٌۭ",
+    "لَّا",
+    "يَعْلَمُونَ",
+    "#٦"
+   ]
+  }
+ },
+ "qc_mushaf1_p3": {
+  "status": 200,
+  "firstLines": [
+   "1:إِنَّ 1:ٱلَّذِينَ 1:كَفَرُوا۟ 1:سَوَآءٌ 1:عَلَيْهِمْ 1:ءَأَنذَرْتَهُمْ 1:أَمْ 1:لَمْ 1:تُنذِرْهُمْ 2:لَا 2:يُؤْمِنُونَ 2:٦",
+   "2:خَتَمَ 2:ٱللَّهُ 2:عَلَىٰ 2:قُلُوبِهِمْ 2:وَعَلَىٰ 2:سَمْعِهِمْ ۖ 2:وَعَلَىٰٓ 3:أَبْصَـٰرِهِمْ 3:غِشَـٰوَةٌۭ ۖ 3:وَلَهُمْ 3:عَذَابٌ 3:عَظِيمٌۭ 3:٧"
+  ]
+ },
+ "qc_chapters": {
+  "status": 200,
+  "acao": "*",
+  "sample": [
+   {
+    "id": 1,
+    "revelation_place": "makkah",
+    "revelation_order": 5,
+    "bismillah_pre": false,
+    "name_simple": "Al-Fatihah",
+    "name_complex": "Al-Fātiĥah",
+    "name_arabic": "الفاتحة",
+    "verses_count": 7,
+    "pages": [
+     1,
+     1
+    ],
+    "translated_name": {
+     "language_name": "arabic",
+     "name": "سورة الفاتحة"
+    }
+   },
+   {
+    "id": 2,
+    "revelation_place": "madinah",
+    "revelation_order": 87,
+    "bismillah_pre": true,
+    "name_simple": "Al-Baqarah",
+    "name_complex": "Al-Baqarah",
+    "name_arabic": "البقرة",
+    "verses_count": 286,
+    "pages": [
+     2,
+     49
+    ],
+    "translated_name": {
+     "language_name": "arabic",
+     "name": "سورة البقرة"
+    }
+   },
+   {
+    "id": 3,
+    "revelation_place": "madinah",
+    "revelation_order": 89,
+    "bismillah_pre": true,
+    "name_simple": "Ali 'Imran",
+    "name_complex": "Āli `Imrān",
+    "name_arabic": "آل عمران",
+    "verses_count": 200,
+    "pages": [
+     50,
+     76
+    ],
+    "translated_name": {
+     "language_name": "english",
+     "name": "Family of Imran"
+    }
+   }
+  ],
+  "count": 114
+ },
+ "qc_tafsirs": "169:Ibn Kathir (Abridged):english:Ibn Kathir (Abridged) ; 381:Tafsir Fathul Majid:bengali:Tafsir Fathul Majid ; 16:Tafsir Muyassar:arabic:Tafsir Muyassar ; 165:Tafsir Ahsanul Bayaan:bengali:Tafsir Ahsanul Bayaan ; 166:Tafsir Abu Bakr Zakaria:bengali:Tafsir Abu Bakr Zakaria ; 93:Al-Tafsir al-Wasit (Tantawi):arabic:Al-Tafsir al-Wasit (Tantawi) ; 14:Tafsir Ibn Kathir:arabic:Tafsir Ibn Kathir ; 15:Tafsir al-Tabari:arabic:Tafsir al-Tabari ; 164:Tafseer ibn Kathir:bengali:Tafseer ibn Kathir ; 90:Al-Qurtubi:arabic:Al-Qurtubi ; 168:Ma'arif al-Qur'an:english:Ma'arif al-Qur'an ; 91:السعدي Al-Sa'di:arabic:السعدي Al-Sa'di ; 170:Al-Sa'di:russian:Al-Sa'di ; 94:Tafseer Al-Baghawi:arabic:Tafseer Al-Baghawi ; 157:Fi Zilal al-Quran:urdu:Fi Zilal al-Quran ; 804:Rebar Kurdish Tafsir:Kurdish:Rebar Kurdish Tafsir ; 817:Tazkirul Quran(Maulana Wahiduddin Khan):english:Tazkirul Quran ; 160:Tafsir Ibn Kathir:urdu:Tafsir Ibn Kathir ; 818:Tazkir ul Quran:urdu:Tazkir ul Quran ; 159:Bayan ul Quran:urdu:Bayan ul Quran",
+ "qc_recitations": "8:Mohamed Siddiq al-Minshawi:Mujawwad:محمد صديق المنشاوي ; 2:AbdulBaset AbdulSamad:Murattal:عبد الباسط عبد الصمد ; 1:AbdulBaset AbdulSamad:Mujawwad:عبد الباسط عبد الصمد ; 4:Abu Bakr al-Shatri::أبو بكر الشاطرى ; 5:Hani ar-Rifai::هاني الرفاعي ; 12:Mahmoud Khalil Al-Husary:Muallim:محمود خليل الحصري ; 6:Mahmoud Khalil Al-Husary::محمود خليل الحصري ; 7:Mishari Rashid al-`Afasy::مشاري راشد العفاسي ; 10:Sa`ud ash-Shuraym::سعود الشريم ; 11:Mohamed al-Tablawi::محمد الطبلاوي ; 3:Abdur-Rahman as-Sudais::عبدالرحمن السديس ; 9:Mohamed Siddiq al-Minshawi:Murattal:محمد صديق المنشاوي",
+ "qc_rec7_255": {
+  "status": 200,
+  "acao": "*",
+  "d": "{\"audio_files\":[{\"verse_key\":\"2:255\",\"url\":\"Alafasy/mp3/002255.mp3\"}],\"pagination\":{\"per_page\":10,\"current_page\":1,\"next_page\":null,\"total_pages\":1,\"total_records\":1}}"
+ },
+ "qc_chrec7_1": {
+  "status": 200,
+  "acao": "*",
+  "d": "{\"audio_file\":{\"id\":911,\"chapter_id\":1,\"file_size\":839808,\"format\":\"mp3\",\"audio_url\":\"https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/1.mp3\",\"timestamps\":[{\"verse_key\":\"1:1\",\"timestamp_from\":0,\"timestamp_to\":6090,\"duration\":6090,\"segments\":[[1,0,580],[2,580,1409],[3,1409,2502],[4,2502,5840]]},{\"verse_key\":\"1:2\",\"timestamp_from\":6090,\"timestamp_to\":11680,\"duration\":5590,\"segments\":[[1,6025,7025],[2,7025,7885],[3,7885,8515],[4,8515,11550]]},{\"verse_key\":\"1:3\",\"timestamp_from\":11680,\"timestamp_to\":16300,\"duration\":4620,\"segments\":[[1,11615,12855],[1],[2,12855,16180],[2],[1]]},{\"verse_key\":\"1:4\",\"timestamp_from\":16300,\"timestamp_to\":20950,\"duration\":4650,\"segments\":[[1,16245,17065],[2,17065,17665],[3,17665,20830]]},{\"verse_key\":\"1:5\",\"timestamp_from\":20950,\"timestamp_to\":27660,"
+ },
+ "qdc_7_1": {
+  "status": 200,
+  "acao": "*",
+  "d": "{\"audio_files\":[{\"id\":911,\"chapter_id\":1,\"file_size\":839808,\"format\":\"mp3\",\"audio_url\":\"https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/1.mp3\",\"duration\":46000,\"verse_timings\":[{\"verse_key\":\"1:1\",\"timestamp_from\":0,\"timestamp_to\":6090,\"duration\":6090,\"segments\":[[1,0,580],[2,580,1409],[3,1409,2502],[4,2502,5840]]},{\"verse_key\":\"1:2\",\"timestamp_from\":6090,\"timestamp_to\":11680,\"duration\":5590,\"segments\":[[1,6025,7025],[2,7025,7885],[3,7885,8515],[4,8515,11550]]},{\"verse_key\":\"1:3\",\"timestamp_from\":11680,\"timestamp_to\":16300,\"duration\":4620,\"segments\":[[1,11615,12855],[1],[2,12855,16180],[2],[1]]},{\"verse_key\":\"1:4\",\"timestamp_from\":16300,\"timestamp_to\":20950,\"duration\":4650,\"segments\":[[1,16245,17065],[2,17065,17665],[3,17665,20830]]},{\"verse_key\":\"1:5\",\"timestamp_from\":20950,\"timestamp_to\":27660,\"duration\":6710,\"segments\":[[1,20885,21875],[2,21875,22645],[3,22645,23765],[4,23765,27520]]},{\"verse_key\":\"1:6\",\"timestamp_from\":27660,\"timestamp_to\":33250,\"duration\":5590,\"segments\":[[1,27585,28325],[2,28325,29225],[3,29225,33110]]},{\"verse_key\":\"1:7\",\"timestamp_from\":33250,\"timestamp_to\":46490,\"duration\":13250,\"segments\":[[1,33185,33935],[2,33935,34855],[3,34855,35875],[4,35875,36805],[5,36805,37395],[6,37395,38565],[7,38565,39565],[8,39565,39855],[9,39855,46360]]}]}]}"
+ },
+ "qdc_reciters": {
+  "status": 200,
+  "acao": "*",
+  "d": "97:Yasser Ad Dussary:ياسر الدوسري:Murattal ; 6:Mahmoud Khalil Al-Husary:محمود خليل الحصري:Murattal ; 161:Khalifah Al Tunaiji:خليفة الطنيجي:Murattal ; 2:AbdulBaset AbdulSamad:عبد الباسط عبد الصمد:Murattal ; 10:Sa'ud ash-Shuraim:سعود الشريم:Murattal ; 7:Mishari Rashid al-`Afasy:مشاري راشد العفاسي:Murattal ; 9:Mohamed Siddiq al-Minshawi:محمد صديق المنشاوي:Murattal ; 4:Abu Bakr al-Shatri:أبو بكر الشاطرى:Murattal ; 1:AbdulBaset AbdulSamad:عبد الباسط عبد الصمد:Mujawwad ; 5:Hani ar-Rifai:هاني الرفاعي:Murattal ; 3:Abdur-Rahman as-Sudais:عبدالرحمن السديس:Murattal ; 12:Mahmoud Khalil Al-Husary:محمود خليل الحصري:Muallim ; 168:Mohamed Siddiq al-Minshawi:محمد صديق المنشاوي:Kids repeat ; 173:Mishari Rashid al-`Afasy:مشاري راشد العفاسي:Murattal"
+ },
+ "qdc_7_2": {
+  "status": 200,
+  "url": "https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/2.mp3",
+  "timings": [
+   {
+    "verse_key": "2:1",
+    "timestamp_from": 0,
+    "timestamp_to": 7650,
+    "duration": 7650,
+    "segments": [
+     [
+      1,
+      0,
+      7595
+     ]
+    ]
+   },
+   {
+    "verse_key": "2:2",
+    "timestamp_from": 7650,
+    "timestamp_to": 16640,
+    "duration": 8990,
+    "segments": [
+     [
+      1,
+      7595,
+      8495
+     ],
+     [
+      2,
+      8495,
+      9395
+     ],
+     [
+      3,
+      9395,
+      9775
+     ],
+     [
+      4,
+      9775,
+      10345
+     ],
+     [
+      5,
+      10345,
+      12605
+     ],
+     [
+      6,
+      12605,
+      12905
+     ],
+     [
+      7,
+      12905,
+      16500
+     ]
+    ]
+   },
+   {
+    "verse_key": "2:3",
+    "timestamp_from": 16640,
+    "timestamp_to": 28060,
+    "duration": 11420,
+    "segments": [
+     [
+      1,
+      16555,
+      17595
+     ],
+     [
+      2,
+      17595,
+      18745
+     ],
+     [
+      3,
+      18745,
+      19645
+     ],
+     [
+      4,
+      19645,
+      20815
+     ],
+     [
+      5,
+      20815,
+      21775
+     ],
+     [
+      6,
+      21775,
+      23135
+     ],
+     [
+      7,
+      23135,
+      24545
+     ],
+     [
+      8,
+      24545,
+      27920
+     ]
+    ]
+   }
+  ]
+ },
+ "qdc_audio_head": "206 acao=* ct=audio/mpeg cr=bytes 0-99/116226409 ar=null",
+ "spa5k": "bn-tafisr-fathul-majid:bengali:Tafsir Fathul Majid ; ar-tafseer-tanwir-al-miqbas:arabic:Tafseer Tanwir al-Miqbas ; ur-tafsir-fe-zalul-quran-syed-qatab:urdu:Fi Zilal al-Quran ; ur-tafseer-ibn-e-kaseer:urdu:Tafsir Ibn Kathir ; ur-tafsir-bayan-ul-quran:urdu:Tafsir Bayan ul Quran ; ur-tazkirul-quran:urdu:Tazkirul Quran(Maulana Wahiduddin Khan) ; en-tazkirul-quran:english:Tazkirul Quran(Maulana Wahiduddin Khan) ; en-kashf-al-asrar-tafsir:english:Kashf Al-Asrar Tafsir ; en-al-qushairi-tafsir:english:Al Qushairi Tafsir ; en-kashani-tafsir:english:Kashani Tafsir ; en-tafsir-al-tustari:english:Tafsir al-Tustari ; en-asbab-al-nuzul-by-al-wahidi:english:Asbab Al-Nuzul by Al-Wahidi ; en-tafsir-ibn-abbas:english:Tanwîr al-Miqbâs min Tafsîr Ibn ‘Abbâs ; en-al-jalalayn:english:Al-Jalalayn ; sinhalese-mokhtasar:sinhala:Sinhalese Mokhtasar ; en-tafsir-al-mukhtasar:english:English Al-Mukhtasar ; sq-saadi:albanian:Tafsir As-Saadi ; japanese-mokhtasar:japanese:Japanese Abridged Explanation of the Quran ; russian-mokhtasar:russian:Russian Al-Mukhtasar ; bengali-mokhtasar:bengali:Bengali Abridged Explanation of the Quran ; tagalog-mokhtasar:tagalog:Filipino (Tagalog) Al-Mukhtasar in interpreting the Noble Quran ; ru-tafsir-ibne-kahtir:russian:Tafsir Ibne Kathir ; chinese-mokhtasar:chinese:Chinese Abridged Explanation of the Quran ; tr-tafsir-ibne-kathir:turkish:Tafsir Ibne Kathir ; asseraj-fi-bayan-gharib-alquran:arabic:Asseraj fi Bayan Gharib AlQuran ; assamese-mokhtasar:assamese:Assamese Abridged Explanation of the Quran ; ar-tafsir-al-mukhtasar:arabic:Arabic Al-Mukhtasar in interpreting the Noble Quran ; italian-mokhtasar:italian:Italian Al-Mukhtasar in interpreting the Noble Quran ; tafsir-as-saadi-russian:russian:Tafsir As-Saadi ; bosnian-mokhtasar:bosnian:Bosnian Abridged Explanation of the Quran ; malayalam-mokhtasar:malayalam:Malayalam Abridged Explanation of the Quran ; turkish-mokhtasar:turkish:Turkish Al-Mukhtasar in Interpreting the Noble Quran ; khmer-mokhtasar:central khmer:Khmer Abridged Explanation of the Quran ; french-mokhtasar:french:French Abridged Explanation of the Quran ; vietnamese-mokhtasar:vietnamese:Vietnamese Al-Mukhtasar in interpreting the Noble Quran ; persian-mokhtasar:persian:Persian Al-Mukhtasar in interpreting the Noble Quran ; ar-tafsir-as-saadi:arabic:Tafsir As-Saadi ; indonesian-mokhtasar:indonesian:Indoniesua Al-Mukhtasar in Interpreting the Noble Quran ; al-i-rab-al-muyassar:arabic:Iraab Al-Muyassar ; ur-tafsir-as-saadi-urdu:urdu:Tafsir As-Saadi - Urdu ; id-tafsir-as-saadi:indonesian:Tafsir As-Saadi - Indonesian ; tafsir-ibn-abi-zamanin:arabic:Tafsir Ibn Abi Zamanin ; abu-bakr-jabir-al-jazairi:arabic:Abu Bakr Jabir Al-Jazairi ; i-rab-al-quran-li-al-darwish:arabic:I'rab Al Quran li Al Darwish ; nazam-al-durar-al-biqa-i:arabic:Nazam Al-Durar Al-Biqa'i ; ar-tafseer-tahrir-al-tanwir:arabic:Tafsir al-Tahrir wa al-Tanwir ; en-tafisr-ibn-kathir:english:Tafsir Ibn Kathir ; ar-tafseer-al-saddi:arabic:Tafseer Al Saadi - Arabic ; ru-tafseer-al-saddi:russian:Tafseer Al Saadi - Russian ; ar-tafsir-ibn-kathir:arabic:Tafsir Ibn Kathir ; ar-tafseer-al-qurtubi:arabic:Tafseer Al Qurtubi ; ar-tafsir-al-baghawi:arabic:Tafseer Al-Baghawi ; tafseer-ibn-e-kaseer-urdu:urdu:Tafsir Ibn Kathir ; tafsir-fe-zalul-quran-syed-qatab:urdu:Fi Zilal al-Quran ; bn-tafseer-ibn-e-kaseer:bengali:Tafseer ibn Kathir ; tafsir-bayan-ul-quran:urdu:Tafsir Bayan ul Quran ; ar-tafsir-al-wasit:arabic:Tafsir Al Wasit ; en-tafsir-maarif-ul-quran:english:Maarif-ul-Quran ; ar-tafsir-muyassar:arabic:Tafsir Muyassar ; in-tafsir-jalalayn:indonesian:Tafsir Jalalayn ; bn-tafsir-ahsanul-bayaan:bengali:Tafsir Ahsanul Bayaan ; tafisr-fathul-majid-bn:bengali:Tafsir Fathul Majid ; bn-tafsir-abu-bakr-zakaria:bengali:Tafsir Abu Bakr Zakaria ; tazkirul-quran-en:english:Tazkirul Quran(Maulana Wahiduddin Khan) ; tazkiru-quran-ur:urdu:Tazkirul Quran(Maulana Wahiduddin Khan) ; kurd-tafsir-rebar:Kurdish:Rebar Kurdish Tafsir ; al-muharrar-al-wajiz-ibn-atiyyah:arabic:Al-Muharrar Al-Wajiz Ibn Atiyyah ; ar-tafsir-al-tabari:arabic:Tafsir al-Tabari ; al-basit:arabic:Al-Basit ; alrab-al-quran-li-da-as:arabic:Alrab Al-Quran li-Da'as ; tafsir-al-nasafi:arabic:Tafsir Al-Nasafi ; al-muyassar-fi-al-gharib:arabic:Al-Muyassar fi Al-Gharib ; al-lubab-fi-ulum-al-kitab:arabic:Al Lubab fi Ulum Al Kitab ; ar-tafsir-al-jalalayn:arabic:Tafsir Jalalayn ; tafsir-al-baydawi:arabic:Tafsir Al-Baydawi ; al-jadwal-fi-i-rab-al-quran:arabic:Al Jadwal fi I'rab Al Quran ; tafsir-al-razi:arabic:Tafsir Al-Razi ; tafsir-al-jalalayn:english:Tafsir Al Jalalayn - English ; tafsir-ibn-juzay:arabic:Tafsir Ibn Juzay ; fr-tafsir-as-saadi:persian:Tafsir As-Saadi - Persian ; turkish-tafsir-as-saadi-turkish:turkish:Tafsir As-Saadi - Turkish ; mawsoo-at-al-tafsir-al-ma-thoor:arabic:Mawsoo'at Al-Tafsir Al-Ma'thoor ; tahlil-kalimat-al-qur-an:arabic:Tahlil Kalimat al-Qur'an ; tafsir-ibn-uthaymeen:arabic:Tafsir Ibn Uthaymeen ; tafsir-makhi:arabic:Tafsir Makhi ; thai-mokhtasar:thai:Thai Mokhtasar ; mahasin-al-ta-wil-al-qasimi:arabic:Mahasin Al-Ta'wil Al-Qasimi ; telugu-mokhtasar:telugu:Telugu Mokhtasar ; uyghur-mokhtasar:uighur:Uyghur Mokhtasar ; pashto-mokhtasar:pashto:Pashto Mokhtasar ; tafsir-al-sam-ani:arabic:Tafsir Al-Sam'ani ; azeri-mokhtasar:azeri:Azeri Mokhtasar ; fulani-mokhtasar:fulah:Fulani Mokhtasar ; al-bahr-al-muhit:arabic:Al-Bahr Al-Muhit ; ar-tafsir-al-tha-alibi:arabic:Tafsir Al-Tha'alibi ; uzbek-mokhtasar:uzbek:Uzbek Mokhtasar ; ar-tafsir-al-tha-alibi-527:arabic:Tafsir Al-Tha'alibi ; adwa-al-bayan:arabic:Adwa' Al-Bayan ; ayah-dependency-graphs:arabic:Ayah Dependency Graphs ; serbian-mokhtasar:serbian:Serbian Mokhtasar ; kurdish-mokhtasar:kurdish:Kurdish Mokhtasar ; al-wajiz-wahidi:arabic:Al-Wajiz Wahidi ; tamil-mokhtasar:tamil:Tamil Mokhtasar ; fath-al-qadir-al-shawkani:arabic:Fath Al-Qadir Al-Shawkani ; al-nashr-li-ibn-al-jazari:arabic:Al Nashr li Ibn Al Jazari ; kyrgyz-mokhtasar:kyrgyz:Kyrgyz Mokhtasar ; al-qira-at-al-mawsoo-ah-al-qur-aniyyah:arabic:Al Qira'at Al Mawsoo'ah Al Qur'aniyyah ; spanish-mokhtasar:spanish:Spanish Abridged Explanation of the Quran ; tafsir-ibn-al-jawzi:arabic:Tafsir Ibn Al-Jawzi ; tafsir-ibn-al-qayyim:arabic:Tafsir Ibn Al-Qayyim ; hindi-mokhtasar:hindi:Hindi Mokhtasar ; al-durr-al-manthur:arabic:Al-Durr Al-Manthur ; jamia-al-bayan-aliji:arabic:Jamia Al-Bayan AlIji ; tafsir-al-samarqandi:arabic:Tafsir Al-Samarqandi ; tafsir-ibn-abi-hatim:arabic:Tafsir Ibn Abi Hatim ; tafsir-al-alusi:arabic:Tafsir Al-Alusi ; al-dur-al-masun-lil-samin-al-halabi:arabic:Al Dur Al Masun Lil Samin Al Halabi ; tadabbur-wa-amal:arabic:Tadabbur wa 'Amal ; fath-al-bayan-li-al-qanuji:arabic:Fath Al-Bayan li Al-Qanuji ; tafsir-abi-al-su-ood:arabic:Tafsir Abi Al-Suaood ; tafsir-al-mawardi:arabic:Tafsir Al-Mawardi ; al-kashshaf-al-zamakhshari:arabic:Al-Kashshaf Al-Zamakhshari ; ar-tafsir-al-jami-al-wajiz:arabic:Tafsir Al-Jami' Al-Wajiz",
+ "alq_audio": "ar.abdulbasitmurattal:عبد الباسط عبد الصمد المرتل:Abdul Basit:translation ; ar.abdullahbasfar:عبد الله بصفر:Abdullah Basfar:versebyverse ; ar.abdurrahmaansudais:عبدالرحمن السديس:Abdurrahmaan As-Sudais:versebyverse ; ar.abdulsamad:عبدالباسط عبدالصمد:Abdul Samad:versebyverse ; ar.shaatree:أبو بكر الشاطري:Abu Bakr Ash-Shaatree:versebyverse ; ar.ahmedajamy:أحمد بن علي العجمي:Ahmed ibn Ali al-Ajamy:versebyverse ; ar.alafasy:مشاري العفاسي:Alafasy:versebyverse ; ar.hanirifai:هاني الرفاعي:Hani Rifai:versebyverse ; ar.husary:محمود خليل الحصري:Husary:versebyverse ; ar.husarymujawwad:محمود خليل الحصري (المجود):Husary (Mujawwad):versebyverse ; ar.hudhaify:علي بن عبدالرحمن الحذيفي:Hudhaify:versebyverse ; ar.ibrahimakhbar:إبراهيم الأخضر:Ibrahim Akhdar:versebyverse ; ar.mahermuaiqly:ماهر المعيقلي:Maher Al Muaiqly:versebyverse ; ar.minshawi:محمد صديق المنشاوي:Minshawi:translation ; ar.minshawimujawwad:محمد صديق المنشاوي (المجود):Minshawy (Mujawwad):translation ; ar.muhammadayyoub:محمد أيوب:Muhammad Ayyoub:versebyverse ; ar.muhammadjibreel:محمد جبريل:Muhammad Jibreel:versebyverse ; ar.saoodshuraym:سعود الشريم:Saood bin Ibraaheem Ash-Shuraym:versebyverse ; ar.parhizgar:شهریار پرهیزگار:Parhizgar:versebyverse ; ar.aymanswoaid:أيمن سويد:Ayman Sowaid:versebyverse ; ar.alafasy-2:مشاري العفاسي:Alafasy:versebyverse ; ar.husary-2:محمود خليل الحصري:Husary:versebyverse ; ar.mahermuaiqly-2:ماهر المعيقلي:Maher Al Muaiqly:versebyverse ; ar.hudhaify-2:علي بن عبدالرحمن الحذيفي:Hudhaify:versebyverse ; ar.husarymujawwad-2:محمود خليل الحصري (المجود):Husary (Mujawwad):versebyverse ; ar.minshawi-2:محمد صديق المنشاوي:Minshawi:translation ; ar.muhammadayyoub-2:محمد أيوب:Muhammad Ayyoub:versebyverse ; ar.muhammadjibreel-2:محمد جبريل:Muhammad Jibreel:versebyverse ; ar.abdulazizazzahrani:عبد العزيز الزهراني:Abdul Aziz az-Zahrani:surahbysurah ; ar.abdulbariaththubaity:عبد الباري الثبيتي:Abdul Bari ath-Thubaity:surahbysurah ; ar.abdulbarimohammed:عبد الباري محمد:Abdul Bari Mohammed:surahbysurah ; ar.abdulbasitmujawwad:عبد الباسط عبد الصمد (مجوَّد):Abdul Basit Abdus-Samad (Mujawwad):surahbysurah ; ar.abdulbasitmurattal-surah:عبد الباسط عبد الصمد (مرتَّل):Abdul Basit Abdus-Samad (Murattal):surahbysurah ; ar.abdulkareemalhazmi:عبد الكريم الحازمي:Abdul Kareem al-Hazmi:surahbysurah ; ar.abdullahalmatrood:عبد الله المطرود:Abdullah al-Matrood:surahbysurah ; ar.abdullahawadaljuhani:عبد الله عواد الجهني:Abdullah Awad al-Juhani:surahbysurah ; ar.abdullahbasfar-surah:عبد الله بصفر:Abdullah Basfar:surahbysurah ; ar.abdullahkhayat:عبد الله خياط:Abdullah Khayat:surahbysurah ; ar.abdullahkhulaifi:عبد الله الخليفي:Abdullah al-Khulaifi:surahbysurah ; ar.abdulmohsenalharthy:عبد المحسن الحارثي:Abdul Mohsen al-Harthy:surahbysurah ; ar.abdulmunimabdulmubdi:عبد المنعم عبد المبدئ:Abdul Munim Abdul Mubdi:surahbysurah ; ar.abdulwadoodhaneef:عبد الودود حنيف:Abdul Wadood Haneef:surahbysurah ; ar.abdurrasheedsufiabialhaarithanalkasaaee:عبد الرشيد صوفي (أبو الحارث عن الكسائي):Abdur-Rasheed Sufi (Abul-Harith from al-Kisa'i):surahbysurah ; ar.abdurrasheedsufiaddoorianabiamr:عبد الرشيد صوفي (الدوري عن أبي عمرو):Abdur-Rasheed Sufi (ad-Doori from Abu Amr):surahbysurah ; ar.abdurrasheedsufishubahanasim:عبد الرشيد صوفي (شعبة عن عاصم):Abdur-Rasheed Sufi (Shu'bah from Asim):surahbysurah ; ar.abdurrasheedsufisoosi:عبد الرشيد صوفي (السوسي):Abdur-Rasheed Sufi (as-Soosi):surahbysurah ; ar.abuabdullahmuniraltounsi:أبو عبد الله منير التونسي:Abu Abdullah Munir at-Tounsi:surahbysurah ; ar.abubakraldhabi:أبو بكر الذهبي:Abu Bakr adh-Dhabi:surahbysurah ; ar.adilkalbani:عادل الكلباني:Adil al-Kalbani:surahbysurah ; ar.ahmadalhawashy:أحمد الحواشي:Ahmad al-Hawashy:surahbysurah ; ar.ahmadkhaderaltarabulsi:أحمد خضر الطرابلسي:Ahmad Khader at-Tarabulsi:surahbysurah ; ar.ahmadsulaiman:أحمد سليمان:Ahmad Sulaiman:surahbysurah ; ar.ahmedalajmi:أحمد العجمي:Ahmed al-Ajmi:surahbysurah ; ar.ahmedalhammad:أحمد الحماد:Ahmed al-Hammad:surahbysurah ; ar.ahmedalmisbahi:أحمد المصباحي:Ahmed al-Misbahi:surahbysurah ; ar.ahmedamir:أحمد عامر:Ahmed Amir:surahbysurah ; ar.ahmedmohamedsalama:أحمد محمد سلامة:Ahmed Mohamed Salama:surahbysurah ; ar.ahmedsaber:أحمد صابر:Ahmed Saber:surahbysurah ; ar.alafasy-surah:مشاري راشد العفاسي:Mishary Rashid Alafasy:surahbysurah ; ar.alashryomran:العشري عمران:al-Ashry Omran:surahbysurah ; ar.alfatehmuhammadzubair:الفاتح محمد الزبير:al-Fateh Muhammad Zubair:surahbysurah ; ar.alhusaynialazazi:الحسيني العزازي:al-Husayni al-Azazi:surahbysurah ; ar.alhusaynialazazichildren:الحسيني العزازي (مع الأطفال):al-Husayni al-Azazi (with children):surahbysurah ; ar.aliabdurrahmanalhuthaify:علي عبد الرحمن الحذيفي:Ali Abdur-Rahman al-Huthaify:surahbysurah ; ar.aliabdurrahmanalhuthaifyqaloon:علي عبد الرحمن الحذيفي (قالون):Ali Abdur-Rahman al-Huthaify (Qaloon):surahbysurah ; ar.alihajjajsouissi:علي حجاج السويسي:Ali Hajjaj Souissi:surahbysurah ; ar.alzainmohamedahmed:الزين محمد أحمد:al-Zain Mohamed Ahmed:surahbysurah ; ar.aymanswed:أيمن سويد:Ayman Swed:surahbysurah ; ar.azizalili:عزيز عليلي:Aziz Alili:surahbysurah ; ar.basselabdulrahmanraoui:باسل عبد الرحمن الراوي:Bassel Abdul-Rahman ar-Raoui:surahbysurah ; ar.benkirane:بنكيران:Benkirane:surahbysurah ; ar.darwishfarajdarwishalattar:درويش فرج درويش العطار:Darwish Faraj Darwish al-Attar:surahbysurah ; ar.emadalmansary:عماد المنصري:Emad al-Mansary:surahbysurah ; ar.ezzatsabri:عزت صبري:Ezzat Sabri:surahbysurah ; ar.faresabbad:فارس عباد:Fares Abbad:surahbysurah ; ar.fouadalkhamiri:فؤاد الخامري:Fouad al-Khamiri:surahbysurah ; ar.hamadsinan:حمد سنان:Hamad Sinan:surahbysurah ; ar.hamdyalsayedtolbasaad:حمدي السيد طلبة سعد:Hamdy al-Sayed Tolba Saad:surahbysurah ; ar.haniarrifai:هاني الرفاعي:Hani ar-Rifai:surahbysurah ; ar.hasanhashem:حسن هاشم:Hasan Hashem:surahbysurah ; ar.hassansaleh:حسن صالح:Hassan Saleh:surahbysurah ; ar.hatemfarid:حاتم فريد:Hatem Farid:surahbysurah ; ar.ibrahimalakhdar:إبراهيم الأخضر:Ibrahim al-Akhdar:surahbysurah ; ar.ibrahimaldossari:إبراهيم الدوسري:Ibrahim ad-Dossari:surahbysurah ; ar.ibrahimaljormy:إبراهيم الجرمي:Ibrahim al-Jormy:surahbysurah ; ar.ilhantok:إلهان توك:Ilhan Tok:surahbysurah ; ar.imadzuhairhafez:عماد زهير حافظ:Imad Zuhair Hafez:surahbysurah ; ar.jamaanalosaimi:جمعان العصيمي:Jamaan al-Osaimi:surahbysurah ; ar.jamalshakerabdullah:جمال شاكر عبد الله:Jamal Shaker Abdullah:surahbysurah ; ar.jazzaalswaileh:جزاع الصويلح:Jazza al-Swaileh:surahbysurah ; ar.kamel:كامل:Kamel:surahbysurah ; ar.khaledalqahtani:خالد القحطاني:Khaled al-Qahtani:surahbysurah ; ar.khaledbarakat:خالد بركات:Khaled Barakat:surahbysurah ; ar.khalidabdulkafi:خالد عبد الكافي:Khalid Abdul-Kafi:surahbysurah ; ar.khalidaljalil:خالد الجليل:Khalid al-Jalil:surahbysurah ; ar.khalidalmohanna:خالد المهنا:Khalid al-Mohanna:surahbysurah ; ar.khalifaaltunaiji:خليفة الطنيجي:Khalifa at-Tunaiji:surahbysurah ; ar.laayounelkouchi:العيون الكوشي:Laayoun el-Kouchi:surahbysurah ; ar.lesaintcorantraduitenfrancais:القرآن الكريم مترجمًا بالفرنسية:Le Saint Coran traduit en français:surahbysurah ; ar.mahershakhashiro:ماهر شخاشيرو:Maher Shakhashiro:surahbysurah ; ar.mahmoodalrifai:محمود الرفاعي:Mahmood al-Rifai:surahbysurah ; ar.mahmoudalialbanna:محمود علي البنا:Mahmoud Ali al-Banna:surahbysurah ; ar.mahmoudelsheimy:محمود الشيمي:Mahmoud el-Sheimy:surahbysurah ; ar.mahmoudsaaddarouich:محمود سعد درويش:Mahmoud Saad Darouich:surahbysurah ; ar.mahmoudsayedeltayeb:محمود سيد الطيب:Mahmoud Sayed el-Tayeb:surahbysurah ; ar.misharyrashidalafasy:مشاري راشد العفاسي:Mishary Rashid Alafasy:surahbysurah ; ar.moeedhalharthi:معيض الحارثي:Moeedh al-Harthi:surahbysurah ; ar.mohamedabdelaziz:محمد عبد العزيز:Mohamed Abdel-Aziz:surahbysurah ; ar.mohamedabdelhakimsaadalabdullah:محمد عبد الحكيم سعد العبد الله:Mohamed Abdel-Hakim Saad al-Abdullah:surahbysurah ; ar.mohamedaljaberyalheyani:محمد الجابري الحياني:Mohamed al-Jabery al-Heyani:surahbysurah ; ar.mohamedalmohisni:محمد المحيسني:Mohamed al-Mohisni:surahbysurah ; ar.mohamedelkantaoui:محمد القنطاوي:Mohamed el-Kantaoui:surahbysurah ; ar.mohamedhassan:محمد حسان:Mohamed Hassan:surahbysurah ; ar.mohamedmaabad:محمد معبد:Mohamed Maabad:surahbysurah ; ar.mohamedosmankhan:محمد عثمان خان:Mohamed Osman Khan:surahbysurah ; ar.mohamedshaabanabuqarn:محمد شعبان أبو قرن:Mohamed Shaaban Abu Qarn:surahbysurah ; ar.mohamedtablawi:محمد الطبلاوي:Mohamed at-Tablawi:surahbysurah ; ar.mohammadismaeelalmuqaddim:محمد إسماعيل المقدم:Mohammad Ismaeel al-Muqaddim:surahbysurah ; ar.mohammadrachadalshareef:محمد رشاد الشريف:Mohammad Rachad al-Shareef:surahbysurah ; ar.mohammedbinsalehabuzaid:محمد بن صالح أبو زيد:Mohammed bin Saleh Abu Zaid:surahbysurah ; ar.muftahalsaltany:مفتاح السلطني:Muftah al-Saltany:surahbysurah ; ar.muhammadabdulkareem:محمد عبد الكريم:Muhammad Abdul-Kareem:surahbysurah ; ar.muhammadalaalimaldokali:محمد العالم الدوكالي:Muhammad al-Aalim ad-Dokali:surahbysurah ; ar.muhammadalluhaidan:محمد اللحيدان:Muhammad al-Luhaidan:surahbysurah ; ar.muhammadalmehysni:محمد المحيسني:Muhammad al-Mehysni:surahbysurah ; ar.muhammadalsubayyil:محمد السبيل:Muhammad as-Subayyil:surahbysurah ; ar.muhammadanwarshahat:محمد أنور شحات:Muhammad Anwar Shahat:surahbysurah ; ar.muhammadayyub:محمد أيوب:Muhammad Ayyub:surahbysurah ; ar.muhammadsalehalimshah:محمد صالح عالم شاه:Muhammad Saleh Alim Shah:surahbysurah ; ar.muhammadsiddiqalminshawimujawwad:محمد صديق المنشاوي (مجوَّد):Muhammad Siddiq al-Minshawi (Mujawwad):surahbysurah ; ar.muhammadsulaimanpatel:محمد سليمان باتل:Muhammad Sulaiman Patel:surahbysurah ; ar.musabilal:موسى بلال:Musa Bilal:surahbysurah ; ar.mustafaallahouni:مصطفى اللاهوني:Mustafa al-Lahouni:surahbysurah ; ar.mustafaismail:مصطفى إسماعيل:Mustafa Ismail:surahbysurah ; ar.mustafaraadalazzawi:مصطفى رعد العزاوي:Mustafa Raad al-Azzawi:surahbysurah ; ar.mustaphagharbi:مصطفى غربي:Mustapha Gharbi:surahbysurah ; ar.nabilarrifai:نبيل الرفاعي:Nabil ar-Rifai:surahbysurah ; ar.nasseralqatami:ناصر القطامي:Nasser al-Qatami:surahbysurah ; ar.neamahalhassan:نعمة الحسن:Neamah al-Hassan:surahbysurah ; ar.obeikan:العبيكان:al-Obeikan:surahbysurah ; ar.oimaoqataris:ar.oimaoqataris:ar.oimaoqataris:surahbysurah ; ar.omaralkazabri:عمر القزابري:Omar al-Kazabri:surahbysurah ; ar.osamabinalialghanim:أسامة بن علي الغانم:Osama bin Ali al-Ghanim:surahbysurah ; ar.rachidbelalia:رشيد بلعالية:Rachid Belalia:surahbysurah ; ar.saberabdulhakam:صابر عبد الحكم:Saber Abdul-Hakam:surahbysurah ; ar.sadaqatali:صداقت علي:Sadaqat Ali:surahbysurah ; ar.sahlyasin:سهل ياسين:Sahl Yasin:surahbysurah ; ar.saidalshaalan:سعيد الشعلان:Said ash-Shaalan:surahbysurah ; ar.salahalbudair:صلاح البدير:Salah al-Budair:surahbysurah ; ar.salahalhashem:صلاح الهاشم:Salah al-Hashem:surahbysurah ; ar.salahbaothman:صلاح باعثمان:Salah Ba-Othman:surahbysurah ; ar.samirbelaachya:سمير بلعشية:Samir Belaachya:surahbysurah ; ar.saudalshuraim:سعود الشريم:Saud ash-Shuraim:surahbysurah ; ar.sayedramadan:سيد رمضان:Sayed Ramadan:surahbysurah ; ar.shahriarparhizgar:شهريار پرهيزگار:Shahriar Parhizgar:surahbysurah ; ar.sudaisshuraymnaeemsultan:السديس والشريم (مع ترجمة نعيم سلطان):Sudais & Shuraym (with Naeem Sultan translation):surahbysurah ; ar.tamerislam:تامر إسلام:Tamer Islam:surahbysurah ; ar.tareqabdulganidaawob:طارق عبد الغني دعوب:Tareq Abdul-Gani Daawob:surahbysurah ; ar.tawfeeqassayegh:توفيق الصايغ:Tawfeeq as-Sayegh:surahbysurah ; ar.turkiebeidalmarri:تركي عبيد المري:Turki Ebeid al-Marri:surahbysurah ; ar.waeldesouky:وائل الدسوقي:Wael ad-Desouky:surahbysurah ; ar.waelradwanqureshi:وائل رضوان قريشي:Wael Radwan Qureshi:surahbysurah ; ar.waleedidreesalmaneese:وليد إدريس المنيسي:Waleed Idrees al-Maneese:surahbysurah ; ar.waleednaehi:وليد الناهي:Waleed an-Naehi:surahbysurah ; ar.waleedsamiraliabdulmajidsorour:وليد سمير علي عبد المجيد سرور:Waleed Samir Ali Abdul-Majid Sorour:surahbysurah ; ar.walidalshatti:وليد الشطي:Walid ash-Shatti:surahbysurah ; ar.walidfathibashta:وليد فتحي بشتة:Walid Fathi Bashta:surahbysurah ; ar.yahyahawwa:يحيى حوى:Yahya Hawwa:surahbysurah ; ar.yassenaljazairi:ياسين الجزائري:Yassen al-Jazairi:surahbysurah ; ar.yasseraldossari:ياسر الدوسري:Yasser ad-Dossari:surahbysurah ; ar.yasseralmazroyee:ياسر المزروعي:Yasser al-Mazroyee:surahbysurah ; ar.yasserqureshi:ياسر قريشي:Yasser Qureshi:surahbysurah ; ar.yassersalama:ياسر سلامة:Yasser Salama:surahbysurah ; ar.yassersarhaneldeeb:ياسر سرحان الديب:Yasser Sarhan el-Deeb:surahbysurah ; ar.yousufalshoaey:يوسف الشويعي:Yousuf ash-Shoaey:surahbysurah ; ar.yousufbinnoahahmad:يوسف بن نوح أحمد:Yousuf bin Noah Ahmad:surahbysurah",
+ "alq_page_audio": "{\"number\":8,\"audio\":\"https://cdn.islamic.network/quran/audio/128/ar.alafasy/8.mp3\",\"audioSecondary\":[\"https://cdn.islamic.network/quran/audio/64/ar.alafasy/8.mp3\"],\"text\":\"بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ الٓمٓ\",\"surah\":{\"number\":2,\"name\":\"سُورَةُ البَقَرَةِ\",\"englishName\":\"Al-Baqara\",\"englishNameTranslation\":\"The Cow\",\"numberOfAyahs\":286,\"revelationType\":\"Medinan\"},\"numberInSurah\":1,\"juz\":1,\"manzil\":1,\"page\":2,\"ruku\":2,\"hizbQuarter\":1,\"sajda\":false}",
+ "alq_audio_head": "206 acao=null ct=audio/mpeg cr=bytes 0-99/123007 ar=null",
+ "asbab https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir/en-asbab-al-nuzul-by-al-wahidi/2/6.json": {
+  "status": 200,
+  "acao": "*",
+  "d": "{\"surah\":2,\"ayah\":6,\"text\":\"Surely it is the same for those who disbelieve whether thou warnest them or thou warnest them not; they will not have faith. From the beginning of the surah to this point is an allusion to the Lord's bounty and gentleness with familiars and friends. This verse alludes to His severity and justice toward the strangers and enemies. God has both bounty and justice. If He acts with justice, that is fitting, and if He is bounteous, that is suitable for Him. But not everythi"
+ },
+ "asbab https://api.quran.com/api/v4/tafsirs/86/by_ayah/2:6": {
+  "status": 404,
+  "acao": "*",
+  "d": "{\"status\":404,\"error\":\"Tafsir not found\"}"
+ },
+ "dc_bin_69b63c5cc3097a1dd5278b25": {
+  "status": 200,
+  "acao": "*",
+  "topKeys": [
+   "manuscripts"
+  ],
+  "count": 8,
+  "items": [
+   {
+    "id": "1783930343612",
+    "type": "text",
+    "url": "",
+    "content": "وكان فضل الله عليك عظيما ",
+    "font": "zain-length-3",
+    "png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABLAAAAOECAYAAA len=97854",
+    "words": 5
+   },
+   {
+    "id": "1783932785458",
+    "type": "text",
+    "url": "",
+    "content": "وَقُولُوا لِلنَّاسِ حُسْنًا ",
+    "font": "dima-story",
+    "png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABLAAAAOECAYAAA len=102546",
+    "words": 3
+   },
+   {
+    "id": "1786369689466",
+    "type": "text",
+    "url": "",
+    "content": "إن الله مع المتقين",
+    "font": "nt-panorama-naskh-long-scribble",
+    "png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABLAAAAOECAYAAA len=114066",
+    "words": 4
+   },
+   {
+    "id": "1786877034662",
+    "type": "image",
+    "url": "",
+    "content": "74792e8a1c3de11df449b09bea35fdc1-remove-bg-io.png",
+    "png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAiUAAALBCAYAAA len=195726"
+   },
+   {
+    "id": "1788942148948",
+    "type": "image",
+    "url": "",
+    "content": "صورة مرفوعة",
+    "font": "Aref Ruqaa",
+    "png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAl4AAAP8CAYAAA len=193710",
+    "words": 0
+   },
+   {
+    "id": "1788944084661",
+    "type": "image",
+    "url": "",
+    "content": "صورة مرفوعة",
+    "font": "Aref Ruqaa",
+    "png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAbEAAAJBCAYAAA len=166922",
+    "words": 0
+   },
+   {
+    "id": "1789441406269",
+    "type": "text",
+    "url": "",
+    "content": "الفراغ مفسدة",
+    "font": "Reem Kufi",
+    "png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABLAAAAOECAYAAA len=46766",
+    "words": 2
+   },
+   {
+    "id": "1790248548159",
+    "type": "text",
+    "url": "",
+    "content": "فإذا فرغت فانصب",
+    "font": "Aref Ruqaa",
+    "png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABLAAAAOECAYAAA len=101310",
+    "words": 3
+   }
+  ]
+ },
+ "dc_bin_6a573cdbf5f4af5e29915034": {
+  "status": 200,
+  "acao": "*",
+  "topKeys": [
+   "fonts"
+  ],
+  "count": 6,
+  "items": [
+   {
+    "name": "free_for_personal_use",
+    "url": "data:text/plain;base64,Rk9OVDogTEVNT04gQlJVU0ggQVJBQklDIFBFUlNPTkFMIFVTRSBPTkxZCmFyZm9udHMubmV0L2xlbW9uLWJydXNoLWFyYWJpY",
+    "content": "",
+    "png": null
+   },
+   {
+    "name": "decotype-thuluth-regular",
+    "url": "data:application/zip;base64,UEsDBBQAAAAIACWfK1xdDGMP1AUAACASAAAkAAAARGVjb1R5cGUgVGh1bHV0aCBSZWd1bGFyL3JlYWRtZS5odG1spVht",
+    "content": "",
+    "png": null
+   },
+   {
+    "name": "amoshref-thulth",
+    "url": "data:font/ttf;base64,AAEAAAAPAIAAAwBwRkZUTYzZuYIABiRwAAAAHEdERUbhOH4mAAUKyAAAGfpHUE9Tk8DGRAAFfzwAAKU0R1NVQj4ReTAABSTEAAB",
+    "content": "",
+    "png": null
+   },
+   {
+    "name": "zain-length-6",
+    "url": "data:font/ttf;base64,AAEAAAAOAIAAAwBgR0RFRhAxC/YAAH0YAAAAsEdQT1NkNOAtAAB9yAAAEFRHU1VCa8nSKgAAjhwAAAfgT1MvMpMmAZgAAAFoAAA",
+    "content": "",
+    "png": null
+   },
+   {
+    "name": "DecoType-Thuluth-Regular",
+    "url": "data:font/ttf;base64,AAEAAAAPAIAAAwBwR1NVQs3p4H0AAAD8AAALwE9TLzLbbtMJAAFb+AAAAFZQQ0xUVCsZNAABXFAAAAA2Y21hcKD/npUAAAy8AAA",
+    "content": "",
+    "png": null
+   },
+   {
+    "name": "ln",
+    "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAl4AAAP8CAYAAACXgrDXAAAQAElEQVR4Aez9B2BU1532j08f9d6REBKidxBgMKYYl7g7diDZOI",
+    "content": "",
+    "png": null
+   }
+  ]
+ },
+ "wm_eq": [
+  "File:Laon Cathedral Interior 360x180, Picardy, France - Diliff.jpg | 13644x6822 | https://thumb.wikimedia.org/wikipedia/commons/thumb/0/08/Laon_Cathedral_Interior_360x180%2C_Picardy%2C_France_-_Diliff.jpg/3840px-Laon_Cathedral_Interior_360x180%2C_Picardy%2C_France_-_Diliff.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail | CC BY-SA 3.0",
+  "File:Soissons Cathedral Interior 360x180, Picardy, France - Diliff.jpg | 13632x6816 | https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Soissons_Cathedral_Interior_360x180%2C_Picardy%2C_France_-_Diliff.jpg/3840px-Soissons_Cathedral_Interior_360x180%2C_Picardy%2C_France_-_Diliff.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail | CC BY-SA 3.0",
+  "File:2017.02.18 Equirectangular DC People and Places 3780 (32132214284).jpg | 5376x2688 | https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3f/2017.02.18_Equirectangular_DC_People_and_Places_3780_%2832132214284%29.jpg/3840px-2017.02.18_Equirectangular_DC_People_and_Places_3780_%2832132214284%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail | CC BY-SA 2.0",
+  "File:35C3 Panorama.jpg | 18000x9000 | https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b2/35C3_Panorama.jpg/3840px-35C3_Panorama.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail | CC BY-SA 4.0",
+  "File:360 degree panorama - Shinjuku busta and Shinjuku station south Dec16 2020.jpeg | 10106x1670 | https://thumb.wikimedia.org/wikipedia/commons/thumb/8/89/360_degree_panorama_-_Shinjuku_busta_and_Shinjuku_station_south_Dec16_2020.jpeg/3840px-360_degree_panorama_-_Shinjuku_busta_and_Shinjuku_station_south_Dec16_2020.jpeg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail | CC BY 4.0"
+ ],
+ "wm_thumb_head": "200 acao=* ct=image/jpeg cr=null ar=bytes",
+ "wm_search mosque equirectangular": "0 results, 2:1 → ",
+ "wm_search beach 360 panorama equirectangular": "7 results, 2:1 → Even bigger landing - Flickr - gadl.jpg (10000) ; San Diego Panorama DSC 2062-DSC 2068.jpg (10000) ; San Diego Panorama DSC 2056-DSC 2060.jpg (10000) ; San Diego Panorama DSC 2026-DSC 2032.jpg (10000) ; San Diego Panorama DSC 2002-DSC 2007.jpg (10000) ; Battery Point Beach, Crescent City, California May 2023.jpg (18746)",
+ "wm_search mountain 360 equirectangular": "11 results, 2:1 → Cmglee Wikimania2016 Monte Croce photosphere.jpg (7168) ; Wald am Wilden Kaiser, Tirol, 360x180, 160620, ako.jpg (10000) ; Wald in Ellmau am Wilden Kaiser, Tirol, 360x180, 160620, ako.jpg (10000) ; Weg zur Riedlhütte, Ellmau, 360x180, 160618, ako.jpg (10000) ; Tiger And Turtle Panorama.jpg (10752) ; Panoramic view of Paranal (res-mount-sunrise-pan).jpg (22924) ; Equirectangular panoramic view from Guadalupe Peak - DPLA - 58b2b04af68c6210af519e29156e71f5.jpg (1500)",
+ "wm_search Masjid al-Haram 360": "7 results, 2:1 → ",
+ "wm_search night sky 360 equirectangular": "30 results, 2:1 → A panorama view of the VLT (165309674464e758889a6 eq-ext).jpg (8192) ; Night sky at La Silla (150121-22-lasilla-360-cc).jpg (20000)",
+ "wm_search library interior 360": "30 results, 2:1 → Eesti Üliõpilaste Seltsi maja, raamatukogu.jpg (14000) ; Kõrgem Kunstikool Pallas 003-raamatukogu pano.jpg (18344)",
+ "wm_eq_subcats": "Spherical panoramas",
+ "wm_vid": {
+  "url": "https://upload.wikimedia.org/wikipedia/commons/e/e9/Video_360%C2%B0._Timelapse._Bled_Lake_in_Slovenia..webm?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+  "lic": "CC BY 3.0",
+  "artist": "<a rel=\"nofollow\" class=\"external text\" href=\"https://www.youtube.com/channel/UCTnaAJ2DlSM6jtdUFXtGu8Q\">Fabio Casati</a>"
+ },
+ "wm_vid_head": "206 acao=* ct=video/webm cr=bytes 0-99/17254262 ar=bytes",
+ "cdn https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs": "206 acao=* ct=application/javascript; charset=utf-8 cr=bytes 0-99/352645 ar=bytes",
+ "cdn https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs": "206 acao=* ct=application/javascript; charset=utf-8 cr=bytes 0-99/1375838 ar=bytes",
+ "cdn https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js": "206 acao=* ct=application/javascript; charset=utf-8 cr=bytes 0-99/97630 ar=bytes",
+ "cdn https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js": "206 acao=* ct=application/javascript; charset=utf-8 cr=bytes 0-99/66695 ar=bytes",
+ "cdn https://tessdata.projectnaptha.com/4.0.0/ara.traineddata.gz": "206 acao=* ct=application/gzip cr=bytes 0-99/1673749 ar=bytes",
+ "cdn https://fonts.gstatic.com/s/amiriquran/v19/_Xmo-Hk0rD6DbUL4_vH8Zq5t.ttf": "206 acao=* ct=font/ttf cr=bytes 0-99/130184 ar=bytes",
+ "cdn https://cdn.jsdelivr.net/npm/@fontsource/amiri-quran@5.1.0/files/amiri-quran-arabic-400-normal.woff2": "206 acao=* ct=font/woff2 cr=bytes 0-99/54588 ar=bytes",
+ "cdn https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task": "206 acao=* ct=application/octet-stream cr=bytes 0-99/5777746 ar=bytes"
+}
