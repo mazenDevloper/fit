@@ -1,0 +1,45 @@
+shanghai_bund ok 1029589
+sunset_jhbcentral ok 1054274
+alps_field ok 2901988
+reading_room ok 1736922
+gamepad ok 564656
+gaming_console ok 1823200
+dartboard ok 844276
+rubber_duck_toy ok 305948
+ArmChair_01 ok 742368
+Rockingchair_01 ok 514332
+round_wooden_table_01 ok 528828
+vintage_oil_lamp ok 761512
+Chandelier_03 ok 978912
+ERR decorative_book_set_01 KeyError('gltf')
+chess_set ok 3218244
+mantel_clock_01 ok 1329792
+wall_clock ok 570040
+hanging_picture_frame_03 ok 850096
+sofa_03 ok 804452
+coffee_table_round_01 ok 504016
+side_table_tall_01 ok 587036
+modern_ceiling_lamp_01 ok 231044
+ceramic_vase_04 ok 326120
+brass_candleholders ok 3325764
+Lantern_01 ok 1054780
+standing_picture_frame_02 ok 305740
+brass_vase_01 ok 587172
+industrial_wall_lamp ok 1071352
+wood_floor ok
+dark_wood ok
+laminate_floor_02 ok
+marble_01 ok
+grey_plaster ok
+large_floor_tiles_02 ok
+no Diffuse for fabric_pattern_07 keys nor_dx,col_2,col_1,nor_gl,blend,gltf,col_03,arm,AO,Rough,mtlx
+fabric_pattern_07 ok
+no Diffuse for leather_red_02 keys coll2,coll1,nor_dx,nor_gl,blend,gltf,arm,AO,Displacement,Rough,mtlx
+leather_red_02 ok
+red_brick_03 ok
+earth_atmos_2048.jpg ok
+earth_normal_2048.jpg ok
+earth_specular_2048.jpg ok
+earth_clouds_1024.png ok
+earth_lights_2048.png ok
+moon_1024.jpg ok
