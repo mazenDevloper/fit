@@ -1,14 +1,18 @@
-live v88 after 0 s
+live v89 after 0 s
+in-mr space true
 TEST reader 293 play 18:1 18:1
 shot q1-space-kahf
 shot q2-space-float
+in-mr library true
 TEST kursi 41 2:255
 shot q3-library-kursi
 shot q4-reciters
 shot q5-tafsirs
+in-mr reading true
 TEST web reader:القمر - ويكيبيديا
 shot b1-web-article
 shot b2-shelf
+in-mr nightOffice true
 shot g1-rooms
 shot g2-views
 shot g3-hdris
@@ -17,30 +21,49 @@ shot g5-video360
 shot g6-models
 shot g7-manuscripts
 TEST gallery app,tab,cat,page,lists,thumbs,busy,group,panel
+in-mr gaming true
 TEST ms items 8
 shot m1-manuscript-gaming
+in-mr passthrough true
 TEST manifest [{"id":"bled","title":"بحيرة بليد · سلوفينيا","cat":"طبيعة","file":"bled.mp4","poster":"bled.jpg","w":2880,"h":1440,"dur":9,"audio":true,"loop":true,"size":9368063,"license":"CC BY 3.0","author":"Fabio Casati","source":"https://commons.wikimedia.org/wiki/File%3AVideo_360%C2%B0._Timelapse._Bled_Lake_
-TEST video 4 5.523527 2880
+TEST video 4 3.955746 2880
 shot v1-video360
+in-mr space true
 shot e-space
+in-mr library true
 shot e-library
+in-mr reading true
 shot e-reading
+in-mr viewOffice true
 shot e-viewOffice
+in-mr nightOffice true
 shot e-nightOffice
+in-mr gaming true
 shot e-gaming
+in-mr gamingRed true
 shot e-gamingRed
+in-mr viewOffice true
 TEST coach true
 shot c1-squat
+in-mr viewOffice true
 TEST coach true
 shot c2-band-curl
+in-mr library true
 TEST coach true
 shot c3-pushup
+in-mr viewOffice true
 TEST coach true
 shot c4-lunge
+in-mr viewOffice true
 shot c5-menu
+in-mr gaming true
 shot c6-boxing
+in-mr space true
 shot c7-eyes
+in-mr space true
 shot c8-neck
+in-mr passthrough true
 shot c9-treadmill
+in-mr passthrough true
 TEST tread video 4
 shot c10-treadmill-360
