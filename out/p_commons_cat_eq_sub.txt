@@ -1,0 +1,2 @@
+status=200 acao=* ct=application/json; charset=utf-8 len=123 accept-ranges=bytes
+{"batchcomplete":"","query":{"categorymembers":[{"pageid":11484211,"ns":14,"title":"Category:Spherical panoramas"}]}}

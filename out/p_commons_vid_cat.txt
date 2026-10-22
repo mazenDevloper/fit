@@ -1,0 +1,2 @@
+status=200 acao=* ct=application/json; charset=utf-8 len=83 accept-ranges=bytes
+{"batchcomplete":"","query":{"searchinfo":{"totalhits":0},"search":[]}}
