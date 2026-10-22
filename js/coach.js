@@ -277,27 +277,30 @@ export function poseAt(ex, t) {
 }
 
 // ---------------------------------------------------------------- the illustrated muscle map
-export function drawMuscleMap(ctx, x, y, w, h, primary, secondary, t = 0) {
+export function drawMuscleMap(ctx, x, y, w, h, primary, secondary, t = 0, picked = null) {
+  const hits = [];   // [muscle, Path2D] for tapping a muscle
   const draw = (data, ox, label) => {
     const k = Math.min((w / 2 - 20) / 100, (h - 40) / 200), bx = ox + (w / 2 - 100 * k) / 2, by = y + 30;
     for (const [name, polys] of data) {
       const m = MAP2[name];
       const on = m && primary.includes(m) ? 2 : m && secondary.includes(m) ? 1 : 0;
       for (const pts of polys) {
-        ctx.beginPath();
-        for (let i = 0; i < pts.length; i += 2) { const px = bx + pts[i] * k, py = by + pts[i + 1] * k; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
-        ctx.closePath();
-        if (on === 2) { const g = ctx.createLinearGradient(bx, by, bx + 100 * k, by + 200 * k); g.addColorStop(0, '#ff3d1f'); g.addColorStop(1, '#ff9a3c'); ctx.fillStyle = g; ctx.shadowColor = 'rgba(255,90,30,' + (0.6 + 0.3 * Math.sin(t * 5)) + ')'; ctx.shadowBlur = 18; }
+        const path = new Path2D();
+        for (let i = 0; i < pts.length; i += 2) { const px = bx + pts[i] * k, py = by + pts[i + 1] * k; i ? path.lineTo(px, py) : path.moveTo(px, py); }
+        path.closePath(); if (m) hits.push([m, path]);
+        if (m && m === picked) { ctx.fillStyle = '#5ee0ff'; ctx.shadowColor = 'rgba(94,224,255,0.8)'; ctx.shadowBlur = 18; }
+        else if (on === 2) { const g = ctx.createLinearGradient(bx, by, bx + 100 * k, by + 200 * k); g.addColorStop(0, '#ff3d1f'); g.addColorStop(1, '#ff9a3c'); ctx.fillStyle = g; ctx.shadowColor = 'rgba(255,90,30,' + (0.6 + 0.3 * Math.sin(t * 5)) + ')'; ctx.shadowBlur = 18; }
         else if (on === 1) { ctx.fillStyle = 'rgba(255,190,90,0.85)'; ctx.shadowBlur = 0; }
         else { ctx.fillStyle = name === 'head' || name === 'knees' ? 'rgba(200,210,230,0.55)' : 'rgba(150,165,195,0.42)'; ctx.shadowBlur = 0; }
-        ctx.fill(); ctx.shadowBlur = 0;
-        ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(20,24,34,0.6)'; ctx.stroke();
+        ctx.fill(path); ctx.shadowBlur = 0;
+        ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(20,24,34,0.6)'; ctx.stroke(path);
       }
     }
     text(ctx, label, ox + w / 4, y + 14, 22, { weight: 800, color: COLORS.dim });
   };
   draw(FRONT, x + w / 2, 'أمام');
   draw(BACK, x, 'خلف');
+  return hits;
 }
 
 // ---------------------------------------------------------------- the voice
@@ -584,7 +587,15 @@ export class CoachWindow {
   drawMap(ctx, W, H, p) {
     roundRect(ctx, 0, 0, W, H, 50); ctx.fillStyle = 'rgba(12,16,26,0.82)'; ctx.fill(); glass(ctx, 0, 0, W, H, 50);
     text(ctx, 'العضلات العاملة', W / 2, 52, 32, { weight: 800 });
-    drawMuscleMap(ctx, 20, 80, W - 40, H - 250, this.ex.p, this.ex.s, performance.now() / 1000);
+    const hits = drawMuscleMap(ctx, 20, 80, W - 40, H - 250, this.ex.p, this.ex.s, performance.now() / 1000, this.pickMuscle);
+    text(ctx, 'اضغط عضلة لترى تمارينها', W / 2, H - 196, 20, { color: '#9fd4ff', weight: 700 });
+    p.region(20, 80, W - 40, H - 250, (lx, ly) => {
+      const hit = hits.slice().reverse().find(([, path]) => ctx.isPointInPath(path, lx + 20, ly + 80));
+      if (!hit) return;
+      blip('tap', settings.sounds); this.pickMuscle = hit[0]; this.map.redraw();
+      if (!this.menu.mesh.parent) this.openMenu(); else this.menu.redraw();
+      say('تمارين ' + MUSCLE_AR[hit[0]]);
+    }, 'map');
     // legend
     const ly = H - 150;
     [['#ff5a1f', 'الأساسية: ' + this.ex.p.map(m => MUSCLE_AR[m]).join('، ')], ['#ffbe5a', 'المساعدة: ' + (this.ex.s.map(m => MUSCLE_AR[m]).join('، ') || '—')]].forEach(([c, l], i) => {
@@ -592,20 +603,29 @@ export class CoachWindow {
       text(ctx, l, W - 70, ly + i * 52, 22, { align: 'right', weight: 700, maxWidth: W - 100, fit: true });
     });
   }
-  openMenu() { if (this.menu.mesh.parent) { this.group.remove(this.menu.mesh); } else { this.group.add(this.menu.mesh); this.menu.redraw(); } this.mgr.refreshTargets?.(); }
+  openMenu() { if (this.menu.mesh.parent) { this.group.remove(this.menu.mesh); if (this.pickMuscle) { this.pickMuscle = null; this.map.redraw(); } } else { this.group.add(this.menu.mesh); this.menu.redraw(); } this.mgr.refreshTargets?.(); }
   drawMenu(ctx, W, H, p) {
     roundRect(ctx, 0, 0, W, H, 46); ctx.fillStyle = 'rgba(12,16,26,0.95)'; ctx.fill(); glass(ctx, 0, 0, W, H, 46);
-    text(ctx, 'اختر تمريناً', W - 50, 60, 38, { align: 'right', weight: 800 });
-    text(ctx, settings.hasBand !== false ? 'وزن الجسم والحبل المطاطي' : 'وزن الجسم', W - 50, 104, 24, { align: 'right', color: COLORS.dim });
+    const pm = this.pickMuscle;
+    text(ctx, pm ? 'تمارين ' + MUSCLE_AR[pm] : 'اختر تمريناً', W - 50, 60, 38, { align: 'right', weight: 800 });
+    text(ctx, pm ? 'الأساسية أولاً · اضغط «الكل» لكل التمارين' : settings.hasBand !== false ? 'وزن الجسم والحبل المطاطي' : 'وزن الجسم', W - 50, 104, 24, { align: 'right', color: COLORS.dim });
+    if (pm) {
+      const hv = p.isHover('all'); roundRect(ctx, 130, 30, 150, 60, 30); ctx.fillStyle = hv ? 'rgba(255,255,255,0.3)' : 'rgba(94,224,255,0.25)'; ctx.fill();
+      text(ctx, 'الكل', 205, 60, 26, { weight: 800 });
+      p.region(130, 30, 150, 60, () => { blip('tap', settings.sounds); this.pickMuscle = null; this.menu.redraw(); this.map.redraw(); }, 'all');
+    }
     const hc = p.isHover('x'); ctx.beginPath(); ctx.arc(64, 60, 32, 0, 7); ctx.fillStyle = hc ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.08)'; ctx.fill(); icon(ctx, 'close', 64, 60, 28);
     p.region(24, 20, 80, 80, () => this.openMenu(), 'x');
-    const list = EXERCISES.filter(e => e.kind !== 'band' || settings.hasBand !== false), cols = 4, top = 130, pad = 30, g = 12;
+    let list = EXERCISES.filter(e => e.kind !== 'band' || settings.hasBand !== false);
+    if (pm) list = list.filter(e => e.p.includes(pm) || e.s.includes(pm)).sort((a, b) => (b.p.includes(pm) ? 1 : 0) - (a.p.includes(pm) ? 1 : 0));
+    if (!list.length) { text(ctx, 'لا يوجد تمرين لهذه العضلة بعد', W / 2, H / 2, 30, { color: COLORS.dim }); return; }
+    const cols = 4, top = 130, pad = 30, g = 12;
     const cw = (W - pad * 2 - g * (cols - 1)) / cols, rows = Math.ceil(list.length / cols), ch = Math.min(120, (H - top - 20 - g * (rows - 1)) / rows);
     list.forEach((e, i) => {
       const c = i % cols, r = Math.floor(i / cols), x = W - pad - (c + 1) * cw - c * g, y = top + r * (ch + g), id = 'e' + i, hov = p.isHover(id), on = e.id === this.ex.id;
       roundRect(ctx, x, y, cw, ch, 24); ctx.fillStyle = on ? 'rgba(255,150,80,0.9)' : hov ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.07)'; ctx.fill();
       text(ctx, e.name, x + cw / 2, y + ch * 0.38, 25, { weight: 800, color: on ? '#2a1405' : COLORS.text, maxWidth: cw - 16, fit: true });
-      text(ctx, e.p.map(m => MUSCLE_AR[m]).join('، ') + (e.kind === 'band' ? ' · حبل' : ''), x + cw / 2, y + ch * 0.72, 18, { color: on ? '#4a2a10' : COLORS.dim, maxWidth: cw - 16, fit: true });
+      text(ctx, (pm && !e.p.includes(pm) ? 'مساعد · ' : '') + e.p.map(m => MUSCLE_AR[m]).join('، ') + (e.kind === 'band' ? ' · حبل' : ''), x + cw / 2, y + ch * 0.72, 18, { color: on ? '#4a2a10' : COLORS.dim, maxWidth: cw - 16, fit: true });
       p.region(x, y, cw, ch, () => { blip('tap', settings.sounds); this.choose(e.id); this.openMenu(); }, id);
     });
   }

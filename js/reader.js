@@ -446,11 +446,16 @@ export class ReaderWindow {
   applyLayout() {
     const quran = !this.book || !!this.book.quran, showT = settings.readerTafsir !== false && quran;
     this.side.R.mesh.visible = showT; this.side.L.mesh.visible = showT;
-    this.float.mesh.visible = settings.readerFloat !== false && quran;
+    // «وضع الاستماع»: no mushaf, only the recited ayah in front of you and the controls
+    const listen = quran && !!settings.readerListen;
+    this.spine.visible = !listen;
+    if (listen) { this.side.R.mesh.visible = this.side.L.mesh.visible = false; }
+    this.float.mesh.visible = (settings.readerFloat !== false || listen) && quran;
     // in space the ayah floats far and big, in the sky in front of you
     const space = settings.environment === 'space';
-    this.float.mesh.position.set(0, space ? PH / 2 + 0.75 : PH / 2 + 0.2, space ? -2.4 : -0.04);
-    this.float.mesh.scale.setScalar(space ? 2.6 : 1);
+    if (listen) { this.float.mesh.position.set(0, space ? 0.35 : 0.02, space ? -1.6 : -0.02); this.float.mesh.scale.setScalar(space ? 2.2 : 1.15); }
+    else { this.float.mesh.position.set(0, space ? PH / 2 + 0.75 : PH / 2 + 0.2, space ? -2.4 : -0.04); this.float.mesh.scale.setScalar(space ? 2.6 : 1); }
+    this.float.redraw();
     this.mgr.refreshTargets?.();
   }
   async start(page) {
@@ -733,7 +738,15 @@ export class ReaderWindow {
     this.float.redraw();
   }
   drawFloat(ctx, W, H) {
-    const f = this.floatText; if (!f?.text) return;
+    const f = this.floatText;
+    if (!f?.text) {
+      if (!settings.readerListen || !this.book?.quran) return;
+      const sN = Q.surahOfPage(this.first || 1);
+      ctx.save(); ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff4d8'; ctx.shadowColor = 'rgba(255,214,130,0.9)'; ctx.shadowBlur = 22;
+      ctx.font = `64px ${Q.QFONT}`; ctx.fillText('سورة ' + Q.SURAHS[sN - 1][0], W / 2, H * 0.42);
+      ctx.shadowBlur = 0; ctx.font = `700 26px ${Q.BFONT}`; ctx.fillStyle = 'rgba(255,226,160,0.85)'; ctx.fillText('اختر سورة من الفهرس ثم اضغط ▶', W / 2, H - 30); ctx.restore();
+      return;
+    }
     // a soft dark oval behind the words (fades out before the panel's edges)
     ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(W / 2, H / 2);
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1); g.addColorStop(0, 'rgba(8,12,24,0.5)'); g.addColorStop(0.7, 'rgba(8,12,24,0.3)'); g.addColorStop(1, 'rgba(8,12,24,0)');
@@ -788,7 +801,7 @@ export class ReaderWindow {
       this.book.quran ? ['rec', 'mic', () => this.openMenu('reciter')] : ['rec', 'sound', () => this.openMenu('voice')],
       ['opt', 'sliders', () => this.openMenu('options')],
       ['night', settings.readerNight ? 'sun' : 'moon', () => this.setNight(!settings.readerNight)],
-      ['shelf', 'stack', () => { this.app.openShelf?.(); }],
+      this.book.quran ? ['listen', settings.readerListen ? 'book' : 'sound', () => this.setListen(!settings.readerListen)] : ['shelf', 'stack', () => { this.app.openShelf?.(); }],
     ];
     right.forEach(([id, ic, act], i) => {
       const cx = W - H * 0.62 - i * (bw + 6), cy = H / 2, hov = p.isHover(id), on = this.menuOpen && this.menuOpen.startsWith(id === 'rec' ? 'reciter' : id === 'opt' ? 'options' : '-');
@@ -801,6 +814,11 @@ export class ReaderWindow {
     if (this.book.quran) this.recite.toggle(this.recite.resumeAt || this.focusKey || this.layouts.get(this.first)?.lines.find(l => l.words.length)?.words[0]?.key || '1:1');
     else this.speaker.toggle(this.pageAt(this.rtl ? 'R' : 'L'));
     this.ctrl.redraw();
+  }
+  setListen(on) {
+    saveSettings({ readerListen: on }); this.applyLayout(); this.ctrl.redraw();
+    this.app.toast(on ? '🎧 وضع الاستماع — الآية أمامك بلا مصحف' : '📖 المصحف', 2200);
+    if (on && !this.recite.playing) this.openMenu('index');
   }
   setNight(on) {
     saveSettings({ readerNight: on });
@@ -846,7 +864,14 @@ export class ReaderWindow {
     if (kind === 'index') {
       const items = Q.SURAHS.map(([name, n, page], i) => ({ label: Q.arNum(i + 1) + '. ' + name, sub: Q.arNum(n) + ' آية · ص ' + Q.arNum(page), page, s: i + 1 }));
       const juz = Q.JUZ_PAGES.map((page, i) => ({ label: 'الجزء ' + Q.arNum(i + 1), sub: 'ص ' + Q.arNum(page), page }));
-      grid([...items, ...juz], 5, 5, it => { this.closeMenu(); this.goTo(it.page); }, it => it.s ? Q.surahOfPage(this.first) === it.s : false, 'فهرس السور', 'اختر سورة أو جزءاً');
+      grid([...items, ...juz], 5, 5, async it => {
+        this.closeMenu();
+        if (settings.readerListen && it.s) {   // listening: the surah's first ayah waits in front of you, ▶ starts it
+          this.recite.stop(); this.recite.resumeAt = null;
+          await this.goTo(it.page); this.setFocus(it.s + ':1'); this.ctrl.redraw();
+          this.app.toast('▶ للاستماع إلى سورة ' + Q.SURAHS[it.s - 1][0], 2500);
+        } else this.goTo(it.page);
+      }, it => it.s ? Q.surahOfPage(this.first) === it.s : false, 'فهرس السور', 'اختر سورة أو جزءاً');
     } else if (kind === 'pages') {
       const n = this.book.count, step = Math.max(1, Math.ceil(n / 50)), items = [];
       for (let i = 1; i <= n; i += step) items.push({ label: 'صفحة ' + i, page: i });
