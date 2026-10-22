@@ -1,6 +1,7 @@
 // Virtual environments shown instead of (or dimming) the real room.
 import * as THREE from 'three';
 import { neonDesk, study, lounge, realStudy, realNeon, realStudio } from './rooms.js';
+import { space, library, viewOffice, gaming, readingRoom } from './rooms2.js';
 
 export const ENVS = {
   passthrough: { label: 'الواقع', note: 'غرفتك الحقيقية', immersive: false },
@@ -14,9 +15,17 @@ export const ENVS = {
   realStudio:  { label: 'المكتب البنفسجي · واقعي', note: 'نفس الغرفة بخامات وإضاءة حقيقية', immersive: true },
   lounge:      { label: 'صالة المدفأة', note: 'غرفة حقيقية · واقعية', immersive: true },
   realStudy:   { label: 'الصالة المضيئة', note: 'غرفة حقيقية بضوء النهار', immersive: true },
+  space:       { label: 'الفضاء', note: 'الأرض تدور تحتك والنجوم حولك', immersive: true },
+  library:     { label: 'المكتبة الهادئة', note: 'رفوف كتب ونوافذ على الجبال', immersive: true },
+  reading:     { label: 'غرفة القراءة', note: 'غرفة حقيقية هادئة · واقعية', immersive: true },
+  viewOffice:  { label: 'مكتب بإطلالة', note: 'غروب على المدينة', immersive: true },
+  nightOffice: { label: 'مكتب ليلي', note: 'أضواء المدينة في الليل', immersive: true },
+  gaming:      { label: 'غرفة الألعاب', note: 'نيون بنفسجي وشاشات', immersive: true },
+  gamingRed:   { label: 'غرفة الألعاب · أحمر', note: 'إضاءة حمراء وبرتقالية', immersive: true },
   gallery:     { label: 'من المكتبة', note: 'بيئة اخترتها من مكتبة البيئات', immersive: true },
+  mine:        { label: 'بيئتي', note: 'بيئة استوردتها أنت', immersive: true },
 };
-export const ENV_ORDER = Object.keys(ENVS).filter(k => k !== 'gallery');
+export const ENV_ORDER = Object.keys(ENVS).filter(k => k !== 'gallery' && k !== 'mine');
 export const envKey = k => (k === 'immersive' ? 'night' : ENVS[k] ? k : 'passthrough');
 export const isImmersive = k => ENVS[envKey(k)].immersive;
 
@@ -40,7 +49,7 @@ function floorGrid(color, opacity) {
 }
 
 export function makeEnvironments() {
-  const all = { gallery: new THREE.Group() };   // filled by the environments library (gallery.js)
+  const all = { gallery: new THREE.Group(), mine: new THREE.Group() };   // filled by the environments library (gallery.js)
   // Night sky
   let g = new THREE.Group();
   g.add(dome(`varying vec3 vP; void main(){ float h = vP.y; vec3 top = vec3(0.012,0.02,0.06); vec3 mid = vec3(0.05,0.06,0.13); vec3 low = vec3(0.10,0.07,0.12);
@@ -75,6 +84,13 @@ export function makeEnvironments() {
   all.realStudio = lazyRoom(realStudio, 0.35);
   all.lounge = lazyRoom(lounge);
   all.realStudy = lazyRoom(realStudy);
+  all.space = lazyRoom(space, 0.55);
+  all.library = lazyRoom(library, 0.35);
+  all.reading = lazyRoom(readingRoom);
+  all.viewOffice = lazyRoom(() => viewOffice(false), 0.5);
+  all.nightOffice = lazyRoom(() => viewOffice(true), 0.3);
+  all.gaming = lazyRoom(() => gaming('neon'), 0.25);
+  all.gamingRed = lazyRoom(() => gaming('red'), 0.25);
   Object.values(all).forEach(x => { x.visible = false; });
   return all;
 }

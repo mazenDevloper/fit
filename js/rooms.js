@@ -22,7 +22,7 @@ function plane(p, w, h, mat, x, y, z, ry = 0, rx = 0) { const m = mesh(new THREE
 const glowTex = tex(128, 128, (g, w, h) => { const r = g.createRadialGradient(64, 64, 0, 64, 64, 64); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.35, 'rgba(255,255,255,.45)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
 function glow(p, w, h, color, opacity, x, y, z, ry = 0, rx = 0) {
   const m = plane(p, w, h, new THREE.MeshBasicMaterial({ map: glowTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }), x, y, z, ry, rx);
-  m.renderOrder = 2; return m;
+  m.renderOrder = -2; return m;   // room light effects draw before the windows (which blend over them)
 }
 function radial(g, x, y, r, col, sy = 1) { g.save(); g.translate(x, y); g.scale(1, sy); const q = g.createRadialGradient(0, 0, 0, 0, 0, r); q.addColorStop(0, col); q.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = q; g.fillRect(-r, -r, 2 * r, 2 * r); g.restore(); }
 function noise(g, w, h, n, f) { for (let i = 0; i < n; i++) { g.fillStyle = f(); g.fillRect(Math.random() * w, Math.random() * h, 2, 1); } }
@@ -392,3 +392,6 @@ export function realStudio() {
   })().catch(e => console.warn('room', e));
   return R;
 }
+
+// shared with the other environments (rooms2.js)
+export { tex, basic, mesh, box, cyl, plane, glow, radial, noise, glb, one, place, photoSphere, pbr, std, emit, tame, pointL, realRoom, FLOOR, BASE };

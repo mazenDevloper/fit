@@ -145,6 +145,18 @@ export function icon(ctx, name, cx, cy, s, color = COLORS.text) {
     case 'ball': ctx.beginPath(); ctx.arc(0, 0, 0.72 * h, 0, 7); ctx.stroke(); P([[0, -0.3], [0.29, -0.09], [0.18, 0.25], [-0.18, 0.25], [-0.29, -0.09]]); break;
     case 'moon': ctx.beginPath(); ctx.arc(0, 0, 0.7 * h, 0.9, Math.PI * 2 - 0.9 + Math.PI * 0.0, false); ctx.arc(0.32 * h, -0.12 * h, 0.55 * h, Math.PI * 2 - 1.25, 1.55, true); ctx.closePath(); ctx.fill(); break;
     case 'cursor': P([[-0.45, -0.75], [0.5, 0.15], [0.05, 0.2], [0.3, 0.72], [0.1, 0.8], [-0.12, 0.3], [-0.45, 0.6]]); break;
+    case 'book':
+      ctx.beginPath(); ctx.moveTo(0, -0.5 * h); ctx.quadraticCurveTo(-0.4 * h, -0.72 * h, -0.85 * h, -0.55 * h); ctx.lineTo(-0.85 * h, 0.62 * h); ctx.quadraticCurveTo(-0.4 * h, 0.45 * h, 0, 0.66 * h);
+      ctx.quadraticCurveTo(0.4 * h, 0.45 * h, 0.85 * h, 0.62 * h); ctx.lineTo(0.85 * h, -0.55 * h); ctx.quadraticCurveTo(0.4 * h, -0.72 * h, 0, -0.5 * h); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -0.5 * h); ctx.lineTo(0, 0.66 * h); ctx.stroke(); break;
+    case 'dumbbell': ctx.fillRect(-0.55 * h, -0.08 * h, 1.1 * h, 0.16 * h); for (const sx of [-1, 1]) { roundRect(ctx, sx * 0.62 * h - 0.13 * h, -0.5 * h, 0.26 * h, 1.0 * h, 0.08 * h); ctx.fill(); roundRect(ctx, sx * 0.86 * h - 0.08 * h, -0.32 * h, 0.16 * h, 0.64 * h, 0.06 * h); ctx.fill(); } break;
+    case 'glove': ctx.beginPath(); ctx.moveTo(-0.45 * h, 0.75 * h); ctx.lineTo(-0.45 * h, 0.2 * h); ctx.quadraticCurveTo(-0.7 * h, -0.1 * h, -0.5 * h, -0.5 * h); ctx.quadraticCurveTo(-0.1 * h, -0.95 * h, 0.4 * h, -0.65 * h); ctx.quadraticCurveTo(0.75 * h, -0.4 * h, 0.55 * h, 0.1 * h);
+      ctx.lineTo(0.45 * h, 0.75 * h); ctx.closePath(); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.moveTo(-0.5 * h, 0.3 * h); ctx.lineTo(0.5 * h, 0.3 * h); ctx.stroke(); break;
+    case 'heart': ctx.beginPath(); ctx.moveTo(0, 0.7 * h); ctx.bezierCurveTo(-1.05 * h, 0, -0.55 * h, -0.85 * h, 0, -0.35 * h); ctx.bezierCurveTo(0.55 * h, -0.85 * h, 1.05 * h, 0, 0, 0.7 * h); ctx.fill(); break;
+    case 'neck': ctx.beginPath(); ctx.arc(0, -0.38 * h, 0.3 * h, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-0.12 * h, -0.08 * h); ctx.lineTo(-0.15 * h, 0.25 * h); ctx.quadraticCurveTo(-0.7 * h, 0.3 * h, -0.8 * h, 0.75 * h); ctx.moveTo(0.12 * h, -0.08 * h); ctx.lineTo(0.15 * h, 0.25 * h); ctx.quadraticCurveTo(0.7 * h, 0.3 * h, 0.8 * h, 0.75 * h); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, -0.38 * h, 0.62 * h, -2.5, -0.64); ctx.stroke(); break;
+    case 'muscle': ctx.beginPath(); ctx.moveTo(-0.75 * h, 0.6 * h); ctx.lineTo(-0.2 * h, 0.6 * h); ctx.quadraticCurveTo(0.75 * h, 0.55 * h, 0.7 * h, -0.05 * h); ctx.quadraticCurveTo(0.62 * h, -0.55 * h, 0.15 * h, -0.45 * h); ctx.lineTo(0.0, -0.75 * h); ctx.lineTo(-0.3 * h, -0.62 * h); ctx.lineTo(-0.2 * h, -0.25 * h);
+      ctx.quadraticCurveTo(0.2 * h, -0.2 * h, 0.15 * h, 0.05 * h); ctx.quadraticCurveTo(-0.3 * h, 0.1 * h, -0.75 * h, 0.15 * h); ctx.closePath(); ctx.fill(); break;
     case 'mic': roundRect(ctx, -0.25 * h, -0.75 * h, 0.5 * h, 0.95 * h, 0.25 * h); ctx.fill(); ctx.beginPath(); ctx.arc(0, -0.05 * h, 0.5 * h, 0.15, Math.PI - 0.15); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, 0.45 * h); ctx.lineTo(0, 0.75 * h); ctx.stroke(); break;
     default: ctx.beginPath(); ctx.arc(0, 0, 0.3 * h, 0, 7); ctx.fill();
   }

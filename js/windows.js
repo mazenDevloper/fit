@@ -15,6 +15,7 @@ const CONTENT_FRAG = /* glsl */`
   uniform sampler2D map; uniform float uVideo; uniform float uHas; uniform vec2 uSize; uniform float uRadius; uniform float uDim; uniform float uHole;
   uniform vec4 uL; uniform vec4 uR; uniform float uEye;
   uniform vec4 uPic; uniform vec2 uTexel;   // picture: contrast, saturation, sharpness, green boost
+  uniform float uCut;                        // 0 = opaque, 1 = the picture's own transparency, 2 = green screen keyed out
   varying vec2 vUv;
   vec3 dec(vec3 s){ return mix(s * 0.0773993808, pow(s * 0.9478672986 + 0.0521327014, vec3(2.4)), step(0.04045, s)); }
   void main(){
@@ -30,7 +31,14 @@ const CONTENT_FRAG = /* glsl */`
     }
     vec4 R = uEye > 0.5 ? uR : uL;
     vec2 tc = R.xy + vUv * R.zw;
-    vec3 s = texture2D(map, tc).rgb;
+    vec4 s4 = texture2D(map, tc);
+    vec3 s = s4.rgb;
+    float alpha = 1.0;
+    if (uCut > 0.5) {
+      if (uCut < 1.5) alpha = s4.a;
+      else { float k = smoothstep(0.06, 0.22, s.g - max(s.r, s.b)); alpha = 1.0 - k; s.g = min(s.g, max(s.r, s.b) + 0.04); }   // key out green, no green fringe
+      if (alpha < 0.02) discard;
+    }
     // a screen shown smaller than its own pixels (a tablet or laptop mirror): 4 rotated-grid samples over the
     // pixel's footprint instead of one, so thin text stays whole instead of breaking up and shimmering
     vec2 fw = fwidth(tc);
@@ -51,12 +59,12 @@ const CONTENT_FRAG = /* glsl */`
       c = clamp((c - 0.18) * uPic.x + 0.18, 0.0, 1.0);   // contrast around mid-grey (linear)
     }
     c = mix(vec3(0.035, 0.04, 0.055), c, uHas) * uDim;
-    gl_FragColor = vec4(c, 1.0);
+    gl_FragColor = vec4(c, alpha);
   }`;
 
 function contentMaterial() {
   return new THREE.ShaderMaterial({
-    uniforms: { map: { value: null }, uHole: { value: 0 }, uVideo: { value: 0 }, uHas: { value: 0 }, uSize: { value: new THREE.Vector2(1, 0.5625) }, uRadius: { value: 0.028 }, uDim: { value: 1 },
+    uniforms: { map: { value: null }, uHole: { value: 0 }, uVideo: { value: 0 }, uHas: { value: 0 }, uCut: { value: 0 }, uSize: { value: new THREE.Vector2(1, 0.5625) }, uRadius: { value: 0.028 }, uDim: { value: 1 },
       uL: { value: new THREE.Vector4(0, 0, 1, 1) }, uR: { value: new THREE.Vector4(0, 0, 1, 1) }, uEye: EYE,
       uPic: { value: new THREE.Vector4(1, 1, 0, 0) }, uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) } },
     vertexShader: CONTENT_VERT, fragmentShader: CONTENT_FRAG, side: THREE.DoubleSide,
@@ -219,7 +227,7 @@ class SpatialWindow {
     this.mat.uniforms.uSize.value.set(w, h);
     this.frame.geometry.dispose();
     this.frame.geometry = roundedRectGeometry(w + 0.09, h + 0.09, 0.06);
-    this.frame.visible = !this.curved && (this.proj || 'flat') === 'flat';
+    this.frame.visible = !this.curved && (this.proj || 'flat') === 'flat' && !this.cut;
     const y = -h / 2 - 0.042;
     this.bar.position.set(0, y, 0.002);
     this.closeBtn.mesh.position.set(-0.155, y, 0.004);
@@ -232,6 +240,14 @@ class SpatialWindow {
     if (this.modeSide) this.modeSide.mesh.position.set(-w / 2 - 0.05 - 0.17, 0, 0.004);
   }
   setAspect(a) { if (a && isFinite(a) && Math.abs(a - this.aspect) > 0.001) { this.aspect = a; this.layout(); } }
+  // «بلا خلفية»: the picture's own transparency (PNG, video with alpha) or a green screen keyed out - no frame, no glass
+  setCut(mode) {
+    this.cut = mode || 0;
+    const m = this.mat; m.uniforms.uCut.value = this.cut; m.transparent = this.cut > 0; m.depthWrite = this.cut === 0; m.needsUpdate = true;
+    m.uniforms.uRadius.value = this.cut ? 0 : 0.028;
+    this.layout();
+    this.mgr.changed();
+  }
   // Immersive 180°/360° video: a sphere around you, the window stays as the remote control.
   setProjection(p) {
     this.proj = p;
@@ -297,6 +313,8 @@ class SpatialWindow {
       ['وضع المباريات', this.matchSide ? 'مفعّل' : 'إيقاف', () => this.setMatchMode(!this.matchSide)],
       ['لقطة', 'حفظ', () => this.snapshot()],
       ['على الجدار', this.wallLock ? 'مثبّتة · إلغاء' : (app.room?.tv() || app.room?.wallAhead?.()) ? 'ثبّت هنا' : 'ثبّت', () => this.toggleWall()],
+      ['في هذه البيئة', this.envPin ? 'مثبّتة' : 'إيقاف', () => M.pinToEnv(this, !this.envPin)],
+      ['بلا خلفية', ['إيقاف', 'شفافية', 'شاشة خضراء'][this.cut || 0], () => this.setCut(((this.cut || 0) + 1) % 3)],
     ];
   }
   // «وضع المباريات» (like Football AI on sports TVs): today's matches docked on the right, picture modes and
@@ -462,7 +480,7 @@ class SpatialWindow {
   ref() { return null; }
   serialize() {
     const g = this.group;
-    return { kind: this.kind, ref: this.ref(), p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), c: this.curved, wl: this.wallLock || undefined };
+    return { kind: this.kind, ref: this.ref(), p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), c: this.curved, wl: this.wallLock || undefined, ek: this.envPin || undefined, cut: this.cut || undefined };
   }
   dispose() {
     if (this.mgr.cinema === this) this.mgr.cinema = null;
@@ -947,6 +965,7 @@ export class ImageWindow extends SpatialWindow {
       this.tex = t;
       this.setAspect(c.width / c.height);
       const r = c.width / c.height;
+      if (this.cut == null && hasAlpha(c)) { this.setCut(1); this.mgr.app.toast('🖼 صورة بلا خلفية', 1800); }
       if (this.depthSrc) await this.loadDepth();
       if (this.proj && this.proj !== 'flat') this.setProjection(this.proj);
       else if (/360|panorama|بانوراما|مكة|مكه|الحرم/i.test(item.name || '') && Math.abs(r - 2) < 0.15) this.setProjection('360');
@@ -986,6 +1005,16 @@ export class ImageWindow extends SpatialWindow {
   ref() { return this.file ? null : this.proj !== 'flat' ? { item: this.itemId, proj: this.proj } : { item: this.itemId }; }
   update() { if (this.sphere) this.sphere.position.copy(this.mgr.headLocal()); }
   dispose() { this.disposeSphere(); super.dispose(); this.tex?.dispose(); }
+}
+
+// Does a picture have see-through parts? (a PNG cut out of its background)
+function hasAlpha(c) {
+  try {
+    const t = document.createElement('canvas'); t.width = 48; t.height = 48; const g = t.getContext('2d', { willReadFrequently: true });
+    g.drawImage(c, 0, 0, 48, 48); const d = g.getImageData(0, 0, 48, 48).data;
+    let clear = 0; for (let i = 3; i < d.length; i += 4) if (d[i] < 200) clear++;
+    return clear > 48 * 48 * 0.04;
+  } catch { return false; }
 }
 
 // Info panels drawn on canvas: welcome, gesture guide, clock.
@@ -1276,6 +1305,7 @@ export class WebWindow extends SpatialWindow {
       ['الوضع الليلي', this.night ? 'مفعّل' : 'إيقاف', () => { this.night = !this.night; this.send({ type: 'night', on: this.night }); }],
       ['قراءة تلقائية', this.autoScroll ? 'مفعّلة' : 'إيقاف', () => { this.autoScroll = !this.autoScroll; this.mgr.app.toast(this.autoScroll ? 'الصفحة تتمرّر ببطء — اضغط مجدداً للإيقاف' : 'توقف التمرير', 2200); }],
       ['المصدر', this.snap ? 'واحد للعينين' : 'مباشر', () => this.toggleLive()],
+      ['اقرأ في مدار', 'كتاب', () => this.mgr.app.readWeb?.(this.pageUrl || this.url)],
     ];
   }
   // 🎬 Live: both eyes show the real page (moving video inside sites); otherwise one picture for both eyes.
@@ -1650,6 +1680,7 @@ export class ModelVolume {
       { icon: 'spin', action: () => { this.spin = !this.spin; }, active: () => this.spin },
       { icon: 'target', action: () => this.mgr.app.controls.toggleOrbit(this), active: () => this.mgr.app.controls.orbit?.win === this },
       { icon: 'reset', action: () => { this.rot = 0; this.group.scale.setScalar(1); this.mgr.changed(); } },
+      { icon: 'home', active: () => !!this.envPin, action: () => this.mgr.pinToEnv(this, !this.envPin) },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
     ]).install();
@@ -1703,7 +1734,7 @@ export class ModelVolume {
   }
   serialize() {
     const g = this.group;
-    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : this.files ? null : this.includes ? { url: this.url, name: this.name, includes: this.includes } : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin };
+    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : this.files ? null : this.includes ? { url: this.url, name: this.name, includes: this.includes } : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin, ek: this.envPin || undefined };
   }
   dispose() {
     this.toolbar.dispose();
@@ -1713,6 +1744,10 @@ export class ModelVolume {
     this.revoke?.();
   }
 }
+
+// Other kinds of windows (reader, shelf, coach, manuscripts…) register themselves here: how to make one and where it opens.
+const KINDS = {};
+export function registerKind(kind, make, place = {}) { KINDS[kind] = { make, place }; }
 
 // --- Manager ---
 export class WindowManager {
@@ -1774,6 +1809,15 @@ export class WindowManager {
     this.app.toast('💤 حارس الذاكرة: نامت صفحة قديمة — انقرها لإيقاظها', 3000);
   }
   curvable(w) { return (w.kind === 'video' || w.kind === 'image') && !w.sphere && typeof w.setCurved === 'function'; }
+  // which place you are in: a built-in environment, a library pick, or your own
+  envId() { const e = settings.environment; return e === 'gallery' ? 'g:' + (settings.galleryEnv?.id || '') : e === 'mine' ? 'm:' + (settings.mineEnv || '') : e; }
+  // furniture / pictures that belong to an environment: shown only there, and back whenever you return to it
+  pinToEnv(w, on) {
+    const id = this.envId();
+    if (on && ['passthrough', 'dim'].includes(id)) { this.app.toast('اختر بيئة أولاً — في الواقع تبقى القطعة في غرفتك', 2500); w.envPin = null; return; }
+    w.envPin = on ? id : null; this.changed(); w.toolbar?.redraw?.();
+    this.app.toast(on ? '🏠 ثُبّتت في هذه البيئة' : 'تظهر في كل البيئات', 1800);
+  }
   setCurveAll(on) {
     saveSettings({ curveAll: on });
     let n = 0;
@@ -1824,6 +1868,7 @@ export class WindowManager {
   resumeMedia() { this.windows.forEach(w => w.resume?.()); }
   open(spec) {
     const k = spec.kind;
+    if (KINDS[k]) { const K = KINDS[k]; if (K.place.single) { const old = this.windows.find(w => w.kind === k); if (old) this.close(old); } return this.add(K.make(this, spec), K.place); }
     if (k === 'video') return this.add(new VideoWindow(this, spec), { dist: 2.3, scale: 1.7, y: 0.05 });
     if (k === 'image') return this.add(new ImageWindow(this, spec), { dist: 1.9, scale: 1.25 });
     if (k === 'web') {
@@ -1884,11 +1929,13 @@ export class WindowManager {
         else if (s.kind === 'web') win = new WebWindow(this, spec);
         else if (s.kind === 'panel') win = new PanelWindow(this, spec);
         else if (s.kind === 'model') win = new ModelVolume(this, spec);
+        else if (KINDS[s.kind]) win = KINDS[s.kind].make(this, spec);
         if (!win) continue;
         win.group.position.fromArray(s.p);
         if (s.q) win.group.quaternion.fromArray(s.q);
         win.group.scale.setScalar(s.s || 1);
-        win.wallLock = !!s.wl;
+        win.wallLock = !!s.wl; if (s.ek) win.envPin = s.ek;
+        if (s.cut) setTimeout(() => win.setCut?.(s.cut), 400);
         if (s.kind === 'model') { win.rot = s.r || 0; win.spin = !!s.spin; }
         else if (s.c) { win.curved = true; win.updateRadius(); win.layout(); }
         this.root.add(win.group);
@@ -1901,9 +1948,10 @@ export class WindowManager {
   }
   update(dt, now) {
     if (this.cinema && !this.windows.includes(this.cinema)) this.cinema = null;
+    const env = this.envId();
     for (const w of this.windows) {
-      // Cinema: only the chosen window stays visible.
-      w.group.visible = !this.guard && (!this.cinema || w === this.cinema);
+      // Cinema: only the chosen window stays visible. Pieces pinned to another environment wait for it.
+      w.group.visible = !this.guard && (!this.cinema || w === this.cinema) && (!w.envPin || w.envPin === env);
       w.update(dt, now); w.matchTick?.();
       if (w.glow) w.updateGlow(now);
       // Pinned to the view: the window glides to stay straight ahead at the same distance.

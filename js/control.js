@@ -110,14 +110,16 @@ export class ControlCenter {
   }
   drawEnv(ctx, W, H, p) {
     this.frame(ctx, W, H, 'البيئة');
-    const cur = envKey(settings.environment), list = [...ENV_ORDER, 'more'], rh = Math.min(60, (H - 110) / list.length);
+    // the everyday places (and the one you are in); everything else is one tap away in the library
+    const cur = envKey(settings.environment), quick = ['passthrough', 'dim', 'space', 'library', 'viewOffice', 'nightOffice', 'gaming', 'reading', 'realStudio'];
+    const list = [...quick, ...(quick.includes(cur) || !ENV_ORDER.includes(cur) ? [] : [cur]), 'more'], rh = Math.min(60, (H - 110) / list.length);
     list.forEach((k, i) => {
       const y = 96 + i * rh, id = 'e' + k, on = k === cur, hov = p.isHover(id);
       roundRect(ctx, 26, y + 3, W - 52, rh - 6, (rh - 6) / 2);
       ctx.fillStyle = on ? 'rgba(255,255,255,0.9)' : hov ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.06)'; ctx.fill();
       if (k === 'more') {   // the library: a thousand more
         text(ctx, '🌍 المزيد من المكتبة…', W / 2, y + rh / 2 + 1, Math.min(27, rh * 0.42), { weight: 800, color: '#34d399' });
-        p.region(26, y, W - 52, rh, () => { blip('tap', settings.sounds); this.close(); this.app.gallery.open('hdris'); }, id);
+        p.region(26, y, W - 52, rh, () => { blip('tap', settings.sounds); this.close(); this.app.gallery.open('rooms'); }, id);
         return;
       }
       text(ctx, ENVS[k].label, W / 2, y + rh / 2 + 1, Math.min(27, rh * 0.42), { weight: 800, color: on ? '#151821' : COLORS.text, maxWidth: W - 80, fit: true });

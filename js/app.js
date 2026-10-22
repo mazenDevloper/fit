@@ -7,11 +7,18 @@ import { StageOrientation, HeadTracker } from './orient.js';
 import { StereoRenderer } from './render.js';
 import { HandTracker } from './hands.js';
 import { Interaction } from './interaction.js';
-import { WindowManager } from './windows.js';
+import { WindowManager, registerKind } from './windows.js';
 import { Launcher, Calibration, Toast } from './panels.js';
 import { ControlCenter, LookUp, Notifier } from './control.js';
 import { Gallery } from './gallery.js';
 import { IPhoneScreens } from './iphone.js';
+import { ReaderWindow } from './reader.js';
+import { ShelfWindow } from './shelf.js';
+import { ManuscriptWindow } from './manuscript.js';
+import { CoachWindow } from './coach.js';
+import { saveWebArticle } from './books.js';
+import { Ambient } from './ambient.js';
+import { SURAHS } from './quran.js';
 import { Slam } from './slam.js';
 import { Controls } from './controls.js';
 import { GazeTracker } from './gaze.js';
@@ -22,14 +29,22 @@ import { ScreenHost, ScreenViewer, WebHost, qrSvg, AGENT_DOWNLOAD, lib } from '.
 import { Room } from './room.js';
 import { IOS, NativeHead, NativeSlam, setupNative, toggleDeskHole } from './native.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
-import { listItems, importFiles, deleteItem, formatSize } from './db.js';
+import { listItems, importFiles, deleteItem, formatSize, importPhotoBook, importEnvironment } from './db.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '87';
+export const APP_VERSION = '88';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
+// a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
+function silentWav() {
+  const n = 800, b = new Uint8Array(44 + n * 2), v = new DataView(b.buffer), w = (o, s) => [...s].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  let s = ''; for (const x of b) s += String.fromCharCode(x);
+  return 'data:audio/wav;base64,' + btoa(s);
+}
 // Video elements are unlocked for sound during the Enter tap, then reused by video windows.
 class MediaPool {
   constructor(n = 4) {
@@ -55,6 +70,17 @@ class MediaPool {
   }
   acquire() { return this.free.pop() || this.make(); }
   release(v) { if (v.parentNode !== this.host) this.host.appendChild(v); this.free.push(v); }
+  // the reciter's / read-aloud audio: one element, unlocked by the Enter tap so it can start from a pinch later
+  audioEl() {
+    if (!this.audio) { this.audio = document.createElement('audio'); this.audio.preload = 'auto'; this.audio.setAttribute('playsinline', ''); this.host.appendChild(this.audio); }
+    return this.audio;
+  }
+  unlockAudio() {
+    const a = this.audioEl();
+    try { a.src = silentWav(); a.muted = true; const p = a.play(); if (p) p.then(() => { a.pause(); a.muted = false; }).catch(() => { a.muted = false; }); } catch {}
+    // speech too (iOS speaks only after a tap)
+    try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } catch {}
+  }
 }
 
 class App {
@@ -72,6 +98,11 @@ class App {
     setMaxAniso(Math.min(8, this.renderer.maxAniso));
     this.setupScene();
     this.windows = new WindowManager(this);
+    registerKind('reader', (m, sp) => new ReaderWindow(m, sp), { dist: 1.3, y: -0.05, scale: 1, single: true });
+    registerKind('shelf', m => new ShelfWindow(m), { dist: 1.9, y: -0.75, scale: 1, single: true });
+    registerKind('manuscript', (m, sp) => new ManuscriptWindow(m, sp), { dist: 2.0, y: 0.1, scale: 1 });
+    registerKind('coach', (m, sp) => new CoachWindow(m, sp), { dist: 2.3, y: 0, scale: 1, single: true });
+    this.ambient = new Ambient();
     this.launcher = new Launcher(this);
     this.calibration = new Calibration(this);
     this.lensAdjust = new LensAdjust(this);
@@ -596,6 +627,46 @@ class App {
   stopSportsMode() {
     const sb = this.windows.windows.find(w => w.panelKind === 'scoreboard'); if (sb) this.windows.close(sb);
   }
+  // 20-20-20: every 20 minutes of reading / watching, look 20 feet (6 m) away for 20 seconds
+  eyeBreak(now) {
+    if (settings.eyeBreak === false) return;
+    if (!this.eyeT0) this.eyeT0 = now;
+    if (now - this.eyeT0 < 20 * 60e3) return;
+    this.eyeT0 = now;
+    if (!this.windows.windows.some(w => ['reader', 'web', 'video'].includes(w.kind))) return;
+    this.notify({ icon: '👁', title: 'استراحة لعينيك', body: 'انظر بعيداً ٢٠ ثانية — قاعدة ٢٠-٢٠-٢٠', actions: [['تمارين العين', () => this.openCoach('eyes')]] });
+  }
+  // «القراءة»: the mushaf (or one of your books) open in front of you
+  openReader(book = 'quran', item = null, page = 0) {
+    const cur = this.windows.windows.find(w => w.kind === 'reader');
+    if (cur && cur.bookId === book && cur.itemId === item) { if (page) cur.goTo(page); this.windows.placeBeside?.(cur, 0, 1.3, -0.05); return cur; }
+    return this.windows.open({ kind: 'reader', book, item, page });
+  }
+  // «المدرب الرياضي»: train / box / eyes & neck / treadmill
+  openCoach(mode = 'train') {
+    const cur = this.windows.windows.find(w => w.kind === 'coach');
+    if (cur) { if (cur.mode !== mode) cur.setMode(mode); return cur; }
+    return this.windows.open({ kind: 'coach', mode });
+  }
+  openShelf() {
+    const cur = this.windows.windows.find(w => w.kind === 'shelf');
+    if (cur) { cur.refresh(); return cur; }
+    return this.windows.open({ kind: 'shelf' });
+  }
+  // «اقرأ في مدار»: a web page's article as a book (kept in your library)
+  async readWeb(url) {
+    if (!url) return;
+    this.toast('📖 جاري تحضير المقال…', 2500);
+    try { const item = await saveWebArticle(url); this.openReader('doc', item.id); this.renderLibrary?.(); }
+    catch (e) { this.toast('تعذّر: ' + (e.message || e), 3500); }
+  }
+  // «سورة الكهف» / «آية الكرسي» by voice
+  openSurah(name) {
+    const i = SURAHS.findIndex(x => name.includes(x[0]) || name.includes(x[0].replace(/^ال/, '')));
+    const r = this.openReader('quran');
+    if (i >= 0) setTimeout(() => { const w = this.windows.windows.find(x => x.kind === 'reader'); w?.book ? w.goTo(SURAHS[i][2]) : setTimeout(() => w?.goTo(SURAHS[i][2]), 1500); }, 300);
+    return r;
+  }
   openCplay() { this.windows.open({ kind: 'web', url: 'https://drivecast.c-p.workers.dev/media', title: 'DriveCast' }); }
   recenter() { this.head.recenter(); this.toast('تمت إعادة التمركز'); blip('open', settings.sounds); }
   cycleEnvironment() {
@@ -652,6 +723,28 @@ class App {
       this.renderLibrary();
       setTimeout(() => { $('#libStatus').textContent = ''; }, 3500);
     });
+    // books, photographed books, your own environments, web articles to read
+    const lib = async (fn, okMsg) => {
+      $('#libStatus').textContent = 'جاري الحفظ…';
+      try { const r = await fn(); $('#libStatus').textContent = r ? okMsg(r) : 'لم يُتعرّف على صيغة الملفات'; }
+      catch (err) { console.error(err); $('#libStatus').textContent = 'تعذّر الحفظ: ' + (err.message || 'قد تكون المساحة ممتلئة'); }
+      this.renderLibrary(); setTimeout(() => { $('#libStatus').textContent = ''; }, 4500);
+    };
+    $('#bookFiles')?.addEventListener('change', e => { const f = e.target.files; e.target.value = ''; if (f?.length) lib(async () => { const m = await importFiles(f); return m.length ? m : null; }, m => '📚 أُضيف ' + m.length + ' كتاب — تجده في «رف الكتب» داخل مدار'); });
+    $('#photoBook')?.addEventListener('change', e => { const f = e.target.files; e.target.value = ''; if (f?.length) lib(() => importPhotoBook(f), it => '📷 كتاب مصوّر من ' + it.files.length + ' صفحة — في «رف الكتب»'); });
+    $('#envFiles')?.addEventListener('change', e => { const f = e.target.files; e.target.value = ''; if (f?.length) lib(() => importEnvironment(f), it => '🌍 «' + it.name + '» — اختره من المكتبات ← ملفاتي'); });
+    $('#readForm')?.addEventListener('submit', e => {
+      e.preventDefault(); const url = $('#readUrl').value.trim(); if (!/^https?:\/\//.test(url)) { $('#libStatus').textContent = 'اكتب رابطاً يبدأ بـ https://'; return; }
+      lib(async () => { const { saveWebArticle } = await import('./books.js'); return saveWebArticle(url); }, it => '📖 «' + it.name + '» — في «رف الكتب»');
+      $('#readUrl').value = '';
+    });
+    // sports: your weight / height (the Eufy scale through Apple Health, or typed here)
+    if ($('#fitWeight')) {
+      $('#fitWeight').value = settings.weight || ''; $('#fitHeight').value = settings.height || '';
+      $('#fitWeight').addEventListener('change', e => { const v = parseFloat(e.target.value); if (v > 20) { saveSettings({ weight: v, weightAt: Date.now() }); $('#fitMsg').textContent = 'حُفظ الوزن'; } });
+      $('#fitHeight').addEventListener('change', e => { const v = parseFloat(e.target.value); if (v > 100) saveSettings({ height: v }); });
+      $('#fitHealthUrl').textContent = 'https://studio.c-p.workers.dev/health/' + deviceIdentity().code;
+    }
     const saveLink = () => {
       const msg = $('#linkMsg');
       const raw = $('#linkUrl').value.trim();
@@ -700,7 +793,9 @@ class App {
     $('#resetLayout').addEventListener('click', () => { saveLayout({ windows: [] }); try { localStorage.removeItem(FIRST_RUN); } catch {} $('#resetLayout').textContent = 'سيظهر الترتيب الافتراضي عند الدخول'; });
     this.renderEnvChoices = () => {
       const box = $('#envs'), cur = envKey(settings.environment);
-      const sw = { passthrough: 'linear-gradient(135deg,#8a8f99,#c9ccd2)', dim: 'linear-gradient(135deg,#2a2d35,#4b4f5a)', night: 'radial-gradient(circle at 30% 30%,#2a3a70,#070b1a)', cinema: 'radial-gradient(circle at 50% 35%,#2a3550,#0b0910 70%)', sunset: 'linear-gradient(180deg,#3a2f6a,#ff8c52 75%,#5a3030)' };
+      const sw = { passthrough: 'linear-gradient(135deg,#8a8f99,#c9ccd2)', dim: 'linear-gradient(135deg,#2a2d35,#4b4f5a)', night: 'radial-gradient(circle at 30% 30%,#2a3a70,#070b1a)', cinema: 'radial-gradient(circle at 50% 35%,#2a3550,#0b0910 70%)', sunset: 'linear-gradient(180deg,#3a2f6a,#ff8c52 75%,#5a3030)',
+        neonDesk: 'linear-gradient(135deg,#4b5688,#ff5fd6)', study: 'linear-gradient(135deg,#c8afe0,#f4f3f6)', realNeon: 'linear-gradient(135deg,#223a8a,#5fdcff)', realStudio: 'linear-gradient(135deg,#e4c6f6,#f0eef2)', lounge: 'linear-gradient(135deg,#5a3020,#ffb070)', realStudy: 'linear-gradient(135deg,#d8d0c0,#fff4e0)',
+        space: 'radial-gradient(circle at 60% 85%,#3a7bd5 0 22%,#0a1430 23%,#01020a 70%)', library: 'linear-gradient(135deg,#4a2f1c,#c9a24a)', reading: 'linear-gradient(135deg,#8a7a60,#f2e6cc)', viewOffice: 'linear-gradient(180deg,#f7b267,#f25c54 60%,#3a2c40)', nightOffice: 'linear-gradient(180deg,#0b1030,#3a4a8a 60%,#ffcf6a)', gaming: 'linear-gradient(135deg,#8a3cff,#18d8ff)', gamingRed: 'linear-gradient(135deg,#ff2a3c,#ff9a1a)' };
       box.innerHTML = '';
       ENV_ORDER.forEach(k => {
         const b = document.createElement('button'); b.type = 'button'; b.className = k === cur ? 'on' : '';
@@ -724,7 +819,7 @@ class App {
     $('#libEmpty').hidden = items.length > 0;
     for (const it of items) {
       const li = document.createElement('li');
-      const kind = { video: 'فيديو', image: 'صورة', model: 'مجسم ' + (it.format || '').toUpperCase() }[it.type];
+      const kind = { video: 'فيديو', image: 'صورة', model: 'مجسم ' + (it.format || '').toUpperCase(), doc: 'كتاب ' + ({ images: 'مصوّر', web: 'مقال' }[it.format] || (it.format || '').toUpperCase()), env: 'بيئة ' + (it.format || '').toUpperCase() }[it.type] || it.type;
       li.innerHTML = `<span class="badge ${it.type}"></span><div class="meta"><b></b><small>${kind} · ${formatSize(it.size)}${it.files.length > 1 ? ' · ' + it.files.length + ' ملفات' : ''}</small></div><button class="del" type="button" aria-label="حذف">حذف</button>`;
       li.querySelector('b').textContent = it.name;
       li.querySelector('.del').addEventListener('click', async () => { await deleteItem(it.id); this.renderLibrary(); });
@@ -773,7 +868,7 @@ class App {
     const btn = $('#enter'); btn.disabled = true; btn.textContent = 'جاري التحضير…';
     // Everything that needs the tap's user activation happens first, synchronously where possible.
     try { audioContext()?.resume(); } catch {}
-    this.media.unlock();
+    this.media.unlock(); this.media.unlockAudio();
     if (settings.viewMode === 'desktop') this.toggleFullscreen();
     const motionP = this.requestMotion();
     const camP = this.startCamera();
@@ -803,6 +898,7 @@ class App {
     if (settings.walk && !IOS) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
+    if (settings.ambient && settings.ambient !== 'off') setTimeout(() => this.ambient.set(settings.ambient), 1500);
     // Your teams from cplay2 (once a day), then matches for the live island.
     if (!settings.myTeamsAt || Date.now() - settings.myTeamsAt > 864e5) { saveSettings({ myTeamsAt: Date.now() }); setTimeout(() => this.sports.syncFavorites(), 4000); }
     setTimeout(() => this.sports.refresh(true), settings.sportsMode ? 500 : 6000);
@@ -864,6 +960,7 @@ class App {
     this.camVideo.srcObject = null;
     this.renderer.setVideo(null);
     this.stopVoice();
+    this.ambient?.stop();
     try { this.wakeLock?.release(); } catch {}
     this.stage.hidden = true;
     document.body.classList.remove('in-mr'); document.documentElement.classList.remove('mr');
@@ -1066,8 +1163,18 @@ class App {
     else if (has('ترتيب', 'رتب')) this.windows.arrange();
     else if (has('cplay', 'سي بلاي', 'كبلاي')) this.openCplay();
     else if (has('كيبورد', 'لوحة المفاتيح')) this.windows.open({ kind: 'keyboard' });
+    else if (has('رف الكتب', 'كتبي', 'المكتبة الخاصة')) this.openShelf();
+    else if (has('ملاكمة', 'الملاكمة')) this.openCoach('box');
+    else if (has('جهاز المشي', 'المشي على الجهاز', 'تريدميل')) this.openCoach('tread');
+    else if (has('تمارين العين', 'تمارين الرقبة', 'عيني', 'رقبتي')) this.openCoach('eyes');
+    else if (has('تمرين', 'المدرب', 'رياضة', 'سكوات')) this.openCoach('train');
+    else if (has('آية الكرسي')) { const r = this.openReader('quran'); setTimeout(() => this.windows.windows.find(x => x.kind === 'reader')?.goToKey?.('2:255'), 1200); }
+    else if (has('سورة')) this.openSurah(after('سورة'));
+    else if (has('المصحف', 'القرآن', 'القران', 'اقرأ', 'إقرأ')) { const w = this.windows.windows.find(x => x.kind === 'reader'); if (w && has('اقرأ', 'إقرأ', 'تلاوة')) w.togglePlay(); else this.openReader('quran'); }
+    else if (has('الصفحة التالية', 'التالية', 'قلب الصفحة')) this.windows.windows.find(x => x.kind === 'reader')?.next();
+    else if (has('الصفحة السابقة', 'السابقة')) this.windows.windows.find(x => x.kind === 'reader')?.prev();
     else if (has('مركز التحكم', 'التحكم')) this.control.open();
-    else if (has('المكتبات', 'مكتبة البيئات', 'البيئات')) this.gallery.open('hdris');
+    else if (has('المكتبات', 'مكتبة البيئات', 'البيئات')) this.gallery.open('rooms');
     else if (has('المجسمات')) this.gallery.open('models');
     else if (has('الآيفون', 'الايفون', 'آيفون', 'ايفون')) this.iphone.pick();
     else if (has('ساعة', 'الساعه')) this.windows.open({ kind: 'panel', panel: 'clock' });
@@ -1100,7 +1207,7 @@ class App {
       const g = this.interaction.pointers[2];
       const busy = (g.dwellObj && !g.dwellDone) || this.hands.slots?.some(s => s.active) || this.launcher.group.visible || this.control.group.visible || this.gallery.group.visible || this.lookUp.mesh.visible || this.notifier.mesh.visible
         || this.toastUI.mesh.visible || this.sports?.island?.mesh.visible || this.sports?.goal?.active
-        || this.windows.windows.some(w => w.kind === 'web' || w.kind === 'game' || (w.video && !w.video.paused) || w.moving);
+        || this.windows.windows.some(w => w.kind === 'web' || w.kind === 'game' || (w.video && !w.video.paused) || w.moving || w.busy?.());
       if (!busy) return;
     }
     if ((settings.cool || settings.lite) && this.lastQ) {
@@ -1123,8 +1230,9 @@ class App {
     if (this.launcher.group.visible) this.launcher.group.updateMatrixWorld();
     this.control.update(now); this.lookUp.update(); this.notifier.update(now); this.iphone.update(now);
     const ek = envKey(settings.environment);
+    this.envs[ek]?.children[0]?.userData.tick?.(dt, now / 1000);   // animated places (space, gaming room, library dust)
     // A 360° picture surrounds you completely: hide the room/sky so nothing cuts into it.
-    const around = this.windows.windows.some(w => w.sphere), cinema = !!this.windows.cinema;
+    const around = this.windows.windows.some(w => w.sphere) || !!this.immersiveScene?.visible, cinema = !!this.windows.cinema;
     for (const k in this.envs) this.envs[k].visible = !around && !cinema && k === ek;
     // a room with its own lights (the photo-real ones) turns the general light down
     const dim = this.envs[ek]?.visible ? (this.envs[ek].userData.dim ?? 1) : 1;
@@ -1133,7 +1241,8 @@ class App {
     if (room && room.userData.shadowsDirty) { room.userData.shadowsDirty = false; this.renderer.renderer.shadowMap.needsUpdate = true; }
     if (dim !== this.lightDim) { this.renderer.renderer.shadowMap.needsUpdate = true; this.lightDim = dim; this.globalLights?.forEach(([l, i]) => { l.intensity = i * dim; }); this.renderer.scene.environmentIntensity = dim; }
     this.renderer.updateHandMask(settings.handsEnabled && this.hands.state === 'ready' ? this.hands.slots : null, now);
-    this.envModeNow = cinema ? 'immersive' : isImmersive(ek) ? 'immersive' : ek;
+    this.envModeNow = cinema || this.immersiveScene?.visible ? 'immersive' : isImmersive(ek) ? 'immersive' : ek;
+    this.eyeBreak(now);
     this.renderer.render(this.renderQ, this.envModeNow);
   }
 }

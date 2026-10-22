@@ -28,6 +28,7 @@ function tx(mode, fn) {
 export const VIDEO_EXT = ['mp4', 'm4v', 'mov', 'webm'];
 export const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'avif'];
 export const MODEL_MAIN_EXT = ['glb', 'gltf', 'obj', 'stl', 'fbx', 'usdz'];
+export const DOC_EXT = ['pdf', 'epub', 'txt', 'md', 'html', 'htm'];
 export const ext = name => (name.split('.').pop() || '').toLowerCase();
 
 export async function listItems() {
@@ -55,6 +56,7 @@ export async function importFiles(fileList) {
     else if (IMAGE_EXT.includes(e) && !hasBundle) item = { type: 'image', files: [{ name: f.name, blob: f }] };
     else if (['glb', 'stl', 'fbx', 'usdz'].includes(e)) item = { type: 'model', format: e, files: [{ name: f.name, blob: f }] };
     else if (bundleMain.includes(f)) item = { type: 'model', format: e, files: [{ name: f.name, blob: f }, ...resources.map(r => ({ name: r.name, blob: r }))] };
+    else if (DOC_EXT.includes(e)) item = { type: 'doc', format: e === 'htm' ? 'html' : e, files: [{ name: f.name, blob: f }] };
     if (!item) continue;
     item.id = uid();
     item.name = f.name.replace(/\.[^.]+$/, '');
@@ -71,6 +73,38 @@ export async function importFiles(fileList) {
   }
   try { navigator.storage?.persist?.(); } catch {}
   return made;
+}
+
+// Several photos of a paper book's pages → one book (page order = file name order).
+export async function importPhotoBook(fileList, name) {
+  const files = Array.from(fileList).filter(f => IMAGE_EXT.includes(ext(f.name))).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  if (!files.length) return null;
+  const item = { id: uid(), type: 'doc', format: 'images', name: name || ('كتاب مصوّر ' + new Date().toLocaleDateString('ar')), added: Date.now() };
+  item.files = await Promise.all(files.map(async f => ({ name: f.name, blob: new Blob([await f.arrayBuffer()], { type: f.type || 'image/jpeg' }) })));
+  item.size = item.files.reduce((n, x) => n + x.blob.size, 0);
+  await putItem(item);
+  return item;
+}
+// A web article (from the worker's /read) kept as a book.
+export async function saveArticle(a) {
+  const item = { id: uid(), type: 'doc', format: 'web', name: a.title || a.url, url: a.url, added: Date.now() };
+  item.files = [{ name: 'article.json', blob: new Blob([JSON.stringify(a)], { type: 'application/json' }) }];
+  item.size = item.files[0].blob.size;
+  await putItem(item);
+  return item;
+}
+// Your own environments: a 3D room (GLB / glTF + files) or a 360° picture (JPG / PNG / HDR) to stand in.
+export async function importEnvironment(fileList) {
+  const files = Array.from(fileList);
+  const main = files.find(f => ['glb', 'gltf'].includes(ext(f.name))) || files.find(f => ['hdr', 'jpg', 'jpeg', 'png', 'webp'].includes(ext(f.name)));
+  if (!main) return null;
+  const e = ext(main.name);
+  const item = { id: uid(), type: 'env', format: e === 'jpeg' ? 'jpg' : e, name: main.name.replace(/\.[^.]+$/, ''), added: Date.now() };
+  const list = ['glb', 'gltf'].includes(e) ? [main, ...files.filter(f => f !== main)] : [main];
+  item.files = await Promise.all(list.map(async f => ({ name: f.name, blob: new Blob([await f.arrayBuffer()], { type: f.type || '' }) })));
+  item.size = item.files.reduce((n, x) => n + x.blob.size, 0);
+  await putItem(item);
+  return item;
 }
 
 export function formatSize(n) {

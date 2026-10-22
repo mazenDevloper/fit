@@ -17,6 +17,7 @@ const ICON_COLORS = {
   sound: ['#f472b6', '#db2777'], hand: ['#fbbf24', '#ea580c'], trash: ['#f87171', '#b91c1c'], exit: ['#f87171', '#b91c1c'],
   sliders: ['#9ca3af', '#4b5563'], cube: ['#818cf8', '#4338ca'], snow: ['#67e8f9', '#0891b2'], walk: ['#4ade80', '#16a34a'],
   shield: ['#a3e635', '#4d7c0f'], ball: ['#4ade80', '#15803d'], moon: ['#a5b4fc', '#4338ca'], cursor: ['#38bdf8', '#0369a1'],
+  book: ['#34d399', '#047857'], dumbbell: ['#fb923c', '#c2410c'], glove: ['#f87171', '#b91c1c'], heart: ['#fb7185', '#be123c'], neck: ['#a78bfa', '#6d28d9'], muscle: ['#f97316', '#9a3412'],
   _: ['#7c8db5', '#4a5a85'],
 };
 export class Launcher {
@@ -97,11 +98,14 @@ export class Launcher {
 
     if (this.tab === 'apps') {
       const list = [
+        ['book', 'المصحف', 'تلاوة وتفسير بصفحتين', () => { this.close(); a.openReader('quran'); }],
+        ['stack', 'رف الكتب', 'كتبك و PDF والمقالات', () => { this.close(); a.openShelf(); }],
+        ['muscle', 'المدرب الرياضي', 'تمارين مع مجسم وعدّ', () => { this.close(); a.openCoach?.(); }],
         ['clock', 'المباريات', 'فرقي ونتائج اليوم', () => { a.openMatches(); this.close(); }],
         ['sliders', 'مركز التحكم', 'أو انظر للأعلى', () => { this.close(); a.control.open(); }],
         ['video', 'شاشة الآيفون', 'بث من مركز التحكم ← مدار', () => { this.close(); a.iphone.pick(); }],
-        ['globe', 'مكتبة البيئات', 'ألف بيئة 360° مجانية', () => { this.close(); a.gallery.open('hdris'); }],
-        ['cube', 'مكتبة المجسمات', 'أثاث ونباتات وأغراض', () => { this.close(); a.gallery.open('models'); }],
+        ['globe', 'المكتبات', 'غرف ألعاب، مكاتب، إطلالات، 360°', () => { this.close(); a.gallery.open('rooms'); }],
+        ['cube', 'أثاث ومجسمات', 'تُثبّت في بيئتك', () => { this.close(); a.gallery.open('models'); }],
         ['mic', 'أمر صوتي', 'أو اضغط △ مطوّلاً', () => { this.close(); a.listen('command'); }],
         ['sun', 'مكة المكرمة', 'بيئة 360 حولك', () => { this.close(); a.openMakkah(); }],
         ['grid', 'التطبيقات', 'يوتيوب، شاهد، نتفليكس…', () => { this.close(); a.windows.open({ kind: 'panel', panel: 'store' }); }],
