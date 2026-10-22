@@ -1,114 +1,121 @@
+// v88 live check: the published site with the real APIs (quran.com, tafsir, recitations, Poly Haven, the worker)
+import { chromium } from 'playwright';
 import fs from 'fs';
-const out = {};
-const log = (k, v) => { out[k] = v; };
-const j = async (u, h = {}) => { const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (Madar probe)', ...h }, signal: AbortSignal.timeout(25000) }); const t = await r.text(); let d = null; try { d = JSON.parse(t); } catch {} return { status: r.status, acao: r.headers.get('access-control-allow-origin'), ct: r.headers.get('content-type'), d, t: d ? null : t.slice(0, 400) }; };
-const head = async (u, h = {}) => { try { const r = await fetch(u, { method: 'GET', headers: { Origin: 'https://mazendevloper.github.io', Range: 'bytes=0-99', 'User-Agent': 'Mozilla/5.0', ...h }, signal: AbortSignal.timeout(20000) }); try { r.body?.cancel(); } catch {} return r.status + ' acao=' + r.headers.get('access-control-allow-origin') + ' ct=' + r.headers.get('content-type') + ' cr=' + r.headers.get('content-range') + ' ar=' + r.headers.get('accept-ranges'); } catch (e) { return 'ERR ' + e.message; } };
-const safe = async (k, f) => { try { await f(); } catch (e) { log(k, 'ERR ' + e.message); } };
+const SITE = 'https://mazendevloper.github.io/fit/';
+const W8 = 'https://studio.c-p.workers.dev';
+const log = [];
+const L = (...a) => { const s = a.join(' '); log.push(s); console.log(s); };
+const save = () => fs.writeFileSync('out/live88.txt', log.join('\n'));
+fs.mkdirSync('out', { recursive: true });
 
-// --- Poly Haven: full model + hdri summaries
-await safe('ph_models', async () => {
-  const r = await j('https://api.polyhaven.com/assets?t=models');
-  const rows = Object.entries(r.d).sort((a, b) => (b[1].download_count || 0) - (a[1].download_count || 0)).map(([k, v]) => [k, (v.categories || []).filter(c => !c.startsWith('collection')).join(','), v.category || '', v.polycount, (v.dimensions || []).map(x => Math.round(x)).join('x'), v.download_count, (v.tags || []).slice(0, 8).join(',')].join(' | '));
-  fs.writeFileSync('out/ph_models_all.txt', rows.join('\n'));
-  log('ph_models', rows.length);
-});
-await safe('ph_hdris', async () => {
-  const r = await j('https://api.polyhaven.com/assets?t=hdris');
-  const rows = Object.entries(r.d).sort((a, b) => (b[1].download_count || 0) - (a[1].download_count || 0)).map(([k, v]) => [k, (v.categories || []).join(','), (v.tags || []).slice(0, 10).join(','), v.download_count, v.name].join(' | '));
-  fs.writeFileSync('out/ph_hdris_all.txt', rows.join('\n'));
-  log('ph_hdris', rows.length);
-});
-await safe('ph_tex', async () => {
-  const r = await j('https://api.polyhaven.com/assets?t=textures&c=wood');
-  log('ph_tex_wood', Object.entries(r.d).sort((a, b) => (b[1].download_count || 0) - (a[1].download_count || 0)).slice(0, 30).map(([k, v]) => k + '[' + (v.categories || []).join(',') + ']').join(' ; '));
-  const f = await j('https://api.polyhaven.com/assets?t=textures&c=floor');
-  log('ph_tex_floor', Object.entries(f.d).sort((a, b) => (b[1].download_count || 0) - (a[1].download_count || 0)).slice(0, 30).map(([k, v]) => k).join(' ; '));
-});
+// 1) the worker's new routes
+const probe = async (k, u, h = {}) => {
+  try {
+    const r = await fetch(u, { headers: { Origin: 'https://mazendevloper.github.io', 'User-Agent': 'Mozilla/5.0', ...h }, signal: AbortSignal.timeout(30000) });
+    const t = h.Range ? '' : (await r.text()).slice(0, 600);
+    if (h.Range) try { r.body?.cancel(); } catch {}
+    L(k, r.status, 'acao=' + r.headers.get('access-control-allow-origin'), 'ct=' + r.headers.get('content-type'), 'cr=' + r.headers.get('content-range'), 'len=' + r.headers.get('content-length'), t.replace(/\s+/g, ' '));
+  } catch (e) { L(k, 'ERR', e.message); }
+};
+await probe('m_manifest', W8 + '/m/manifest.json');
+await probe('m_range', W8 + '/m/ghost-road.mp4', { Range: 'bytes=0-1023' });
+await probe('m_range_mid', W8 + '/m/alaska.mp4', { Range: 'bytes=50000000-50001023' });
+await probe('read', W8 + '/read?url=' + encodeURIComponent('https://ar.wikipedia.org/wiki/%D8%A7%D9%84%D9%82%D9%85%D8%B1'));
+await probe('health_get', W8 + '/health/482913');
+await probe('health_post', W8 + '/health/482913', {});
+try { const r = await fetch(W8 + '/health/482913', { method: 'POST', headers: { 'content-type': 'application/json', Origin: 'https://mazendevloper.github.io' }, body: JSON.stringify({ weight: 78.4, steps: 6400 }) }); L('health_post', r.status, (await r.text()).slice(0, 200)); } catch (e) { L('health_post ERR', e.message); }
+await probe('health_get2', W8 + '/health/482913');
+save();
 
-// --- quran.com: words with line numbers, chapters, tafsir resources, recitations + segments
-await safe('qc_words', async () => {
-  for (const p of [1, 2, 3, 50, 187]) {
-    const r = await j(`https://api.quran.com/api/v4/verses/by_page/${p}?words=true&word_fields=text_uthmani,line_number,page_number,char_type_name&per_page=50&fields=text_uthmani`);
-    const vs = r.d?.verses || [];
-    const lines = {};
-    for (const v of vs) for (const w of v.words || []) (lines[w.line_number] ||= []).push((w.char_type_name === 'end' ? '#' : '') + w.text_uthmani);
-    log('qc_page_' + p, { status: r.status, acao: r.acao, verses: vs.length, keys: Object.keys(vs[0] || {}), wordKeys: Object.keys((vs[0]?.words || [])[0] || {}), lines });
+// 2) wait for v88 to be published
+for (let i = 0; i < 40; i++) {
+  try { const t = await (await fetch(SITE + 'js/app.js?x=' + Date.now())).text(); if (t.includes("APP_VERSION = '88'")) { L('live v88 after', i * 15, 's'); break; } } catch {}
+  await new Promise(r => setTimeout(r, 15000));
+}
+
+const b = await chromium.launch({ channel: 'chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream'] });
+const ctx = await b.newContext({ viewport: { width: 1400, height: 800 }, locale: 'ar' });
+const p = await ctx.newPage();
+p.on('pageerror', e => L('PE', e.message));
+p.on('console', m => { if (m.type() === 'error' && !/peerjs|ERR_|404|favicon/.test(m.text())) L('CE', m.text().slice(0, 200)); if (/TEST/.test(m.text())) L(m.text().slice(0, 400)); });
+const shot = async n => { await p.screenshot({ path: 'out/' + n + '.png' }); L('shot', n); save(); };
+const wait = ms => p.waitForTimeout(ms);
+// open the app in an environment (fresh settings each time)
+async function scene(env, extra = {}) {
+  await p.goto(SITE + '?v=' + Date.now(), { waitUntil: 'load', timeout: 90000 });
+  await p.evaluate(([env, extra]) => { localStorage.setItem('madar.settings.v1', JSON.stringify({ v: 7, viewMode: 'desktop', environment: env, clock: false, prayerBar: false, island: false, sounds: false, dwell: false, ambient: 'off', ...extra })); localStorage.setItem('madar.firstRun.v1', '1'); localStorage.setItem('madar.firstRun', '1'); localStorage.removeItem('madar.windows.v1'); }, [env, extra]);
+  await p.goto(SITE + '?v=' + Date.now(), { waitUntil: 'load', timeout: 90000 });
+  await wait(3000);
+  await p.evaluate(() => window.madar.enter()); await wait(5000);
+  await p.evaluate(() => { const a = window.madar; for (const w of [...a.windows.windows]) a.windows.close(w); });
+  await wait(800);
+}
+const run = async (name, f) => { try { await f(); } catch (e) { L('FAIL', name, e.message.split('\n')[0]); save(); } };
+const ev = (code, arg) => p.evaluate(new Function('arg', 'return (async () => {' + code + '})()'), arg);
+
+// --- the Quran in space: two Madani pages, tafsir, the floating ayah while reciting
+await run('quran-space', async () => {
+  await scene('space');
+  await ev(`const a = window.madar; a.openReader('quran'); await new Promise(r => setTimeout(r, 2500)); const w = a.windows.windows.find(x => x.kind === 'reader'); await w.goToKey('18:1'); await new Promise(r => setTimeout(r, 6000)); w.togglePlay(); await new Promise(r => setTimeout(r, 9000)); console.log('TEST reader', w.first, w.recite?.state, w.recite?.key, w.focusKey);`);
+  await wait(2000); await shot('q1-space-kahf');
+  await ev(`window.madar.debugPitch = -0.16;`); await wait(1500); await shot('q2-space-float');
+});
+await run('quran-library', async () => {
+  await scene('library');
+  await ev(`const a = window.madar; a.openSurah('آية الكرسي'); await new Promise(r => setTimeout(r, 2500)); const w = a.windows.windows.find(x => x.kind === 'reader'); await w.goToKey('2:255'); await new Promise(r => setTimeout(r, 7000)); console.log('TEST kursi', w.first, w.focusKey);`);
+  await wait(1500); await shot('q3-library-kursi');
+  await ev(`const w = window.madar.windows.windows.find(x => x.kind === 'reader'); w.openMenu('reciter');`); await wait(2500); await shot('q4-reciters');
+  await ev(`const w = window.madar.windows.windows.find(x => x.kind === 'reader'); w.closeMenu(); w.openMenu('tafsirR');`); await wait(2500); await shot('q5-tafsirs');
+});
+// --- a web article in the reader + the shelf
+await run('web-shelf', async () => {
+  await scene('reading');
+  await ev(`await window.madar.readWeb('https://ar.wikipedia.org/wiki/%D8%A7%D9%84%D9%82%D9%85%D8%B1'); await new Promise(r => setTimeout(r, 8000)); console.log('TEST web', window.madar.windows.windows.map(w => w.kind + ':' + (w.book?.title || '')).join(','));`);
+  await wait(1500); await shot('b1-web-article');
+  await ev(`const a = window.madar; for (const w of [...a.windows.windows]) a.windows.close(w); a.openShelf(); await new Promise(r => setTimeout(r, 5000));`);
+  await wait(1000); await shot('b2-shelf');
+});
+// --- libraries (gallery tabs)
+await run('gallery', async () => {
+  await scene('nightOffice');
+  for (const [t, n, ms] of [['rooms', 'g1-rooms', 4000], ['views', 'g2-views', 9000], ['hdris', 'g3-hdris', 9000], ['pano', 'g4-pano', 10000], ['video', 'g5-video360', 8000], ['models', 'g6-models', 9000], ['manuscripts', 'g7-manuscripts', 9000]]) {
+    await ev(`window.madar.gallery.open(arg);`, t); await wait(ms); await shot(n);
   }
-  const r2 = await j('https://api.quran.com/api/v4/verses/by_page/3?words=true&word_fields=text_uthmani,line_number&per_page=50&mushaf=1');
-  log('qc_mushaf1_p3', { status: r2.status, firstLines: (r2.d?.verses || []).slice(0, 2).map(v => (v.words || []).map(w => w.line_number + ':' + w.text_uthmani).join(' ')) });
+  await ev(`const g = window.madar.gallery; console.log('TEST gallery', Object.keys(g).join(','));`);
 });
-await safe('qc_chapters', async () => {
-  const r = await j('https://api.quran.com/api/v4/chapters?language=ar');
-  log('qc_chapters', { status: r.status, acao: r.acao, sample: (r.d?.chapters || []).slice(0, 3), count: (r.d?.chapters || []).length });
+// --- a manuscript panel (from DriveCast) and a 360 video
+await run('manuscript', async () => {
+  await scene('gaming');
+  await ev(`const g = window.madar.gallery; g.open('manuscripts'); await new Promise(r => setTimeout(r, 8000)); const items = g.shown(); console.log('TEST ms items', items.length); const it = items[0]; if (it) await g.pick(it); await new Promise(r => setTimeout(r, 6000)); g.close?.(); await new Promise(r => setTimeout(r, 4000));`);
+  await shot('m1-manuscript-gaming');
 });
-await safe('qc_tafsirs', async () => {
-  const r = await j('https://api.quran.com/api/v4/resources/tafsirs');
-  log('qc_tafsirs', (r.d?.tafsirs || []).map(t => t.id + ':' + t.name + ':' + t.language_name + ':' + (t.translated_name?.name || '')).join(' ; '));
+await run('video360', async () => {
+  await scene('passthrough');
+  await ev(`const r = await fetch('${W8}/m/manifest.json').then(r => r.json()).catch(e => ({ err: e.message })); console.log('TEST manifest', JSON.stringify(r).slice(0, 300)); const v = (r.videos || r.items || r)[0]; const f = v?.file || v?.name || 'ghost-road.mp4'; window.madar.windows.open({ kind: 'video', url: '${W8}/m/' + (v?.file || 'ghost-road.mp4'), name: '360', proj: '360' }); await new Promise(r => setTimeout(r, 15000)); const w = window.madar.windows.windows.find(x => x.kind === 'video'); console.log('TEST video', w?.video?.readyState, w?.video?.currentTime, w?.video?.videoWidth);`);
+  await shot('v1-video360');
 });
-await safe('qc_recitations', async () => {
-  const r = await j('https://api.quran.com/api/v4/resources/recitations?language=ar');
-  log('qc_recitations', (r.d?.recitations || []).map(t => t.id + ':' + t.reciter_name + ':' + (t.style || '') + ':' + (t.translated_name?.name || '')).join(' ; '));
-  const a = await j('https://api.quran.com/api/v4/recitations/7/by_ayah/2:255');
-  log('qc_rec7_255', { status: a.status, acao: a.acao, d: JSON.stringify(a.d).slice(0, 800) });
-  const c = await j('https://api.quran.com/api/v4/chapter_recitations/7/1?segments=true');
-  log('qc_chrec7_1', { status: c.status, acao: c.acao, d: JSON.stringify(c.d).slice(0, 800) });
+// --- environments
+await run('envs', async () => {
+  for (const e of ['space', 'library', 'reading', 'viewOffice', 'nightOffice', 'gaming', 'gamingRed']) { await scene(e); await wait(4000); await shot('e-' + e); }
 });
-await safe('qdc', async () => {
-  const r = await j('https://api.qurancdn.com/api/qdc/audio/reciters/7/audio_files?chapter=1&segments=true', { Origin: 'https://mazendevloper.github.io' });
-  log('qdc_7_1', { status: r.status, acao: r.acao, d: JSON.stringify(r.d || r.t).slice(0, 1500) });
-  const r2 = await j('https://api.qurancdn.com/api/qdc/audio/reciters?locale=ar', { Origin: 'https://mazendevloper.github.io' });
-  log('qdc_reciters', { status: r2.status, acao: r2.acao, d: (r2.d?.reciters || []).map(x => x.id + ':' + x.name + ':' + (x.translated_name?.name || '') + ':' + (x.style?.name || '')).join(' ; ') });
-  const r3 = await j('https://api.qurancdn.com/api/qdc/audio/reciters/7/audio_files?chapter=2&segments=true', { Origin: 'https://mazendevloper.github.io' });
-  const af = r3.d?.audio_files?.[0];
-  log('qdc_7_2', { status: r3.status, url: af?.audio_url, timings: (af?.verse_timings || []).slice(0, 3) });
-  if (af?.audio_url) log('qdc_audio_head', await head(af.audio_url));
+// --- the coach: muscles, band, push-up, boxing, eyes, treadmill
+const coach = async (env, mode, code, name, pitch = 0.3) => {
+  await scene(env, { hasBand: true, coachVoice: false });
+  await ev(`const a = window.madar; a.openCoach(arg); await new Promise(r => setTimeout(r, 12000)); window.madar.debugPitch = ${pitch};`, mode);
+  await ev(code); await wait(4000); await shot(name);
+};
+const pose = (ex, ph, yaw) => `const w = window.madar.windows.windows.find(x => x.kind === 'coach'); w.choose('${ex}'); ${yaw != null ? `w.figure.yaw.rotation.y = ${yaw};` : ''} w.state = 'run'; const u = w.update; w.update = function (dt, now) { this.phase = ${ph}; u.call(this, dt, now); this.phase = ${ph}; }; console.log('TEST coach', w.loaded);`;
+await run('coach', async () => {
+  await coach('viewOffice', 'train', pose('squat', 0.45, -1.1), 'c1-squat');
+  await coach('viewOffice', 'train', pose('curl', 0.45, -0.4), 'c2-band-curl');
+  await coach('library', 'train', pose('pushup', 0.45), 'c3-pushup');
+  await coach('viewOffice', 'train', pose('lunge', 0.27, -1.2), 'c4-lunge');
+  await coach('viewOffice', 'train', `const w = window.madar.windows.windows.find(x => x.kind === 'coach'); w.openMenu();`, 'c5-menu');
+  await coach('gaming', 'box', `const w = window.madar.windows.windows.find(x => x.kind === 'coach'); w.train.start(); for (let i = 0; i < 3; i++) w.train.spawn(); w.train.pads.forEach(p => p.mesh.scale.setScalar(1)); w.train.state = 'ready'; w.train.score = 230; w.train.combo = 6;`, 'c6-boxing', 0.1);
+  await coach('space', 'eyes', `const w = window.madar.windows.windows.find(x => x.kind === 'coach'); w.train.start('eyes');`, 'c7-eyes', 0);
+  await coach('space', 'eyes', `const w = window.madar.windows.windows.find(x => x.kind === 'coach'); w.train.start('neck');`, 'c8-neck', 0);
+  await coach('passthrough', 'tread', `const w = window.madar.windows.windows.find(x => x.kind === 'coach'); w.train.start();`, 'c9-treadmill', 0.1);
+  await coach('passthrough', 'tread', `const w = window.madar.windows.windows.find(x => x.kind === 'coach'); w.train.route = 'ghost-road'; w.train.start(); await new Promise(r => setTimeout(r, 12000)); console.log('TEST tread video', w.train.video?.video?.readyState);`, 'c10-treadmill-360', 0.1);
 });
-await safe('spa5k', async () => {
-  const r = await j('https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir/editions.json');
-  log('spa5k', (Array.isArray(r.d) ? r.d : []).map(e => e.slug + ':' + e.language_name + ':' + e.name).join(' ; ') || r.t);
-});
-await safe('alq_audio', async () => {
-  const r = await j('https://api.alquran.cloud/v1/edition?format=audio&language=ar');
-  log('alq_audio', (r.d?.data || []).map(e => e.identifier + ':' + e.name + ':' + e.englishName + ':' + e.type).join(' ; '));
-  const p = await j('https://api.alquran.cloud/v1/page/2/ar.alafasy');
-  log('alq_page_audio', JSON.stringify(p.d?.data?.ayahs?.[0] || p.t).slice(0, 600));
-  log('alq_audio_head', await head('https://cdn.islamic.network/quran/audio/128/ar.alafasy/8.mp3'));
-});
-await safe('asbab', async () => {
-  for (const u of ['https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir/en-asbab-al-nuzul-by-al-wahidi/2/6.json', 'https://api.quran.com/api/v4/tafsirs/86/by_ayah/2:6']) {
-    const r = await j(u); log('asbab ' + u, { status: r.status, acao: r.acao, d: JSON.stringify(r.d || r.t).slice(0, 500) });
-  }
-});
-// --- DriveCast bins through the worker
-await safe('dc_bins', async () => {
-  for (const id of ['69b63c5cc3097a1dd5278b25', '6a573cdbf5f4af5e29915034']) {
-    const r = await j('https://studio.c-p.workers.dev/bin/' + id);
-    const d = r.d;
-    const arr = Array.isArray(d) ? d : (d?.manuscripts || d?.fonts || []);
-    log('dc_bin_' + id, { status: r.status, acao: r.acao, topKeys: d && !Array.isArray(d) ? Object.keys(d) : 'array', count: arr.length, items: arr.slice(0, 40).map(x => ({ id: x.id, type: x.type, name: x.name, url: (x.url || '').slice(0, 120), content: (x.content || '').slice(0, 60), font: x.fontFamily, png: x.pngDataUrl ? (x.pngDataUrl.slice(0, 60) + ' len=' + x.pngDataUrl.length) : null, words: x.words?.length })) });
-  }
-});
-// --- Wikimedia upload CORS + panorama search quality
-await safe('wm', async () => {
-  const r = await j('https://commons.wikimedia.org/w/api.php?action=query&generator=categorymembers&gcmtitle=Category:360%C2%B0_panoramas_with_equirectangular_projection&gcmtype=file&gcmlimit=5&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=4096&format=json&origin=*');
-  const pages = Object.values(r.d?.query?.pages || {});
-  log('wm_eq', pages.map(p => p.title + ' | ' + p.imageinfo?.[0]?.width + 'x' + p.imageinfo?.[0]?.height + ' | ' + p.imageinfo?.[0]?.thumburl + ' | ' + p.imageinfo?.[0]?.extmetadata?.LicenseShortName?.value));
-  const t = pages[0]?.imageinfo?.[0]?.thumburl; if (t) log('wm_thumb_head', await head(t));
-  for (const q of ['mosque equirectangular', 'beach 360 panorama equirectangular', 'mountain 360 equirectangular', 'Masjid al-Haram 360', 'night sky 360 equirectangular', 'library interior 360']) {
-    const s = await j('https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=30&gsrsearch=' + encodeURIComponent(q) + '&prop=imageinfo&iiprop=size|mime&format=json&origin=*');
-    const ps = Object.values(s.d?.query?.pages || {});
-    log('wm_search ' + q, ps.length + ' results, 2:1 → ' + ps.filter(p => { const i = p.imageinfo?.[0]; return i && Math.abs(i.width / i.height - 2) < 0.02 && /jpeg|png/.test(i.mime); }).map(p => p.title.replace('File:', '') + ' (' + p.imageinfo[0].width + ')').slice(0, 12).join(' ; '));
-  }
-  const cats = await j('https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:360%C2%B0_panoramas_with_equirectangular_projection&cmtype=subcat&cmlimit=200&format=json&origin=*');
-  log('wm_eq_subcats', (cats.d?.query?.categorymembers || []).map(c => c.title.replace('Category:', '')).join(' ; '));
-  const vid = await j('https://commons.wikimedia.org/w/api.php?action=query&titles=File:Video_360%C2%B0._Timelapse._Bled_Lake_in_Slovenia..webm&prop=videoinfo&viprop=url|size|extmetadata&format=json&origin=*');
-  const vi = Object.values(vid.d?.query?.pages || {})[0]?.videoinfo?.[0];
-  log('wm_vid', { url: vi?.url, lic: vi?.extmetadata?.LicenseShortName?.value, artist: (vi?.extmetadata?.Artist?.value || '').slice(0, 200) });
-  if (vi?.url) log('wm_vid_head', await head(vi.url));
-});
-// --- fonts + libs on jsDelivr
-await safe('cdn', async () => {
-  for (const u of ['https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs', 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', 'https://tessdata.projectnaptha.com/4.0.0/ara.traineddata.gz', 'https://fonts.gstatic.com/s/amiriquran/v19/_Xmo-Hk0rD6DbUL4_vH8Zq5t.ttf', 'https://cdn.jsdelivr.net/npm/@fontsource/amiri-quran@5.1.0/files/amiri-quran-arabic-400-normal.woff2', 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'])
-    log('cdn ' + u, await head(u));
-});
-fs.writeFileSync('out/probe5.json', JSON.stringify(out, null, 1));
+await b.close();
+save();
