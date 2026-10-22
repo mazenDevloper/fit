@@ -17,14 +17,6 @@ const probe = async (k, u, h = {}) => {
     L(k, r.status, 'acao=' + r.headers.get('access-control-allow-origin'), 'ct=' + r.headers.get('content-type'), 'cr=' + r.headers.get('content-range'), 'len=' + r.headers.get('content-length'), t.replace(/\s+/g, ' '));
   } catch (e) { L(k, 'ERR', e.message); }
 };
-await probe('m_manifest', W8 + '/m/manifest.json');
-await probe('m_range', W8 + '/m/ghost-road.mp4', { Range: 'bytes=0-1023' });
-await probe('m_range_mid', W8 + '/m/alaska.mp4', { Range: 'bytes=50000000-50001023' });
-await probe('read', W8 + '/read?url=' + encodeURIComponent('https://ar.wikipedia.org/wiki/%D8%A7%D9%84%D9%82%D9%85%D8%B1'));
-await probe('health_get', W8 + '/health/482913');
-await probe('health_post', W8 + '/health/482913', {});
-try { const r = await fetch(W8 + '/health/482913', { method: 'POST', headers: { 'content-type': 'application/json', Origin: 'https://mazendevloper.github.io' }, body: JSON.stringify({ weight: 78.4, steps: 6400 }) }); L('health_post', r.status, (await r.text()).slice(0, 200)); } catch (e) { L('health_post ERR', e.message); }
-await probe('health_get2', W8 + '/health/482913');
 save();
 
 // 2) wait for v88 to be published
@@ -34,7 +26,7 @@ for (let i = 0; i < 40; i++) {
 }
 
 const b = await chromium.launch({ channel: 'chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream'] });
-const ctx = await b.newContext({ viewport: { width: 1400, height: 800 }, locale: 'ar' });
+const ctx = await b.newContext({ viewport: { width: 1400, height: 800 }, locale: 'ar', serviceWorkers: 'block' });
 const p = await ctx.newPage();
 p.on('pageerror', e => L('PE', e.message));
 p.on('console', m => { if (m.type() === 'error' && !/peerjs|ERR_|404|favicon/.test(m.text())) L('CE', m.text().slice(0, 200)); if (/TEST/.test(m.text())) L(m.text().slice(0, 400)); });
@@ -42,7 +34,7 @@ const shot = async n => { await p.screenshot({ path: 'out/' + n + '.png' }); L('
 const wait = ms => p.waitForTimeout(ms);
 // open the app in an environment (fresh settings each time)
 async function scene(env, extra = {}) {
-  await p.goto(SITE + '?v=' + Date.now(), { waitUntil: 'load', timeout: 90000 });
+  await p.goto(SITE + '?v=' + Date.now(), { waitUntil: 'load', timeout: 90000 }); await wait(1500);
   await p.evaluate(([env, extra]) => { localStorage.setItem('madar.settings.v1', JSON.stringify({ v: 7, viewMode: 'desktop', environment: env, clock: false, prayerBar: false, island: false, sounds: false, dwell: false, ambient: 'off', ...extra })); localStorage.setItem('madar.firstRun.v1', '1'); localStorage.setItem('madar.firstRun', '1'); localStorage.removeItem('madar.windows.v1'); }, [env, extra]);
   await p.goto(SITE + '?v=' + Date.now(), { waitUntil: 'load', timeout: 90000 });
   await wait(3000);
