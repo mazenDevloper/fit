@@ -1,17 +1,46 @@
-m_manifest 200 acao=* ct=application/json cr=null len=null [ { "id": "bled", "title": "بحيرة بليد · سلوفينيا", "cat": "طبيعة", "file": "bled.mp4", "poster": "bled.jpg", "w": 2880, "h": 1440, "dur": 9, "audio": true, "loop": true, "size": 9368063, "license": "CC BY 3.0", "author": "Fabio Casati", "source": "https://commons.wikimedia.org/wiki/File%3AVideo_360%C2%B0._Timelapse._Bled_Lake_in_Slovenia..webm" }, { "id": "waterfall", "title": "شلال في المرتفعات الاسكتلندية", "cat": "طبيعة", "file": "waterfall.mp4", "poster": "waterfall.jpg", "w": 2560, "h": 1280, "dur": 10, "audio": true, "loop": true, "si
-m_range 206 acao=* ct=video/mp4 cr=bytes 0-1023/129164869 len=1024 
-m_range_mid 206 acao=* ct=video/mp4 cr=bytes 50000000-50001023/108466247 len=1024 
-read 200 acao=* ct=application/json; charset=utf-8 cr=null len=null {"title":"القمر - ويكيبيديا","url":"https://ar.wikipedia.org/wiki/%D8%A7%D9%84%D9%82%D9%85%D8%B1","blocks":[{"tag":"h1","text":"القمر"},{"tag":"p","text":"الْقَمَر هو القمر الطبيعي الوحيد للأرض[ملاحظة 1][4] بالإضافة إلى أنه خامس قمرٍ طبيعيٍ كِبراً في المجموعة الشمسية. فهو يُعَدُ أكبر قمرٍ طبيعيٍ في المجموعة الشمسية من ناحية نسبة حجمه إلى كوكبه التابع له، حيث أن قطره يصل إلى ربع قطر الأرض، كما أن كتلته تصل إلى 1 على 81 من كتلة الأرض، هذا بالإضافة إلى أنه يُعَدُ ثاني قمرٍ كثافةً بعد قمر إيو. هذا ويتسم القمر الأرضي حركته التزامنية مع كوكبه (الأرض)، عارضاً دائماً الوجه نفسه؛ حيث يتميز الجانب القري
-health_get 200 acao=* ct=application/json; charset=utf-8 cr=null len=47 {"at":1792685937421,"weight":78.4,"steps":6400}
-health_post 200 acao=* ct=application/json; charset=utf-8 cr=null len=47 {"at":1792685937421,"weight":78.4,"steps":6400}
-health_post 200 {"ok":true,"saved":{"at":1792685953009,"weight":78.4,"steps":6400}}
-health_get2 200 acao=* ct=application/json; charset=utf-8 cr=null len=47 {"at":1792685953009,"weight":78.4,"steps":6400}
 live v88 after 0 s
-FAIL quran-space page.evaluate: Execution context was destroyed, most likely because of a navigation
-FAIL quran-library page.goto: Navigation to "https://mazendevloper.github.io/fit/?v=1792685954613" is interrupted by another navigation to "https://mazendevloper.github.io/fit/?v=1792685953864"
-FAIL web-shelf page.goto: Navigation to "https://mazendevloper.github.io/fit/?v=1792685957587" is interrupted by another navigation to "https://mazendevloper.github.io/fit/?v=1792685954613"
-FAIL gallery page.goto: Navigation to "https://mazendevloper.github.io/fit/?v=1792685957623" is interrupted by another navigation to "https://mazendevloper.github.io/fit/?v=1792685957587"
-FAIL manuscript page.goto: Navigation to "https://mazendevloper.github.io/fit/?v=1792685957649" is interrupted by another navigation to "https://mazendevloper.github.io/fit/?v=1792685957623"
-FAIL video360 page.goto: Navigation to "https://mazendevloper.github.io/fit/?v=1792685957672" is interrupted by another navigation to "https://mazendevloper.github.io/fit/?v=1792685957649"
-FAIL envs page.goto: Navigation to "https://mazendevloper.github.io/fit/?v=1792685957702" is interrupted by another navigation to "https://mazendevloper.github.io/fit/?v=1792685957672"
-FAIL coach page.goto: Navigation to "https://mazendevloper.github.io/fit/?v=1792685957749" is interrupted by another navigation to "https://mazendevloper.github.io/fit/?v=1792685957702"
+TEST reader 293 play 18:1 18:1
+shot q1-space-kahf
+shot q2-space-float
+TEST kursi 41 2:255
+shot q3-library-kursi
+shot q4-reciters
+shot q5-tafsirs
+TEST web reader:القمر - ويكيبيديا
+shot b1-web-article
+shot b2-shelf
+shot g1-rooms
+shot g2-views
+shot g3-hdris
+shot g4-pano
+shot g5-video360
+shot g6-models
+shot g7-manuscripts
+TEST gallery app,tab,cat,page,lists,thumbs,busy,group,panel
+TEST ms items 8
+shot m1-manuscript-gaming
+TEST manifest [{"id":"bled","title":"بحيرة بليد · سلوفينيا","cat":"طبيعة","file":"bled.mp4","poster":"bled.jpg","w":2880,"h":1440,"dur":9,"audio":true,"loop":true,"size":9368063,"license":"CC BY 3.0","author":"Fabio Casati","source":"https://commons.wikimedia.org/wiki/File%3AVideo_360%C2%B0._Timelapse._Bled_Lake_
+TEST video 4 5.523527 2880
+shot v1-video360
+shot e-space
+shot e-library
+shot e-reading
+shot e-viewOffice
+shot e-nightOffice
+shot e-gaming
+shot e-gamingRed
+TEST coach true
+shot c1-squat
+TEST coach true
+shot c2-band-curl
+TEST coach true
+shot c3-pushup
+TEST coach true
+shot c4-lunge
+shot c5-menu
+shot c6-boxing
+shot c7-eyes
+shot c8-neck
+shot c9-treadmill
+TEST tread video 4
+shot c10-treadmill-360
