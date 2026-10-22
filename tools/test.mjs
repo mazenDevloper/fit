@@ -1,39 +1,35 @@
-import { chromium } from 'playwright';
 import fs from 'fs';
-const log = [];
-const b = await chromium.launch({ channel: 'chrome', args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
-// a fake «iPhone»: a moving test picture, H.264 with WebCodecs, the same frames the iPhone extension sends
-const snd = await (await b.newContext()).newPage(); snd.on('console', m => log.push('SND ' + m.text()));
-await snd.goto('https://studio.c-p.workers.dev/');
-await snd.evaluate(async () => {
-  const c = new OffscreenCanvas(590, 1280), x = c.getContext('2d');
-  const ws = new WebSocket('wss://studio.c-p.workers.dev/screen/send?room=testphone1&name=' + encodeURIComponent('آيفون تجريبي') + '&pin=123456');
-  ws.binaryType = 'arraybuffer'; await new Promise(r => ws.onopen = r);
-  let force = true; ws.onmessage = e => { if (e.data === 'key') force = true; };
-  const pack = (k, t, d) => { const b = new Uint8Array(9 + d.byteLength); b[0] = k; new DataView(b.buffer).setBigUint64(1, BigInt(t)); b.set(new Uint8Array(d), 9); ws.send(b); };
-  let sentCfg = false;
-  const enc = new VideoEncoder({ output: (ch, meta) => { if (meta?.decoderConfig?.description && !sentCfg) { pack(0, 0, meta.decoderConfig.description); sentCfg = true; } const d = new ArrayBuffer(ch.byteLength); ch.copyTo(d); pack(ch.type === 'key' ? 1 : 2, ch.timestamp, d); }, error: e => console.log('enc ' + e.message) });
-  enc.configure({ codec: 'avc1.4d0028', width: 590, height: 1280, bitrate: 2e6, framerate: 30, avc: { format: 'avc' } });
-  let i = 0;
-  setInterval(() => {
-    x.fillStyle = `hsl(${i * 3 % 360},60%,35%)`; x.fillRect(0, 0, 590, 1280);
-    x.fillStyle = '#fff'; x.font = 'bold 70px sans-serif'; x.fillText('iPhone ' + i, 60, 300); x.fillText(new Date().toLocaleTimeString(), 60, 420);
-    x.fillStyle = '#34d399'; x.beginPath(); x.arc(295, 800 + Math.sin(i / 8) * 200, 80, 0, 7); x.fill();
-    const f = new VideoFrame(c, { timestamp: i * 33333 }); enc.encode(f, { keyFrame: force || i % 90 === 0 }); force = false; f.close(); i++;
-  }, 33);
-  window.__ok = 1;
-});
-await snd.waitForTimeout(2000);
-const ctx = await b.newContext({ viewport: { width: 1400, height: 800 }, permissions: ['camera', 'microphone'] });
-const p = await ctx.newPage(); p.on('pageerror', e => log.push('PE ' + e.message));
-await p.addInitScript(() => { try { if (!sessionStorage.getItem('i')) { sessionStorage.setItem('i', '1'); localStorage.setItem('madar.settings.v1', JSON.stringify({ v: 7, viewMode: 'desktop', environment: 'night', island: false, sounds: false, dwell: false })); localStorage.setItem('madar.firstRun', '1'); } } catch (e) {} });
-await p.goto('https://mazendevloper.github.io/fit/?v=' + Date.now(), { waitUntil: 'load', timeout: 60000 }); await p.waitForTimeout(3000);
-log.push('has iphone ' + await p.evaluate(() => !!window.madar.iphone));
-await p.evaluate(() => window.madar.enter()); await p.waitForTimeout(9000);
-await p.screenshot({ path: 'out/ip1-notify.png' });
-log.push('list ' + await p.evaluate(async () => JSON.stringify(await window.madar.iphone.list())));
-await p.evaluate(() => window.madar.iphone.pick()); await p.waitForTimeout(7000);
-await p.screenshot({ path: 'out/ip2-window.png' });
-log.push('logs ' + await p.evaluate(() => JSON.parse(localStorage.getItem('madar.log') || '[]').slice(-6).join(' | ')));
-await b.close();
-fs.writeFileSync('out/server.txt', log.join('\n'));
+const out = [];
+const probe = async (label, u, opt = {}) => {
+  try {
+    const t = Date.now(); const r = await fetch(u, opt);
+    const ct = r.headers.get('content-type') || '';
+    let body = '';
+    if (!opt.method || opt.method === 'GET') { const b = await r.arrayBuffer(); body = ct.includes('json') || ct.includes('text') || ct.includes('xml') ? new TextDecoder().decode(b).slice(0, 700) : '[' + b.byteLength + ' bytes]'; }
+    out.push(`## ${label} ${r.status} ${Date.now() - t}ms acao=${r.headers.get('access-control-allow-origin')} ct=${ct} len=${r.headers.get('content-length')}\n${body}`);
+  } catch (e) { out.push(`## ${label} ERR ${e.message}`); }
+};
+await probe('alq page', 'https://api.alquran.cloud/v1/page/1/quran-uthmani');
+await probe('alq muyassar', 'https://api.alquran.cloud/v1/ayah/2:255/ar.muyassar');
+await probe('alq editions tafsir ar', 'https://api.alquran.cloud/v1/edition?format=text&language=ar&type=tafsir');
+await probe('alq audio editions', 'https://api.alquran.cloud/v1/edition?format=audio&language=ar');
+await probe('alq audio head', 'https://cdn.islamic.network/quran/audio/128/ar.alafasy/262.mp3', { method: 'HEAD' });
+await probe('qcom tafsirs ar', 'https://api.quran.com/api/v4/resources/tafsirs?language=ar');
+await probe('qcom by page', 'https://api.quran.com/api/v4/verses/by_page/1?fields=text_uthmani&per_page=50');
+await probe('qcom tafsir 16', 'https://api.quran.com/api/v4/tafsirs/16/by_ayah/2:255');
+await probe('qcom recitations', 'https://api.quran.com/api/v4/resources/recitations?language=ar');
+await probe('everyayah', 'https://everyayah.com/data/Alafasy_128kbps/001001.mp3', { method: 'HEAD' });
+await probe('everyayah list', 'https://everyayah.com/data/');
+await probe('commons pano cat', 'https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:360%C2%B0_panoramas&cmtype=file&cmlimit=20&format=json&origin=*');
+await probe('commons pano sub', 'https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:360%C2%B0_panoramas&cmtype=subcat&cmlimit=50&format=json&origin=*');
+await probe('commons 360 video cat', 'https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:360%C2%B0_videos&cmtype=file&cmlimit=30&format=json&origin=*');
+await probe('commons 360 video subcat', 'https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:360%C2%B0_videos&cmtype=subcat&cmlimit=50&format=json&origin=*');
+await probe('commons search equirect', 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=filetype:bitmap%20equirectangular%20panorama&gsrnamespace=6&gsrlimit=10&prop=imageinfo&iiprop=url|size|mime&iiurlwidth=320&format=json&origin=*');
+await probe('commons search 360 video', 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=filetype:video%20360%C2%B0&gsrnamespace=6&gsrlimit=10&prop=videoinfo&viprop=url|size|mime|derivatives&format=json&origin=*');
+await probe('archive 360 search', 'https://archive.org/advancedsearch.php?q=title%3A%28360+video%29+AND+mediatype%3Amovies&fl%5B%5D=identifier&fl%5B%5D=title&rows=10&output=json');
+await probe('ph hdris tags', 'https://api.polyhaven.com/assets?t=hdris&c=indoor');
+await probe('google font amiri quran', 'https://fonts.googleapis.com/css2?family=Amiri+Quran&display=swap');
+await probe('mediapipe pose model', 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task', { method: 'HEAD' });
+await probe('kenney furniture page', 'https://kenney.nl/assets/furniture-kit');
+await probe('three xbot', 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/Xbot.glb', { method: 'HEAD' });
+fs.writeFileSync('out/server.txt', out.join('\n\n'));
