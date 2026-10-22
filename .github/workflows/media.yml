@@ -1,0 +1,19 @@
+name: media-360
+on: { push: { branches: [media360] } }
+permissions: { contents: write }
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y ffmpeg >/dev/null
+      - run: python3 tools/media360.py
+      - name: release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release view media-360 >/dev/null 2>&1 || gh release create media-360 --title "Madar · 360° videos" --notes "360° videos for Madar's library (H.264 MP4 re-encodes of Wikimedia Commons / NASA originals; see manifest.json for each source, author and licence)." --target media360
+          gh release upload media-360 out/* --clobber
+      - name: warm the Cloudflare copy
+        run: |
+          for f in out/*; do n=$(basename "$f"); curl -s -o /dev/null -w "$n %{http_code} %{size_download}\n" --max-time 300 "https://studio.c-p.workers.dev/m/$n" || true; done
