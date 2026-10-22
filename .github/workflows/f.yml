@@ -4,10 +4,11 @@ permissions: { contents: write }
 jobs:
   go:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - run: npm i playwright@1.48.2 && npx playwright install --with-deps chromium chrome >/dev/null
-      - run: mkdir -p out; (python3 -m http.server 8000 &) ; sleep 1; node tools/test.mjs || true
+      - run: if [ -f tools/need-browser ]; then npm i playwright@1.48.2 && timeout 600 npx playwright install --with-deps chromium chrome >/dev/null; fi
+      - run: mkdir -p out; (python3 -m http.server 8000 &) ; sleep 1; timeout 900 node tools/test.mjs || true
       - run: |
           git config user.name bot; git config user.email bot@x
           git add out && git commit -qm test && git push

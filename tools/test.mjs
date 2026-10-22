@@ -1,8 +1,8 @@
 import fs from 'fs';
 const out = {};
 const log = (k, v) => { out[k] = v; };
-const j = async (u, h = {}) => { const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (Madar probe)', ...h } }); const t = await r.text(); let d = null; try { d = JSON.parse(t); } catch {} return { status: r.status, acao: r.headers.get('access-control-allow-origin'), ct: r.headers.get('content-type'), d, t: d ? null : t.slice(0, 400) }; };
-const head = async (u, h = {}) => { try { const r = await fetch(u, { method: 'GET', headers: { Origin: 'https://mazendevloper.github.io', Range: 'bytes=0-99', 'User-Agent': 'Mozilla/5.0', ...h } }); return r.status + ' acao=' + r.headers.get('access-control-allow-origin') + ' ct=' + r.headers.get('content-type') + ' cr=' + r.headers.get('content-range') + ' ar=' + r.headers.get('accept-ranges'); } catch (e) { return 'ERR ' + e.message; } };
+const j = async (u, h = {}) => { const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (Madar probe)', ...h }, signal: AbortSignal.timeout(25000) }); const t = await r.text(); let d = null; try { d = JSON.parse(t); } catch {} return { status: r.status, acao: r.headers.get('access-control-allow-origin'), ct: r.headers.get('content-type'), d, t: d ? null : t.slice(0, 400) }; };
+const head = async (u, h = {}) => { try { const r = await fetch(u, { method: 'GET', headers: { Origin: 'https://mazendevloper.github.io', Range: 'bytes=0-99', 'User-Agent': 'Mozilla/5.0', ...h }, signal: AbortSignal.timeout(20000) }); try { r.body?.cancel(); } catch {} return r.status + ' acao=' + r.headers.get('access-control-allow-origin') + ' ct=' + r.headers.get('content-type') + ' cr=' + r.headers.get('content-range') + ' ar=' + r.headers.get('accept-ranges'); } catch (e) { return 'ERR ' + e.message; } };
 const safe = async (k, f) => { try { await f(); } catch (e) { log(k, 'ERR ' + e.message); } };
 
 // --- Poly Haven: full model + hdri summaries
