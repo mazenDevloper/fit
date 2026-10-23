@@ -9,8 +9,10 @@ import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, COLORS,
 import { settings, saveSettings, deviceIdentity } from './config.js';
 import { FRONT, BACK } from './musclemap.js';
 import { PoseCam, CAM } from './posecam.js';
+import { buildAnatomy } from './anatomy.js';
 
 const XBOT = new URL('../assets/coach/Xbot.glb', import.meta.url).href;
+const ANAT = { get front() { return this._f || (this._f = Object.assign(new Image(), { src: new URL('../assets/coach/anat_front.webp', import.meta.url).href })); }, get back() { return this._b || (this._b = Object.assign(new Image(), { src: new URL('../assets/coach/anat_back.webp', import.meta.url).href })); } };
 export const MUSCLES = ['none', 'chest', 'abs', 'obliques', 'traps', 'upperBack', 'lowerBack', 'delts', 'rearDelts', 'biceps', 'triceps', 'forearms', 'glutes', 'quads', 'hamstrings', 'adductors', 'calves', 'shins', 'neck'];
 export const MUSCLE_AR = { chest: 'الصدر', abs: 'البطن', obliques: 'الخواصر', traps: 'الترابيس', upperBack: 'أعلى الظهر', lowerBack: 'أسفل الظهر', delts: 'الكتف', rearDelts: 'الكتف الخلفي', biceps: 'الباي', triceps: 'الترايسبس', forearms: 'الساعد', glutes: 'الأرداف', quads: 'الفخذ الأمامي', hamstrings: 'الفخذ الخلفي', adductors: 'الفخذ الداخلي', calves: 'السمانة', shins: 'الساق', neck: 'الرقبة' };
 // the illustrated map's muscle names → ours
@@ -67,8 +69,86 @@ export const EXERCISES = [
   { id: 'neck', name: 'إطالة الرقبة', kind: 'stretch', p: ['neck'], s: ['traps'], tempo: 8, reps: 4, sets: 1, met: 1.5, detect: 'tempo',
     tips: ['ببطء دون ألم', 'أرخِ كتفيك'],
     keys: [[0, { hand: DOWN }], [0.2, { head: [0, 35, 0], hand: DOWN }], [0.4, { head: [0, 0, 0], hand: DOWN }], [0.6, { head: [0, -35, 0], hand: DOWN }], [0.8, { head: [30, 0, 0], hand: DOWN }], [1, { hand: DOWN }]] },
+  // ---- hips (فك الحوض)
+  { id: 'butterfly', name: 'الفراشة (فتح الحوض)', kind: 'floor', grp: 'hips', p: ['adductors'], s: ['glutes', 'lowerBack'], tempo: 5, reps: 6, sets: 2, met: 2.3, detect: 'tempo',
+    tips: ['باطن القدمين متلاصقان', 'اضغط ركبتيك نحو الأرض بلطف', 'ظهرك طويل'],
+    keys: [[0, { hips: [0, -0.84, -0.12], foot: [-0.13, 0, 0.32], knee: [1, 0.35, 0.5], footFlat: 1, spine: [12, 0, 0], hand: [-0.12, -0.42, 0.38], elbow: [0.6, -1, 0] }], [0.5, { hips: [0, -0.84, -0.12], foot: [-0.13, 0, 0.32], knee: [1, 0.1, 0.4], footFlat: 1, spine: [32, 0, 0], head: [12, 0, 0], hand: [-0.12, -0.5, 0.42], elbow: [0.6, -1, 0] }], [1, { hips: [0, -0.84, -0.12], foot: [-0.13, 0, 0.32], knee: [1, 0.35, 0.5], footFlat: 1, spine: [12, 0, 0], hand: [-0.12, -0.42, 0.38], elbow: [0.6, -1, 0] }]] },
+  { id: 'hipcircle', name: 'دوائر الحوض', kind: 'body', grp: 'hips', p: ['glutes', 'obliques'], s: ['lowerBack', 'adductors'], tempo: 3, reps: 10, sets: 2, met: 2.5, detect: 'tempo',
+    tips: ['يداك على خصرك', 'دوائر واسعة وبطيئة', 'غيّر الاتجاه في المجموعة الثانية'],
+    keys: [[0, { hips: [0.07, -0.02, 0], hand: HIPS, handR: [0.13, -0.32, 0.12] }], [0.25, { hips: [0, -0.03, 0.08], hand: HIPS, handR: [0.13, -0.32, 0.12] }], [0.5, { hips: [-0.07, -0.02, 0], hand: HIPS, handR: [0.13, -0.32, 0.12] }], [0.75, { hips: [0, -0.01, -0.08], tilt: 8, hand: HIPS, handR: [0.13, -0.32, 0.12] }], [1, { hips: [0.07, -0.02, 0], hand: HIPS, handR: [0.13, -0.32, 0.12] }]] },
+  { id: 'deepsquat', name: 'القرفصاء العميقة (ثبات)', kind: 'body', grp: 'hips', p: ['adductors', 'glutes'], s: ['quads', 'calves', 'lowerBack'], tempo: 6, reps: 1, sets: 3, hold: 30, met: 3, detect: 'tempo',
+    tips: ['مرفقاك يدفعان ركبتيك للخارج', 'كعباك على الأرض', 'تنفّس ببطء'],
+    keys: [[0, { hips: [0, -0.6, -0.18], tilt: 28, spine: [6, 0, 0], knee: [0.55, 0, 1], hand: [-0.17, -0.12, 0.34], elbow: [1, -0.6, 0.3] }], [0.5, { hips: [0, -0.63, -0.18], tilt: 30, spine: [8, 0, 0], knee: [0.6, 0, 1], hand: [-0.17, -0.12, 0.34], elbow: [1, -0.6, 0.3] }], [1, { hips: [0, -0.6, -0.18], tilt: 28, spine: [6, 0, 0], knee: [0.55, 0, 1], hand: [-0.17, -0.12, 0.34], elbow: [1, -0.6, 0.3] }]] },
+  // ---- lower back
+  { id: 'bridge', name: 'جسر الأرداف', kind: 'floor', grp: 'back', p: ['glutes', 'lowerBack'], s: ['hamstrings', 'abs'], tempo: 3, reps: 15, sets: 3, met: 3.5, detect: 'tempo',
+    tips: ['ادفع بكعبيك', 'اعصر الأرداف في الأعلى', 'لا تقوّس أسفل ظهرك أكثر من اللازم'],
+    keys: [[0, { lie: 'back', foot: [0.06, 0.02, -0.42], knee: [0, 1, 0.2], footFlat: 1, hand: [0.1, -0.08, 0.42], elbow: [0.4, 1, 0] }], [0.45, { lie: 'back', hips: [0, 0, 0.24], pitch: -30, foot: [0.06, 0.02, -0.42], knee: [0, 1, 0.4], footFlat: 1, hand: [0.1, -0.08, 0.42], elbow: [0.4, 1, 0] }], [0.6, { lie: 'back', hips: [0, 0, 0.24], pitch: -30, foot: [0.06, 0.02, -0.42], knee: [0, 1, 0.4], footFlat: 1, hand: [0.1, -0.08, 0.42], elbow: [0.4, 1, 0] }], [1, { lie: 'back', foot: [0.06, 0.02, -0.42], knee: [0, 1, 0.2], footFlat: 1, hand: [0.1, -0.08, 0.42], elbow: [0.4, 1, 0] }]] },
+  { id: 'superman', name: 'سوبرمان', kind: 'floor', grp: 'back', p: ['lowerBack'], s: ['glutes', 'hamstrings', 'upperBack'], tempo: 3, reps: 12, sets: 3, met: 3, detect: 'tempo',
+    tips: ['ارفع ذراعيك وساقيك معاً', 'انظر إلى الأرض', 'اثبت ثانية في الأعلى'],
+    keys: [[0, { lie: 'front', foot: [0, 0, 0], knee: [0, -1, 0], hand: [0.12, -0.05, 0.55], elbow: [1, 0.2, 0] }], [0.45, { lie: 'front', spine: [-22, 0, 0], head: [-10, 0, 0], foot: [0, 0.18, 0], knee: [0, -1, 0], hand: [0.12, 0.22, 0.5], elbow: [1, 0.2, 0] }], [0.6, { lie: 'front', spine: [-22, 0, 0], head: [-10, 0, 0], foot: [0, 0.18, 0], knee: [0, -1, 0], hand: [0.12, 0.22, 0.5], elbow: [1, 0.2, 0] }], [1, { lie: 'front', foot: [0, 0, 0], knee: [0, -1, 0], hand: [0.12, -0.05, 0.55], elbow: [1, 0.2, 0] }]] },
+  { id: 'goodmorning', name: 'انحناء الورك بالحبل', kind: 'band', band: 'feet', grp: 'back', p: ['lowerBack', 'hamstrings'], s: ['glutes'], tempo: 3.4, reps: 12, sets: 3, met: 3.5, detect: 'tempo',
+    tips: ['الحبل خلف رقبتك', 'ادفع وركك للخلف وظهرك مستقيم', 'ركبتاك مثنيتان قليلاً'],
+    keys: [[0, { hand: [0.02, 0.12, -0.08], elbow: [1, 0.2, -0.2] }], [0.45, { hips: [0, -0.04, -0.15], tilt: 55, spine: [38, 0, 0], knee: [0.1, 0, 1], hand: [0.02, 0.12, -0.08], elbow: [1, 0.2, -0.2] }], [0.6, { hips: [0, -0.04, -0.15], tilt: 55, spine: [38, 0, 0], knee: [0.1, 0, 1], hand: [0.02, 0.12, -0.08], elbow: [1, 0.2, -0.2] }], [1, { hand: [0.02, 0.12, -0.08], elbow: [1, 0.2, -0.2] }]] },
+  // ---- triceps / biceps
+  { id: 'overhead', name: 'ترايسبس فوق الرأس بالحبل', kind: 'band', band: 'feet', grp: 'arms', p: ['triceps'], s: ['delts'], tempo: 2.8, reps: 12, sets: 3, met: 3.5, detect: 'tempo',
+    tips: ['مرفقاك قريبان من رأسك', 'مدّ ذراعيك للأعلى بالكامل'],
+    keys: [[0, { hand: [-0.02, 0.2, -0.14], elbow: [0.15, 1, 0.1] }], [0.45, { hand: [0.02, 0.58, 0.02], elbow: [0.15, 1, 0.1] }], [0.55, { hand: [0.02, 0.58, 0.02], elbow: [0.15, 1, 0.1] }], [1, { hand: [-0.02, 0.2, -0.14], elbow: [0.15, 1, 0.1] }]] },
+  { id: 'diamond', name: 'ضغط ماسي (للترايسبس)', kind: 'floor', grp: 'arms', p: ['triceps', 'chest'], s: ['delts', 'abs'], tempo: 2.8, reps: 10, sets: 3, met: 8, detect: 'tempo',
+    tips: ['يداك متقاربتان تحت صدرك', 'المرفقان قريبان من جسمك'],
+    keys: [[0, { lean: 68, plantHands: 1, handsIn: 1 }], [0.45, { lean: 78, plantHands: 1, handsIn: 1 }], [0.55, { lean: 78, plantHands: 1, handsIn: 1 }], [1, { lean: 68, plantHands: 1, handsIn: 1 }]] },
+  { id: 'kickback', name: 'ترايسبس خلفي بالحبل', kind: 'band', band: 'feet', grp: 'arms', p: ['triceps'], s: ['rearDelts'], tempo: 2.6, reps: 12, sets: 3, met: 3.5, detect: 'tempo',
+    tips: ['انحنِ للأمام وظهرك مستقيم', 'العضد ثابت، مدّ الساعد للخلف'],
+    keys: [[0, { hips: [0, -0.06, -0.1], tilt: 40, spine: [26, 0, 0], knee: [0.1, 0, 1], hand: [0.1, -0.22, -0.02], elbow: [0.1, 0.2, -1] }], [0.45, { hips: [0, -0.06, -0.1], tilt: 40, spine: [26, 0, 0], knee: [0.1, 0, 1], hand: [0.1, -0.12, -0.5], elbow: [0.1, 0.2, -1] }], [0.55, { hips: [0, -0.06, -0.1], tilt: 40, spine: [26, 0, 0], knee: [0.1, 0, 1], hand: [0.1, -0.12, -0.5], elbow: [0.1, 0.2, -1] }], [1, { hips: [0, -0.06, -0.1], tilt: 40, spine: [26, 0, 0], knee: [0.1, 0, 1], hand: [0.1, -0.22, -0.02], elbow: [0.1, 0.2, -1] }]] },
+  { id: 'hammer', name: 'باي مطرقة بالحبل', kind: 'band', band: 'feet', grp: 'arms', p: ['biceps', 'forearms'], s: [], tempo: 2.6, reps: 12, sets: 3, met: 3.5, detect: 'tempo',
+    tips: ['الإبهام للأعلى طوال الحركة', 'لا تؤرجح جسمك'],
+    keys: [[0, { hand: [0.1, -0.5, 0.12], elbow: [0.2, -1, -0.5] }], [0.42, { hand: [0.1, -0.1, 0.24], elbow: [0.2, -1, -0.5] }], [0.55, { hand: [0.1, -0.1, 0.24], elbow: [0.2, -1, -0.5] }], [1, { hand: [0.1, -0.5, 0.12], elbow: [0.2, -1, -0.5] }]] },
+  { id: 'isocurl', name: 'ثبات الباي ٩٠°', kind: 'band', band: 'feet', grp: 'arms', p: ['biceps'], s: ['forearms', 'delts'], tempo: 4, reps: 1, sets: 3, hold: 30, met: 3, detect: 'tempo',
+    tips: ['المرفق بزاوية قائمة', 'شدّ الحبل وثبّت'],
+    keys: [[0, { hand: [0.06, -0.28, 0.3], elbow: [0.2, -1, -0.5] }], [1, { hand: [0.06, -0.28, 0.3], elbow: [0.2, -1, -0.5] }]] },
+  // ---- the core (العضلة الوسطى)
+  { id: 'crunch', name: 'كرنش', kind: 'floor', grp: 'core', p: ['abs'], s: ['obliques'], tempo: 2.4, reps: 20, sets: 3, met: 3.8, detect: 'tempo',
+    tips: ['ارفع كتفيك فقط عن الأرض', 'لا تشدّ رقبتك بيديك'],
+    keys: [[0, { lie: 'back', foot: [0.06, 0.02, -0.42], knee: [0, 1, 0.2], footFlat: 1, hand: [0.12, 0.08, -0.16], elbow: [1, 0.4, 0] }], [0.45, { lie: 'back', spine: [38, 0, 0], head: [16, 0, 0], foot: [0.06, 0.02, -0.42], knee: [0, 1, 0.2], footFlat: 1, hand: [0.12, 0.08, -0.16], elbow: [1, 0.4, 0] }], [0.55, { lie: 'back', spine: [38, 0, 0], head: [16, 0, 0], foot: [0.06, 0.02, -0.42], knee: [0, 1, 0.2], footFlat: 1, hand: [0.12, 0.08, -0.16], elbow: [1, 0.4, 0] }], [1, { lie: 'back', foot: [0.06, 0.02, -0.42], knee: [0, 1, 0.2], footFlat: 1, hand: [0.12, 0.08, -0.16], elbow: [1, 0.4, 0] }]] },
+  { id: 'bicycle', name: 'دراجة البطن', kind: 'floor', grp: 'core', p: ['obliques', 'abs'], s: ['quads'], tempo: 2.2, reps: 20, sets: 3, met: 6, detect: 'tempo',
+    tips: ['المرفق نحو الركبة المعاكسة', 'الساق الأخرى ممدودة فوق الأرض'],
+    keys: [[0, { lie: 'back', spine: [30, 0, 22], foot: [0, 0.4, -0.55], footR: [0, 0.15, 0], knee: [0, 1, 0.3], hand: [0.12, 0.08, -0.16], elbow: [1, 0.4, 0] }], [0.5, { lie: 'back', spine: [30, 0, -22], footR: [0, 0.4, -0.55], foot: [0, 0.15, 0], knee: [0, 1, 0.3], hand: [0.12, 0.08, -0.16], elbow: [1, 0.4, 0] }], [1, { lie: 'back', spine: [30, 0, 22], foot: [0, 0.4, -0.55], footR: [0, 0.15, 0], knee: [0, 1, 0.3], hand: [0.12, 0.08, -0.16], elbow: [1, 0.4, 0] }]] },
+  { id: 'deadbug', name: 'الحشرة الميتة', kind: 'floor', grp: 'core', p: ['abs'], s: ['obliques', 'lowerBack'], tempo: 3.2, reps: 12, sets: 3, met: 3.5, detect: 'tempo',
+    tips: ['أسفل ظهرك ملتصق بالأرض', 'مدّ اليد والساق المتعاكستين ببطء'],
+    keys: [[0, { lie: 'back', foot: [0, 0.42, -0.42], knee: [0, 1, 0.3], hand: [0.06, 0.55, 0], elbow: [1, 0, 0] }], [0.4, { lie: 'back', foot: [0, 0.42, -0.42], footR: [0, 0.12, 0], knee: [0, 1, 0.3], hand: [0.06, 0.12, -0.5], handR: [0.06, 0.55, 0], elbow: [1, 0, 0] }], [0.6, { lie: 'back', foot: [0, 0.42, -0.42], knee: [0, 1, 0.3], hand: [0.06, 0.55, 0], elbow: [1, 0, 0] }], [0.8, { lie: 'back', footR: [0, 0.42, -0.42], foot: [0, 0.12, 0], knee: [0, 1, 0.3], handR: [0.06, 0.12, -0.5], hand: [0.06, 0.55, 0], elbow: [1, 0, 0] }], [1, { lie: 'back', foot: [0, 0.42, -0.42], knee: [0, 1, 0.3], hand: [0.06, 0.55, 0], elbow: [1, 0, 0] }]] },
+  { id: 'legraise', name: 'رفع الساقين', kind: 'floor', grp: 'core', p: ['abs'], s: ['obliques', 'quads'], tempo: 3, reps: 12, sets: 3, met: 3.8, detect: 'tempo',
+    tips: ['ساقاك مستقيمتان', 'انزل ببطء دون أن تلمس الأرض'],
+    keys: [[0, { lie: 'back', foot: [0, 0.06, 0], knee: [0, 0.2, 1], hand: [0.1, -0.08, 0.42], elbow: [0.4, 1, 0] }], [0.45, { lie: 'back', foot: [0, 0.78, -0.8], knee: [0, 0.2, 1], hand: [0.1, -0.08, 0.42], elbow: [0.4, 1, 0] }], [0.55, { lie: 'back', foot: [0, 0.78, -0.8], knee: [0, 0.2, 1], hand: [0.1, -0.08, 0.42], elbow: [0.4, 1, 0] }], [1, { lie: 'back', foot: [0, 0.06, 0], knee: [0, 0.2, 1], hand: [0.1, -0.08, 0.42], elbow: [0.4, 1, 0] }]] },
+  { id: 'climbers', name: 'متسلق الجبال', kind: 'floor', grp: 'core', p: ['abs', 'quads'], s: ['delts', 'obliques'], tempo: 1.0, reps: 30, sets: 3, met: 8, detect: 'tempo',
+    tips: ['وركك منخفض', 'ركبة نحو صدرك بسرعة'],
+    keys: [[0, { lean: 66, plantHands: 1, foot: [0, 0.22, 0.55], knee: [0, -1, 0.4] }], [0.5, { lean: 66, plantHands: 1, footR: [0, 0.22, 0.55], foot: [0, 0, 0], knee: [0, -1, 0.4] }], [1, { lean: 66, plantHands: 1, foot: [0, 0.22, 0.55], knee: [0, -1, 0.4] }]] },
+  { id: 'russian', name: 'الالتواء الروسي', kind: 'floor', grp: 'core', p: ['obliques', 'abs'], s: ['lowerBack'], tempo: 2.4, reps: 20, sets: 3, met: 4, detect: 'tempo',
+    tips: ['ظهرك مائل للخلف ومستقيم', 'لفّ صدرك لا ذراعيك فقط'],
+    keys: [[0, { hips: [0, -0.84, -0.12], foot: [0, 0.1, 0.42], knee: [0.1, 1, 0.4], spine: [-10, 0, 30], hand: [-0.2, -0.25, 0.32], elbow: [0.6, -1, 0] }], [0.5, { hips: [0, -0.84, -0.12], foot: [0, 0.1, 0.42], knee: [0.1, 1, 0.4], spine: [-10, 0, -30], hand: [-0.2, -0.25, 0.32], elbow: [0.6, -1, 0] }], [1, { hips: [0, -0.84, -0.12], foot: [0, 0.1, 0.42], knee: [0.1, 1, 0.4], spine: [-10, 0, 30], hand: [-0.2, -0.25, 0.32], elbow: [0.6, -1, 0] }]] },
+  // ---- the neck
+  { id: 'neckiso', name: 'تقوية الرقبة (ثبات)', kind: 'stretch', grp: 'neck', p: ['neck'], s: ['traps'], tempo: 8, reps: 4, sets: 1, met: 1.5, detect: 'tempo',
+    tips: ['ادفع رأسك في يدك دون أن يتحرك', 'عشر ثوانٍ لكل اتجاه'],
+    keys: [[0, { hand: [-0.1, 0.34, 0.16], handR: [-0.1, 0.34, 0.16], elbow: [1, 0, 0.4] }], [0.25, { hand: [-0.1, 0.34, 0.16], handR: [-0.1, 0.34, 0.16], elbow: [1, 0, 0.4] }], [0.3, { hand: [0.02, 0.3, -0.12], handR: [0.02, 0.3, -0.12], elbow: [1, 0.3, -0.4] }], [0.55, { hand: [0.02, 0.3, -0.12], handR: [0.02, 0.3, -0.12], elbow: [1, 0.3, -0.4] }], [0.6, { handR: [0.03, 0.3, 0.02], elbowR: [1, 0, 0], head: [0, -5, 0] }], [0.78, { handR: [0.03, 0.3, 0.02], elbowR: [1, 0, 0], head: [0, -5, 0] }], [0.82, { hand: [0.03, 0.3, 0.02], elbow: [1, 0, 0], head: [0, 5, 0] }], [1, { hand: [0.03, 0.3, 0.02], elbow: [1, 0, 0], head: [0, 5, 0] }]] },
+  { id: 'chintuck', name: 'سحب الذقن', kind: 'stretch', grp: 'neck', p: ['neck'], s: ['upperBack'], tempo: 3, reps: 10, sets: 2, met: 1.5, detect: 'tempo',
+    tips: ['اسحب ذقنك للخلف كأنك تصنع ذقناً مزدوجاً', 'انظر للأمام'],
+    keys: [[0, { hand: DOWN }], [0.45, { head: [14, 0, 0], spine: [-4, 0, 0], hand: DOWN }], [0.6, { head: [14, 0, 0], spine: [-4, 0, 0], hand: DOWN }], [1, { hand: DOWN }]] },
+  { id: 'shrug', name: 'رفع الكتفين بالحبل', kind: 'band', band: 'feet', grp: 'neck', p: ['traps'], s: ['neck', 'forearms'], tempo: 2.4, reps: 15, sets: 3, met: 3, detect: 'tempo',
+    tips: ['ارفع كتفيك نحو أذنيك', 'لا تدحرج كتفيك'],
+    keys: [[0, { hand: [0.08, -0.55, 0.06], elbow: [1, 0, -0.3] }], [0.45, { shrug: 14, hand: [0.08, -0.5, 0.06], elbow: [1, 0, -0.3] }], [0.6, { shrug: 14, hand: [0.08, -0.5, 0.06], elbow: [1, 0, -0.3] }], [1, { hand: [0.08, -0.55, 0.06], elbow: [1, 0, -0.3] }]] },
 ];
 export const exerciseById = id => EXERCISES.find(e => e.id === id) || EXERCISES[0];
+// goals: تضخيم (muscle size: fewer, slower, harder reps, long rests) · تنشيف (definition: more reps, short rests)
+// · حرق (fat burning: timed 40 s work / 20 s rest circuits)
+export const GOALS = [['free', 'عام'], ['bulk', 'تضخيم'], ['cut', 'تنشيف'], ['burn', 'حرق']];
+const GOAL_TIP = { bulk: 'تضخيم: ٨–١٢ تكراراً ببطء، ٤ مجموعات، راحة ٩٠ ث — زِد مقاومة الحبل تدريجياً', cut: 'تنشيف: ١٥+ تكراراً، راحة قصيرة ٤٠ ث — حافظ على الإيقاع', burn: 'حرق: ٤٠ ثانية عمل و٢٠ راحة — دائرة من تمارين ترفع النبض' };
+export function withGoal(ex, g = settings.coachGoal) {
+  const e = { ...ex };
+  if (g === 'bulk') { e.sets = Math.max(4, ex.sets); if (ex.hold) e.hold = Math.round(ex.hold * 1.3); else e.reps = Math.max(8, Math.min(12, ex.reps)); if (ex.kind !== 'body' || ex.id === 'squat' || ex.id === 'lunge') e.tempo = ex.tempo * 1.25; e.rest = 90; }
+  else if (g === 'cut') { e.sets = 3; if (!ex.hold) e.reps = Math.max(15, ex.reps); e.tempo = ex.tempo * 0.9; e.rest = 40; }
+  else if (g === 'burn') { e.sets = 3; e.hold = 40; e.rest = 20; e.tempo = Math.min(ex.tempo, 1.8); e.burn = true; e.met = Math.max(ex.met, 7); }
+  return e;
+}
+// the body areas you asked for → their exercises
+export const GROUPS = [['hips', 'فك الحوض', e => e.grp === 'hips' || e.p.includes('adductors')], ['back', 'أسفل الظهر', e => e.grp === 'back' || e.p.includes('lowerBack')], ['tri', 'الترايسبس', e => e.p.includes('triceps')], ['bi', 'الباي', e => e.p.includes('biceps')], ['core', 'الوسط', e => e.grp === 'core' || e.p.includes('abs') || e.p.includes('obliques')], ['neck', 'الرقبة', e => e.grp === 'neck' || e.p.includes('neck') || e.p.includes('traps')]];
 
 // ---------------------------------------------------------------- the figure
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion();
@@ -147,6 +227,7 @@ export class Figure {
     const k = 1.78 / Math.max(1e-6, ty - fy);
     model.scale.multiplyScalar(k); model.position.y = -fy * k;
     this.toeZ = toe.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv).z * k;   // floor work pivots on the toes
+    { let heel = null; model.traverse(o => { if (o.isBone && /LeftFoot$/.test(o.name)) heel = o; }); this.heelZ = heel ? heel.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv).z * k - 0.05 : -0.05; }
     const body = new THREE.MeshStandardMaterial({ color: 0xc9d0dc, roughness: 0.38, metalness: 0.05, envMapIntensity: 0.9 });
     const joints = new THREE.MeshStandardMaterial({ color: 0x2b303b, roughness: 0.4, metalness: 0.3, envMapIntensity: 0.7 });
     model.traverse(o => {
@@ -163,6 +244,8 @@ export class Figure {
     // rest pose: every bone's own rotation and the hips' position
     this.rest = new Map();
     for (const b of Object.values(this.bones)) this.rest.set(b, { q: b.quaternion.clone(), p: b.position.clone() });
+    // the real muscles and skeleton (BodyParts3D), driven by the same bones - unless you chose the simple figure
+    if (settings.coachBody !== 'simple') await this.useAnatomy(true);
     this.mixer = new THREE.AnimationMixer(model);
     this.clips = Object.fromEntries(g.animations.map(c => [c.name, c]));
     return this;
@@ -187,7 +270,15 @@ export class Figure {
     }
     geo.setAttribute('aMuscle', new THREE.BufferAttribute(ids, 1));
   }
+  async useAnatomy(on) {
+    if (on && !this.anat) { try { this.anat = await buildAnatomy(this); } catch (e) { console.warn('anatomy', e); this.anatErr = e.message || String(e); } }
+    if (this.anat) this.anat.group.visible = on;
+    this.model.traverse(o => { if (o.isSkinnedMesh && !(this.anat && this.anat.group.children.includes(o))) o.visible = !(on && this.anat); });
+    this.anatOn = !!(on && this.anat);
+    this.anat?.setGlow(this.lastGlow?.[0], this.lastGlow?.[1], this.lastGlow?.[2]);
+  }
   setMuscles(primary = [], secondary = [], k = 1) {
+    this.lastGlow = [primary, secondary, k]; this.anat?.setGlow(primary, secondary, k);
     this.glow.fill(0);
     for (const m of secondary) this.glow[MUSCLES.indexOf(m)] = 0.45 * k;
     for (const m of primary) this.glow[MUSCLES.indexOf(m)] = 1.0 * k;
@@ -199,21 +290,30 @@ export class Figure {
     const B = this.bones; if (!B.Hips) return;
     this.resetPose();
     this.root.updateMatrixWorld(true);
-    // where the ankles stand when upright (the legs reach back to them)
+    // floor exercises: the whole body leans forward around the toes (push-ups), lies on its back (pivot at the heels)
+    // or on its front - seen from the side
+    const lean = P.lie === 'back' ? -90 : P.lie === 'front' ? 90 : P.lean;
+    if (lean) {
+      const pz = P.lie === 'back' ? (this.heelZ || 0) : (this.toeZ || 0);
+      this.pivot.position.set(0, P.lie ? 0.1 : 0, pz + (P.lie === 'back' ? 0.8 : P.lie === 'front' ? -0.8 : 0)); this.model.position.z = -pz;   // lying: centred on the mat
+      this.pivot.rotation.x = THREE.MathUtils.degToRad(lean); this.root.updateMatrixWorld(true);
+    }
+    // where the ankles are before the pose (the legs reach back to them)
     const restFoot = { L: B.LeftFoot.getWorldPosition(new THREE.Vector3()), R: B.RightFoot.getWorldPosition(new THREE.Vector3()) };
-    // floor exercises: the whole body leans forward around the feet (seen from the side)
-    if (P.lean) { this.pivot.position.z = this.toeZ || 0; this.model.position.z = -(this.toeZ || 0); this.pivot.rotation.x = THREE.MathUtils.degToRad(P.lean); this.root.updateMatrixWorld(true); }
     const X = new THREE.Vector3(1, 0, 0);
     const k = this.root.getWorldScale(new THREE.Vector3()).y / B.Hips.parent.getWorldScale(new THREE.Vector3()).y;   // metres → the skeleton's units
     const hip = this.rest.get(B.Hips).p;
     if (P.hips) B.Hips.position.set(hip.x + P.hips[0] * k, hip.y + P.hips[1] * k, hip.z + P.hips[2] * k);
     if (P.tilt) { B.Hips.quaternion.multiply(q1.setFromAxisAngle(X, THREE.MathUtils.degToRad(P.tilt))); B.Spine.quaternion.multiply(q1.setFromAxisAngle(X, -THREE.MathUtils.degToRad(P.tilt) * 0.6)); }
+    if (P.pitch) B.Hips.quaternion.multiply(q1.setFromAxisAngle(X, THREE.MathUtils.degToRad(P.pitch)));   // the whole body from the pelvis (bridges)
     if (P.spine) { const [pt, sd, tw] = P.spine.map(THREE.MathUtils.degToRad); for (const [n, f] of [['Spine', 0.4], ['Spine1', 0.3], ['Spine2', 0.3]]) B[n].quaternion.multiply(q1.setFromEuler(new THREE.Euler(pt * f, tw * f, sd * f))); }
     if (P.head) { const [pt, rl, yw] = P.head.map(THREE.MathUtils.degToRad); for (const n of ['Neck', 'Head']) B[n].quaternion.multiply(q1.setFromEuler(new THREE.Euler(pt * 0.5, yw * 0.5, rl * 0.5))); }
+    if (P.shrug) { const a = THREE.MathUtils.degToRad(P.shrug); B.LeftShoulder.quaternion.multiply(q1.setFromAxisAngle(new THREE.Vector3(0, 0, 1), a)); B.RightShoulder.quaternion.multiply(q1.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -a)); }
     this.root.updateMatrixWorld(true);
     const bodyQ = this.pivot.getWorldQuaternion(new THREE.Quaternion());
     // legs: the ankles where the pose wants them, knees bending forward, feet flat (or heels raised)
-    if (!P.lean) for (const s of ['L', 'R']) {
+    const yawQ = this.yaw.getWorldQuaternion(new THREE.Quaternion());
+    if (!lean || P.foot || P.footR) for (const s of ['L', 'R']) {
       const side = s === 'L' ? 'Left' : 'Right', m = s === 'L' ? 1 : -1;
       const up = B[side + 'UpLeg'], leg = B[side + 'Leg'], foot = B[side + 'Foot'];
       const f = s === 'L' ? P.foot : (P.footR ?? P.foot);
@@ -222,7 +322,7 @@ export class Figure {
       const kn = P.knee ? new THREE.Vector3(P.knee[0] * m, P.knee[1], P.knee[2]) : new THREE.Vector3(0.1 * m, 0, 1);
       ik2(up, leg, foot, t, this.toWorldDir(kn));
       const heel = (s === 'L' ? P.heel : (P.heelR ?? P.heel)) || 0;
-      const want = bodyQ.clone().multiply(q1.setFromAxisAngle(X, THREE.MathUtils.degToRad(heel)));
+      const want = (P.footFlat ? yawQ : bodyQ).clone().multiply(q1.setFromAxisAngle(X, THREE.MathUtils.degToRad(heel)));
       foot.quaternion.copy(foot.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(want)); foot.updateMatrixWorld(true);
     }
     // arms: wrists to the targets (from the shoulder joint), elbows pointing where asked
@@ -233,7 +333,7 @@ export class Figure {
       if (P.plantHands || P.plantForearms) {
         // on the floor, under the shoulders
         const floorY = this.root.getWorldPosition(new THREE.Vector3()).y + 0.04 * this.root.getWorldScale(new THREE.Vector3()).y;
-        const t = sh.clone().add(this.toWorldDir(new THREE.Vector3(0.06 * m, 0, P.plantForearms ? 0.22 : 0.02))); t.y = floorY;
+        const t = sh.clone().add(this.toWorldDir(new THREE.Vector3((P.handsIn ? -0.12 : 0.06) * m, 0, P.plantForearms ? 0.22 : 0.02))); t.y = floorY;
         ik2(arm, fore, hand, t, this.toWorldDir(new THREE.Vector3(0.6 * m, 0, -1)));
         continue;
       }
@@ -271,7 +371,8 @@ export function poseAt(ex, t) {
     if (Array.isArray(x) || Array.isArray(y)) {
       const xx = x || (key === 'hand' || key === 'handR' ? DOWN : [0, 0, 0]), yy = y || (key === 'hand' || key === 'handR' ? DOWN : [0, 0, 0]);
       out[key] = xx.map((v, j) => v + (yy[j] - v) * f);
-    } else out[key] = (x ?? 0) + ((y ?? 0) - (x ?? 0)) * f;
+    } else if (typeof (x ?? y) === 'string') out[key] = x ?? y;
+    else out[key] = (x ?? 0) + ((y ?? 0) - (x ?? 0)) * f;
   }
   return out;
 }
@@ -388,7 +489,7 @@ export class CoachWindow {
     }
     this.group = new THREE.Group(); this.group.userData.window = this;
     this.mode = mode;
-    this.ex = exerciseById(ex || settings.coachEx || (settings.hasBand ? 'curl' : 'squat'));
+    this.ex = withGoal(exerciseById(ex || settings.coachEx || (settings.hasBand ? 'curl' : 'squat')));
     this.state = 'idle'; this.rep = 0; this.set = 1; this.phase = 0; this.clock = 0; this.restLeft = 0; this.kcal = 0; this.secs = 0; this.log = [];
     this.figure = new Figure();
     this.figure.root.position.set(0, -1.55, -0.2);   // standing on the floor in front of you
@@ -429,11 +530,17 @@ export class CoachWindow {
     else this.app.toast('تعذّر تشغيل الكاميرا: ' + (this.cam.error || ''), 3500);
     this.main.redraw();
   }
-  choose(id) { this.cam?.reset(); this.ex = exerciseById(id); saveSettings({ coachEx: this.ex.id }); this.state = 'idle'; this.rep = 0; this.set = 1; this.applyEx(); }
+  choose(id) { this.cam?.reset(); this.ex = withGoal(exerciseById(id)); saveSettings({ coachEx: this.ex.id }); this.state = 'idle'; this.rep = 0; this.set = 1; this.applyEx(); }
   program() {
-    const band = settings.hasBand !== false;
+    const band = settings.hasBand !== false, g = settings.coachGoal;
+    const grp = GROUPS.find(x => x[0] === this.area);
+    if (grp) return EXERCISES.filter(e => grp[2](e) && (e.kind !== 'band' || band)).map(e => e.id);
+    if (g === 'bulk') return band ? ['squat', 'pushup', 'row', 'curl', 'press', 'overhead', 'chestpress', 'hammer', 'lunge', 'bridge', 'diamond', 'crunch'] : ['squat', 'pushup', 'lunge', 'diamond', 'bridge', 'superman', 'crunch', 'legraise'];
+    if (g === 'cut') return band ? ['squat', 'row', 'pushup', 'curl', 'pushdown', 'lunge', 'lateral', 'bicycle', 'legraise', 'climbers', 'plank'] : ['squat', 'pushup', 'lunge', 'diamond', 'bicycle', 'legraise', 'climbers', 'plank'];
+    if (g === 'burn') return ['jacks', 'squat', 'climbers', 'knees', 'lunge', 'bicycle', 'russian', 'pushup'];
     return band ? ['squat', 'curl', 'press', 'row', 'lateral', 'chestpress', 'pushdown', 'lunge', 'calf', 'plank'] : ['squat', 'lunge', 'jacks', 'knees', 'pushup', 'plank', 'calf'];
   }
+  setGoal(g) { saveSettings({ coachGoal: g === 'free' ? null : g }); this.choose(this.ex.id); this.menu.redraw(); say({ bulk: 'برنامج التضخيم', cut: 'برنامج التنشيف', burn: 'برنامج الحرق', free: 'تمارين عامة' }[g]); if (GOAL_TIP[g]) this.app.toast(GOAL_TIP[g], 5000); }
   start() {
     if (this.state === 'run' || this.state === 'count') { this.state = 'pause'; say('توقف'); this.main.redraw(); return; }
     if (this.state === 'pause') { this.state = 'run'; say('نكمل'); this.main.redraw(); return; }
@@ -450,7 +557,7 @@ export class CoachWindow {
     const e = this.ex;
     this.log.push({ ex: e.id, reps: this.rep, set: this.set, at: Date.now() });
     if (this.set >= e.sets) { this.state = 'done'; say('أحسنت! انتهى تمرين ' + e.name); blip('open', true); setTimeout(() => { if (this.state === 'done') this.next(); }, 3500); }
-    else { this.state = 'rest'; this.restLeft = settings.coachRest || 30; say('ممتاز. استرح ' + this.restLeft + ' ثانية'); }
+    else { this.state = 'rest'; this.restLeft = e.rest || settings.coachRest || 30; say('ممتاز. استرح ' + this.restLeft + ' ثانية'); }
     this.main.redraw();
   }
   countRep() {
@@ -561,7 +668,7 @@ export class CoachWindow {
     text(ctx, this.state === 'count' ? arNum(Math.max(1, this.left || 3)) : arNum(big), W / 2, 330, 150, { weight: 800, color: this.state === 'rest' ? '#9fd4ff' : '#fff1e6', dir: 'rtl' });
     ctx.restore();
     text(ctx, label, W / 2, 425, 28, { color: COLORS.dim, weight: 700 });
-    text(ctx, 'المجموعة ' + arNum(this.set) + ' / ' + arNum(e.sets) + '  ·  ' + arNum(Math.round(this.kcal)) + ' سعرة', W / 2, 475, 26, { weight: 700 });
+    text(ctx, 'المجموعة ' + arNum(this.set) + ' / ' + arNum(e.sets) + '  ·  ' + arNum(Math.round(this.kcal)) + ' سعرة' + (settings.coachGoal ? '  ·  ' + GOALS.find(x => x[0] === settings.coachGoal)[1] : ''), W / 2, 475, 26, { weight: 700 });
     const src = this.cam.on ? (this.cam.m?.seen ? '📷 العدّ والتصحيح من كاميرا الجسم' : '📷 لا أرى جسمك — ابتعد قليلاً') : e.detect === 'tempo' ? 'العدّ مع إيقاع المدرب' : this.motion.ok ? (window.MadarIOS ? 'العدّ من حركة رأسك (ARKit)' : 'العدّ من حساسات الحركة') : 'العدّ مع إيقاع المدرب';
     text(ctx, src, W / 2, 515, 21, { color: COLORS.dim });
     text(ctx, this.tipText || e.tips[Math.floor(performance.now() / 6000) % e.tips.length], W / 2, 560, 25, { color: '#9fe7c0', weight: 700, maxWidth: W - 60, fit: true });
@@ -586,11 +693,25 @@ export class CoachWindow {
   }
   drawMap(ctx, W, H, p) {
     roundRect(ctx, 0, 0, W, H, 50); ctx.fillStyle = 'rgba(12,16,26,0.82)'; ctx.fill(); glass(ctx, 0, 0, W, H, 50);
-    text(ctx, 'العضلات العاملة', W / 2, 52, 32, { weight: 800 });
-    const hits = drawMuscleMap(ctx, 20, 80, W - 40, H - 250, this.ex.p, this.ex.s, performance.now() / 1000, this.pickMuscle);
-    text(ctx, 'اضغط عضلة لترى تمارينها', W / 2, H - 196, 20, { color: '#9fd4ff', weight: 700 });
-    p.region(20, 80, W - 40, H - 250, (lx, ly) => {
-      const hit = hits.slice().reverse().find(([, path]) => ctx.isPointInPath(path, lx + 20, ly + 80));
+    text(ctx, 'العضلات العاملة', W / 2, 108, 26, { weight: 800 });
+    // «الرسم التشريحي»: the detailed anatomical drawing (Wikimedia Commons, CC BY-SA 3.0) instead of the tap map
+    { const hv = p.isHover('ana'); roundRect(ctx, 24, 24, 200, 54, 27); ctx.fillStyle = this.anatomy ? 'rgba(255,150,80,0.9)' : hv ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
+      text(ctx, this.anatomy ? 'الخريطة التفاعلية' : 'الرسم التشريحي', 124, 51, 20, { weight: 800, color: this.anatomy ? '#2a1405' : COLORS.text });
+      p.region(24, 24, 200, 54, () => { blip('tap', settings.sounds); this.anatomy = !this.anatomy; this.map.redraw(); }, 'ana'); }
+    { const hv = p.isHover('body'), real = settings.coachBody !== 'simple'; roundRect(ctx, W - 224, 24, 200, 54, 27); ctx.fillStyle = hv ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
+      text(ctx, real ? 'المجسم: عضلات حقيقية' : 'المجسم: بسيط', W - 124, 51, 19, { weight: 800, maxWidth: 190, fit: true });
+      p.region(W - 224, 24, 200, 54, async () => { blip('tap', settings.sounds); saveSettings({ coachBody: real ? 'simple' : 'real' }); this.app.toast(real ? 'المجسم البسيط' : '⏳ تحميل العضلات الحقيقية…', 2000); await this.figure.useAnatomy(!real); this.map.redraw(); if (!real && this.figure.anatErr) this.app.toast('تعذّر تحميل المجسم التشريحي', 3000); }, 'body'); }
+    if (this.anatomy) {
+      const im = ANAT.front.complete && ANAT.back.complete ? ANAT : null;
+      if (!im) { ANAT.front.onload = ANAT.back.onload = () => this.map.redraw(); text(ctx, 'جاري التحميل…', W / 2, H / 2, 26, { color: COLORS.dim }); return; }
+      const bh = H - 290, top = 130;
+      [[ANAT.front, W * 0.75, 'أمام'], [ANAT.back, W * 0.25, 'خلف']].forEach(([img, cx, l]) => { const k = Math.min(bh / img.naturalHeight, (W / 2 - 20) / img.naturalWidth), w = img.naturalWidth * k, h = img.naturalHeight * k; ctx.drawImage(img, cx - w / 2, top, w, h); text(ctx, l, cx, top + h + 22, 20, { color: COLORS.dim, weight: 700 }); });
+      text(ctx, 'رسم: Wikimedia Commons «Muscular system» · CC BY-SA 3.0', W / 2, H - 22, 15, { color: COLORS.dim, dir: 'ltr' });
+    }
+    const hits = this.anatomy ? [] : drawMuscleMap(ctx, 20, 130, W - 40, H - 300, this.ex.p, this.ex.s, performance.now() / 1000, this.pickMuscle);
+    if (!this.anatomy) text(ctx, 'اضغط عضلة لترى تمارينها', W / 2, H - 196, 20, { color: '#9fd4ff', weight: 700 });
+    p.region(20, 130, W - 40, H - 300, (lx, ly) => {
+      const hit = hits.slice().reverse().find(([, path]) => ctx.isPointInPath(path, lx + 20, ly + 130));
       if (!hit) return;
       blip('tap', settings.sounds); this.pickMuscle = hit[0]; this.map.redraw();
       if (!this.menu.mesh.parent) this.openMenu(); else this.menu.redraw();
@@ -616,17 +737,29 @@ export class CoachWindow {
     }
     const hc = p.isHover('x'); ctx.beginPath(); ctx.arc(64, 60, 32, 0, 7); ctx.fillStyle = hc ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.08)'; ctx.fill(); icon(ctx, 'close', 64, 60, 28);
     p.region(24, 20, 80, 80, () => this.openMenu(), 'x');
+    // goal chips (left) and body areas (second row)
+    const goal = settings.coachGoal || 'free';
+    const chip = (id, label, x, y, w, on, act) => { const hv = p.isHover(id); roundRect(ctx, x, y, w, 52, 26); ctx.fillStyle = on ? 'rgba(255,150,80,0.92)' : hv ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill(); text(ctx, label, x + w / 2, y + 26, 22, { weight: 800, color: on ? '#2a1405' : COLORS.text, maxWidth: w - 10, fit: true }); p.region(x, y, w, 52, () => { blip('tap', settings.sounds); act(); this.menuPage = 0; this.menu.redraw(); }, id); };
+    if (!pm) GOALS.forEach(([k, l], i) => chip('g' + k, l, 120 + i * 118, 34, 110, goal === k, () => this.setGoal(k)));
+    const gw = (W - 60 - 10 * 6) / 7;
+    [['all', 'كل التمارين', null], ...GROUPS].forEach(([k, l], i) => chip('a' + k, l, W - 30 - (i + 1) * gw - i * 10, 128, gw, (this.area || 'all') === k && !pm, () => { this.area = k === 'all' ? null : k; this.pickMuscle = null; this.map.redraw(); }));
     let list = EXERCISES.filter(e => e.kind !== 'band' || settings.hasBand !== false);
+    const grp = GROUPS.find(x => x[0] === this.area);
     if (pm) list = list.filter(e => e.p.includes(pm) || e.s.includes(pm)).sort((a, b) => (b.p.includes(pm) ? 1 : 0) - (a.p.includes(pm) ? 1 : 0));
+    else if (grp) list = list.filter(grp[2]);
     if (!list.length) { text(ctx, 'لا يوجد تمرين لهذه العضلة بعد', W / 2, H / 2, 30, { color: COLORS.dim }); return; }
-    const cols = 4, top = 130, pad = 30, g = 12;
-    const cw = (W - pad * 2 - g * (cols - 1)) / cols, rows = Math.ceil(list.length / cols), ch = Math.min(120, (H - top - 20 - g * (rows - 1)) / rows);
+    const cols = 4, rowsN = 3, per = cols * rowsN, pages = Math.ceil(list.length / per), top = 198, pad = 30, g = 12;
+    this.menuPage = Math.min(this.menuPage || 0, pages - 1);
+    if (pages > 1) [['pp', 'chevR', -1, W / 2 + 90], ['pn', 'chevL', 1, W / 2 - 90]].forEach(([id, ic, d, x]) => { const hv = p.isHover(id); ctx.beginPath(); ctx.arc(x, H - 34, 26, 0, 7); ctx.fillStyle = hv ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'; ctx.fill(); icon(ctx, ic, x, H - 34, 24); p.region(x - 40, H - 70, 80, 70, () => { this.menuPage = (this.menuPage + d + pages) % pages; this.menu.redraw(); }, id); });
+    if (pages > 1) text(ctx, arNum(this.menuPage + 1) + ' / ' + arNum(pages), W / 2, H - 34, 22, { color: COLORS.dim, weight: 700 });
+    const cw = (W - pad * 2 - g * (cols - 1)) / cols, ch = (H - top - 70 - g * (rowsN - 1)) / rowsN;
+    list = list.slice(this.menuPage * per, this.menuPage * per + per);
     list.forEach((e, i) => {
       const c = i % cols, r = Math.floor(i / cols), x = W - pad - (c + 1) * cw - c * g, y = top + r * (ch + g), id = 'e' + i, hov = p.isHover(id), on = e.id === this.ex.id;
       roundRect(ctx, x, y, cw, ch, 24); ctx.fillStyle = on ? 'rgba(255,150,80,0.9)' : hov ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.07)'; ctx.fill();
       text(ctx, e.name, x + cw / 2, y + ch * 0.38, 25, { weight: 800, color: on ? '#2a1405' : COLORS.text, maxWidth: cw - 16, fit: true });
       text(ctx, (pm && !e.p.includes(pm) ? 'مساعد · ' : '') + e.p.map(m => MUSCLE_AR[m]).join('، ') + (e.kind === 'band' ? ' · حبل' : ''), x + cw / 2, y + ch * 0.72, 18, { color: on ? '#4a2a10' : COLORS.dim, maxWidth: cw - 16, fit: true });
-      p.region(x, y, cw, ch, () => { blip('tap', settings.sounds); this.choose(e.id); this.openMenu(); }, id);
+      p.region(x, y, cw, ch, () => { blip('tap', settings.sounds); this.choose(e.id); this.openMenu(); say(e.name); }, id);
     });
   }
   // ---- Apple Health (the app's HealthKit when it has it, else an iPhone Shortcut)
