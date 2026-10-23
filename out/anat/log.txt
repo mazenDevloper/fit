@@ -1,15 +1,1 @@
-https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|size|extmetadata&titles=File:Muscular_system.svg 200 2341 application/json; charset=utf-8
-  Muscular_system.svg: https://upload.wikimedia.org/wikipedia/commons/1/13/Muscular_system.svg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original 3922457 CC BY-SA 3.0
-https://upload.wikimedia.org/wikipedia/commons/1/13/Muscular_system.svg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original 200 3922457 image/svg+xml
-https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|size|extmetadata&titles=File:Muscular_system-back.svg 200 2340 application/json; charset=utf-8
-  Muscular_system-back.svg: https://upload.wikimedia.org/wikipedia/commons/9/90/Muscular_system-back.svg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original 3321999 CC BY-SA 3.0
-https://upload.wikimedia.org/wikipedia/commons/9/90/Muscular_system-back.svg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original 200 3321999 image/svg+xml
-https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|size|extmetadata&titles=File:Muscles_anterior_labeled.png 200 3938 application/json; charset=utf-8
-  Muscles_anterior_labeled.png: https://upload.wikimedia.org/wikipedia/commons/e/e5/Muscles_anterior_labeled.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original 2420692 Public domain
-https://upload.wikimedia.org/wikipedia/commons/e/e5/Muscles_anterior_labeled.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original 200 2420692 image/png
-https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|size|extmetadata&titles=File:Muscles_posterior_labeled.png 200 236 application/json; charset=utf-8
-  Muscles_posterior_labeled.png: None None None
-https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|size|extmetadata&titles=File:Muscle_front_and_back.svg 200 224 application/json; charset=utf-8
-  Muscle_front_and_back.svg: None None None
-https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/ 200 4043 text/html;charset=UTF-8
-https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html 200 20945 text/html; charset=utf-8
+pip 0
