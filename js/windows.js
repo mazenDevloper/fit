@@ -150,6 +150,24 @@ export class Toolbar {
   dispose() { this.panel.dispose(); }
 }
 
+// The volume of a video / audio element. Safari on iPhone ignores element.volume, so there it goes through a
+// Web Audio gain (the element must be CORS-clean - Madar's videos are, they are drawn as textures).
+let AC = null;
+export function setElementVolume(el, v) {
+  if (!el) return;
+  try { el.volume = v; } catch {}
+  if (Math.abs((el.volume ?? v) - v) < 0.01 && !el._gain) return;
+  if (!el._gain && !el.crossOrigin && !/^(blob|data):/.test(el.currentSrc || el.src || '')) return;   // not CORS-clean: a gain would silence it
+  try {
+    if (!el._gain) {
+      AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+      const src = AC.createMediaElementSource(el), g = AC.createGain(); src.connect(g).connect(AC.destination); el._gain = g;
+    }
+    if (AC.state === 'suspended') AC.resume().catch(() => {});
+    el._gain.gain.value = v; try { el.volume = 1; } catch {}
+  } catch {}
+}
+
 let winId = 0;
 
 // The page is drawn a little larger than its window; the window's opaque rim hides the overflow,
@@ -476,17 +494,47 @@ class SpatialWindow {
       this.mgr.app.renderLibrary?.(); this.mgr.app.launcher?.refresh?.();
     } catch { this.mgr.app.toast('هذا المحتوى لا يسمح بالتقاط صورة منه', 3000); }
   }
+  // ---- sound: one easy control for each window (tap the speaker: − / slider / + / mute; or say «ارفع الصوت»)
+  isMuted() { return !!this.mute; }
+  setVolume(v, mute = this.isMuted()) {
+    this.vol = Math.round(THREE.MathUtils.clamp(v, 0, 1) * 100) / 100; this.mute = !!mute;
+    this.applyVolume?.(); this.volPop?.redraw(); this.toolbar?.redraw(); this.mgr.changed();
+  }
+  volIcon() { return this.isMuted() || this.vol === 0 ? 'mute' : 'sound'; }
+  stepVolume(d) { this.setVolume((this.vol ?? 1) + d, false); this.mgr.app.toast((this.vol > 0 ? '🔊 ' : '🔇 ') + Math.round(this.vol * 100) + '%', 1200); }
+  toggleVolume() {
+    if (this.volPop?.mesh.parent) { this.group.remove(this.volPop.mesh); this.mgr.refreshTargets?.(); return; }
+    if (this.vol == null) this.vol = 1;
+    if (!this.volPop) this.volPop = new CanvasPanel(0.62, 0.1, (ctx, W, H, p) => {
+      glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2); ctx.fillStyle = 'rgba(14,18,28,0.55)'; roundRect(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2); ctx.fill();
+      const muted = this.isMuted(), v = muted ? 0 : (this.vol ?? 1), b = H * 0.8;
+      const btn = (id, ic, cx, act) => { const hv = p.isHover(id); ctx.beginPath(); ctx.arc(cx, H / 2, b / 2, 0, 7); ctx.fillStyle = hv ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'; ctx.fill(); icon(ctx, ic, cx, H / 2, b * 0.55); p.region(cx - b / 2, 0, b, H, () => { blip('tap', settings.sounds); act(); this.pokeVolume(); }, id); };
+      btn('mu', muted ? 'mute' : 'sound', H * 0.6, () => this.setVolume(this.vol || 0.6, !muted));
+      btn('dn', 'minus', H * 1.55, () => this.setVolume((this.vol ?? 1) - 0.1, false));
+      btn('up', 'plus', W - H * 0.6, () => this.setVolume((this.vol ?? 1) + 0.1, false));
+      const x0 = H * 2.2, x1 = W - H * 1.95, y = H / 2;
+      ctx.fillStyle = 'rgba(255,255,255,0.2)'; roundRect(ctx, x0, y - 7, x1 - x0, 14, 7); ctx.fill();
+      ctx.fillStyle = muted ? 'rgba(255,255,255,0.35)' : '#7cc4ff'; roundRect(ctx, x0, y - 7, Math.max(14, (x1 - x0) * v), 14, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(x0 + (x1 - x0) * v, y, p.isHover('bar') ? 20 : 16, 0, 7); ctx.fillStyle = '#fff'; ctx.fill();
+      text(ctx, Math.round(v * 100) + '%', x1 + H * 0.5, y, H * 0.3, { dir: 'ltr', weight: 800 });
+      p.region(x0 - 16, 0, x1 - x0 + 32, H, lx => { this.setVolume((lx - 16) / (x1 - x0), false); this.pokeVolume(); }, 'bar');
+    }, { pxPerM: 1500 });
+    const tb = this.toolbar?.mesh.position || new THREE.Vector3(0, -this.h / 2 - 0.12, 0.004);
+    this.volPop.mesh.position.set(Math.min(0.3, (this.toolbar?.width || 1) / 2 - 0.31), tb.y + 0.15, 0.03);
+    this.volPop.redraw(); this.group.add(this.volPop.mesh); this.mgr.refreshTargets?.(); this.pokeVolume();
+  }
+  pokeVolume() { clearTimeout(this.volT); this.volT = setTimeout(() => { if (this.volPop?.mesh.parent) { this.group.remove(this.volPop.mesh); this.mgr.refreshTargets?.(); } }, 6000); }
   update() {}
   ref() { return null; }
   serialize() {
     const g = this.group;
-    return { kind: this.kind, ref: this.ref(), p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), c: this.curved, wl: this.wallLock || undefined, ek: this.envPin || undefined, cut: this.cut || undefined };
+    return { vol: this.vol != null && this.vol !== 1 ? this.vol : undefined, kind: this.kind, ref: this.ref(), p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), c: this.curved, wl: this.wallLock || undefined, ek: this.envPin || undefined, cut: this.cut || undefined };
   }
   dispose() {
     if (this.mgr.cinema === this) this.mgr.cinema = null;
     this.more?.dispose(); this.setGlow(false);
     this.content.geometry.dispose(); this.mat.dispose(); this.frame.geometry.dispose(); this.frame.material.dispose();
-    this.bar.material.map?.dispose(); this.closeBtn.dispose(); this.pinBtn?.dispose(); this.toolbar?.dispose();
+    this.bar.material.map?.dispose(); this.closeBtn.dispose(); this.pinBtn?.dispose(); this.toolbar?.dispose(); this.volPop?.dispose(); clearTimeout(this.volT);
   }
 }
 
@@ -557,6 +605,8 @@ class PicturePanel {
 }
 
 export class VideoWindow extends SpatialWindow {
+  isMuted() { return !!this.video?.muted; }
+  applyVolume() { const v = this.video; if (!v) return; v.muted = this.mute; setElementVolume(v, this.vol ?? 1); if (!this.mute && v.paused && !this.userPaused) v.play().catch(() => {}); }
   constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null, fmt = null, proj = null, browser = false }) {
     super(mgr, 'video');
     this.browser = browser; this.pageUrl = browser ? (url || '') : ''; this.pageTitle = '';
@@ -600,7 +650,7 @@ export class VideoWindow extends SpatialWindow {
         { icon: 'enter', action: () => this.key('enter') },
         { icon: 'sliders', action: () => this.togglePicture() },
         { icon: () => this.headLock ? 'target' : 'grid', action: () => { this.headLock = !this.headLock; this.mgr.app.toast(this.headLock ? 'الشاشة مثبتة أمام عينيك وتتبع رأسك' : 'الشاشة ثابتة في مكانها بالغرفة'); } },
-        { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
+        { icon: () => this.volIcon(), action: () => this.toggleVolume() },
         { icon: () => this.proj === '360' ? 'image' : 'globe', active: () => this.proj === '360', action: () => this.setProjection(this.proj === '360' ? 'flat' : '360') },
         { icon: () => this.curved ? 'flat' : 'curve', active: () => this.curved, action: () => this.setCurved(!this.curved) },
         { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
@@ -617,7 +667,7 @@ export class VideoWindow extends SpatialWindow {
       { icon: () => this.video.paused ? 'play' : 'pause', action: () => this.togglePlay() },
       { icon: 'fwd', action: () => { this.video.currentTime = Math.min(this.video.duration || 0, this.video.currentTime + 10); } },
       'progress',
-      { icon: () => this.video.muted ? 'mute' : 'sound', action: () => { this.video.muted = !this.video.muted; } },
+      { icon: () => this.volIcon(), action: () => this.toggleVolume() },
       { icon: 'cast', action: () => this.cast() },
       { icon: 'sliders', action: () => { this.toggleOptions(); this.togglePicture(); } },
       { icon: () => this.proj === '360' ? 'image' : 'globe', active: () => this.proj === '360', action: () => { this.setProjection(this.proj === '360' ? 'flat' : '360'); this.mgr.changed(); } },
@@ -720,7 +770,7 @@ export class VideoWindow extends SpatialWindow {
       const Q = QUALITY.map(x => x[0]);
       return [...base,
         ['جودة البث', (QUALITY.find(x => x[0] === picture().quality) || QUALITY[1])[1], () => { const n = Q[(Q.indexOf(picture().quality) + 1) % Q.length]; saveSettings({ picture: Object.assign(picture(), { quality: n }) }); this.pic?.panel.redraw(); this.sendQuality(n); }],
-        ['الصوت', v.muted ? 'مكتوم' : 'يعمل', () => { v.muted = !v.muted; }],
+        ['الصوت', v.muted ? 'مكتوم' : Math.round((this.vol ?? 1) * 100) + '%', () => this.toggleVolume()],
         ['صورة', 'ضبط', () => this.togglePicture()],
       ];
     }
@@ -1186,9 +1236,9 @@ export class WebWindow extends SpatialWindow {
     items.push({ icon: 'reload', action: () => this.reload() });
     if (this.yt) items.push(
       { icon: () => this.ytState.playing ? 'pause' : 'play', action: () => this.ytToggle() },
-      { icon: () => this.ytState.muted ? 'mute' : 'sound', action: () => this.ytMute(!this.ytState.muted) },
+      { icon: () => this.volIcon(), action: () => this.toggleVolume() },
     );
-    if (!this.yt) items.push({ icon: () => this.snap ? 'video' : 'stack', active: () => !this.snap, action: () => this.toggleLive() });
+    if (!this.yt) items.push({ icon: () => this.snap ? 'video' : 'stack', active: () => !this.snap, action: () => this.toggleLive() }, { icon: () => this.volIcon(), action: () => this.toggleVolume() });
     items.push(
       { icon: () => this.proj === '360' ? 'image' : 'globe', active: () => this.proj === '360', action: () => this.view360(this.proj !== '360') },
       { icon: () => this.curved ? 'flat' : 'curve', active: () => this.curved, action: () => this.viewCurved(!this.curved) },
@@ -1580,7 +1630,13 @@ export class WebWindow extends SpatialWindow {
   }
   cmd(eye, func, args = []) { try { this.css[eye].f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com'); } catch {} }
   ytToggle() { const p = !this.ytState.playing; this.ytState.playing = p; [0, 1].forEach(e => this.cmd(e, p ? 'playVideo' : 'pauseVideo')); }
-  ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [100]); }
+  isMuted() { return this.yt ? !!this.ytState?.muted : !!this.mute; }
+  applyVolume() {
+    const v = this.mute ? 0 : (this.vol ?? 1);
+    if (this.yt) { this.ytMute(this.mute); if (!this.mute) this.cmd(0, 'setVolume', [Math.round(v * 100)]); }
+    else this.send({ type: 'volume', v });
+  }
+  ytMute(m) { this.ytState.muted = m; this.cmd(0, m ? 'mute' : 'unMute'); this.cmd(1, 'mute'); if (!m) this.cmd(0, 'setVolume', [Math.round((this.vol ?? 1) * 100)]); }
   mediaToggle() { this.send({ type: 'media', a: 'toggle' }); }
   toggleKeyboard() {
     const kb = this.mgr.windows.find(w => w.kind === 'keyboard');
@@ -1935,6 +1991,7 @@ export class WindowManager {
         if (s.q) win.group.quaternion.fromArray(s.q);
         win.group.scale.setScalar(s.s || 1);
         win.wallLock = !!s.wl; if (s.ek) win.envPin = s.ek;
+        if (s.vol != null && win.setVolume) setTimeout(() => win.setVolume(s.vol, false), 1500);
         if (s.cut) setTimeout(() => win.setCut?.(s.cut), 400);
         if (s.kind === 'model') { win.rot = s.r || 0; win.spin = !!s.spin; }
         else if (s.c) { win.curved = true; win.updateRadius(); win.layout(); }

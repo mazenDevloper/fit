@@ -7,7 +7,7 @@ import { StageOrientation, HeadTracker } from './orient.js';
 import { StereoRenderer } from './render.js';
 import { HandTracker } from './hands.js';
 import { Interaction } from './interaction.js';
-import { WindowManager, registerKind } from './windows.js';
+import { WindowManager, registerKind, setElementVolume } from './windows.js';
 import { Launcher, Calibration, Toast } from './panels.js';
 import { ControlCenter, LookUp, Notifier } from './control.js';
 import { Gallery } from './gallery.js';
@@ -35,7 +35,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '92';
+export const APP_VERSION = '93';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -732,9 +732,13 @@ class App {
       catch (err) { console.error(err); $('#libStatus').textContent = 'تعذّر الحفظ: ' + (err.message || 'قد تكون المساحة ممتلئة'); }
       this.renderLibrary(); setTimeout(() => { $('#libStatus').textContent = ''; }, 4500);
     };
-    $('#bookFiles')?.addEventListener('change', e => { const f = e.target.files; e.target.value = ''; if (f?.length) lib(async () => { const m = await importFiles(f); return m.length ? m : null; }, m => '📚 أُضيف ' + m.length + ' كتاب — تجده في «رف الكتب» داخل مدار'); });
-    $('#photoBook')?.addEventListener('change', e => { const f = e.target.files; e.target.value = ''; if (f?.length) lib(() => importPhotoBook(f), it => '📷 كتاب مصوّر من ' + it.files.length + ' صفحة — في «رف الكتب»'); });
-    $('#envFiles')?.addEventListener('change', e => { const f = e.target.files; e.target.value = ''; if (f?.length) lib(() => importEnvironment(f), it => '🌍 «' + it.name + '» — اختره من المكتبات ← ملفاتي'); });
+    $('#bookFiles')?.addEventListener('change', e => { const f = [...(e.target.files || [])]; e.target.value = ''; if (f?.length) lib(async () => { const m = await importFiles(f); return m.length ? m : null; }, m => '📚 أُضيف ' + m.length + ' كتاب — تجده في «رف الكتب» داخل مدار'); });
+    $('#photoBook')?.addEventListener('change', e => { const f = [...(e.target.files || [])]; e.target.value = ''; if (f?.length) lib(() => importPhotoBook(f), it => '📷 كتاب مصوّر من ' + it.files.length + ' صفحة — في «رف الكتب»'); });
+    $('#envFiles')?.addEventListener('change', e => {
+      const f = [...(e.target.files || [])]; e.target.value = '';
+      // a photo (any shape: 360° or an ordinary picture) or a 3D room becomes your environment right away
+      if (f?.length) lib(async () => { const it = await importEnvironment(f); if (it) { await this.gallery.applyMine(it.id); this.toast('🌍 «' + it.name + '» صارت بيئتك', 2500); } return it; }, it => '🌍 «' + it.name + '» صارت بيئتك — وتجدها في المكتبات ← ملفاتي');
+    });
     $('#readForm')?.addEventListener('submit', e => {
       e.preventDefault(); const url = $('#readUrl').value.trim(); if (!/^https?:\/\//.test(url)) { $('#libStatus').textContent = 'اكتب رابطاً يبدأ بـ https://'; return; }
       lib(async () => { const { saveWebArticle } = await import('./books.js'); return saveWebArticle(url); }, it => '📖 «' + it.name + '» — في «رف الكتب»');
@@ -1155,6 +1159,13 @@ class App {
     if (has('ابحث عن', 'إبحث عن', 'بحث عن')) { const q = after('ابحث عن', 'إبحث عن', 'بحث عن'); if (q) this.windows.open({ kind: 'web', url: 'https://www.google.com/search?q=' + encodeURIComponent(q), title: q }); }
     else if (dev && has('شاشة', 'اعرض', 'افتح')) { if (dev.kind === 'tv') this.showOnDevice(dev.code, settings.mirrorCode); else this.connectMirror(dev.code); }
     else if (has('مباريات', 'المباريات', 'مباراة')) this.openMatches?.();
+    else if (has('ارفع الصوت', 'علي الصوت', 'علّي الصوت', 'زد الصوت', 'زيد الصوت', 'خفض الصوت', 'اخفض الصوت', 'وطي الصوت', 'قلل الصوت', 'اكتم', 'كتم الصوت', 'شغل الصوت', 'الغ الكتم', 'ألغ الكتم')) {
+      // the volume of the window you look at (or the recitation)
+      const up = has('ارفع', 'علي', 'علّي', 'زد', 'زيد'), down = has('خفض', 'اخفض', 'وطي', 'قلل'), mute = has('اكتم', 'كتم الصوت') && !has('الغ', 'ألغ');
+      const w = [this.controls.pointedWindow(), ...[...this.windows.windows].reverse()].find(x => x?.setVolume || x?.kind === 'reader');
+      if (w?.setVolume) { if (mute) w.setVolume(w.vol ?? 1, true); else if (up || down) w.stepVolume(up ? 0.2 : -0.2); else w.setVolume(w.vol || 0.6, false); w.toggleVolume?.(); if (!w.volPop?.mesh.parent) w.toggleVolume?.(); }
+      else if (w?.kind === 'reader' && w.recite) { const v = mute ? 0 : Math.max(0, Math.min(1, (settings.reciteVolume ?? 1) + (up ? 0.25 : down ? -0.25 : 0.5))); saveSettings({ reciteVolume: v }); setElementVolume(w.recite.audio, v); this.toast('🔊 التلاوة ' + Math.round(v * 100) + '%', 1500); }
+    }
     else if (has('كبر', 'كبّر', 'تكبير')) pointed()?.scaleBy?.(1.25);
     else if (has('صغر', 'صغّر', 'تصغير')) pointed()?.scaleBy?.(1 / 1.25);
     else if (has('ثبت', 'ثبّت', 'تثبيت')) { const w = pointed(); if (w) { w.headLock = !w.headLock; } }

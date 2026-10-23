@@ -104,7 +104,7 @@ export class Gallery {
       } else if (this.tab === 'pano') this.lists[key] = await this.panoList(this.cat);
       else if (this.tab === 'video') this.lists.video = (await (await fetch(W8 + '/m/manifest.json')).json()).map(v => ({ ...v, name: v.title, kind: 'video', cats: [v.cat] }));
       else if (this.tab === 'manuscripts') this.lists.manuscripts = await this.manuscripts();
-      else if (this.tab === 'mine') this.lists.mine = (await listItems()).filter(i => ['env', 'model', 'image', 'video'].includes(i.type)).map(i => ({ id: i.id, name: i.name, kind: 'mine', type: i.type, format: i.format, cats: [i.type], item: i }));
+      else if (this.tab === 'mine') this.lists.mine = [{ id: 'import', kind: 'import', name: 'استيراد صورة أو بيئة', cats: ['all', 'env', 'image'] }, ...(await listItems()).filter(i => ['env', 'model', 'image', 'video'].includes(i.type)).map(i => ({ id: i.id, name: i.name, kind: 'mine', type: i.type, format: i.format, cats: [i.type], item: i }))];
       this.busy = '';
     } catch (e) { this.busy = 'تعذّر الوصول للمكتبة — تحقق من الإنترنت'; this.app.log('المكتبات: ' + (e.message || e)); }
     this.redraw();
@@ -200,6 +200,7 @@ export class Gallery {
     });
   }
   card(ctx, a, x, y, w, h) {
+    if (a.kind === 'import') { ctx.fillStyle = '#1f3b63'; ctx.fillRect(x, y, w, h); icon(ctx, 'plus', x + w / 2, y + h * 0.4, h * 0.3, '#fff'); text(ctx, 'صورة عادية أو 360° أو غرفة GLB', x + w / 2, y + h * 0.68, 17, { color: 'rgba(255,255,255,0.8)', maxWidth: w - 16, fit: true }); return; }
     if (a.kind === 'furn') {   // Madar's own furniture
       const [c1, c2] = FURN_COLORS[a.theme] || ['#334', '#667'];
       const g = ctx.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, c1); g.addColorStop(1, c2); ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
@@ -241,6 +242,7 @@ export class Gallery {
   // ---- choosing
   async pick(a) {
     if (this.loadingId) return;
+    if (a.kind === 'import') { document.getElementById('envFiles')?.click(); this.close(); return; }
     if (a.kind === 'furn') {
       const w = this.app.windows.open({ kind: 'furniture', item: a.id });
       if (w) { const h = this.app.windows.headLocal(), yaw = this.app.windows.forwardYaw(); w.group.position.set(h.x - Math.sin(yaw) * 1.8, -1.55, h.z - Math.cos(yaw) * 1.8); w.group.rotation.set(0, yaw, 0); if (!['passthrough', 'dim'].includes(settings.environment)) this.app.windows.pinToEnv(w, true); this.app.windows.changed(); }
@@ -331,14 +333,39 @@ export class Gallery {
       g.userData.dim = 0.4;
     } else {
       const url = URL.createObjectURL(item.files[0].blob);
-      const t = item.format === 'hdr' ? await new RGBELoader().loadAsync(url) : await new THREE.TextureLoader().loadAsync(url);
+      let t = item.format === 'hdr' ? await new RGBELoader().loadAsync(url) : await new THREE.TextureLoader().loadAsync(url);
       t.colorSpace = item.format === 'hdr' ? THREE.LinearSRGBColorSpace : THREE.SRGBColorSpace;
+      const img = t.image, aspect = img ? (img.width || img.naturalWidth) / (img.height || img.naturalHeight) : 2;
+      let flat = false;
+      if (item.format !== 'hdr' && Math.abs(aspect - 2) > 0.2) { const t2 = photoBackdrop(img, aspect); t.dispose(); t = t2; flat = true; }
       const sphere = new THREE.Mesh(new THREE.SphereGeometry(60, 64, 32), new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, depthWrite: false }));
       sphere.scale.x = -1; sphere.renderOrder = -20; g.add(sphere); g.userData.dim = 1;
+      if (flat) sphere.rotation.y = this.app.windows.forwardYaw();   // the picture faces where you look
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     }
     saveSettings({ environment: 'mine', mineEnv: id });
     this.app.renderEnvChoices?.();
     if (!quiet) this.app.toast('🌍 ' + item.name, 2200);
   }
+}
+
+// An ordinary photo as a place: the picture wide in front of you (its edges fading) over a soft, dimmed blur of
+// itself all around - drawn into a 360° (2:1) picture with the photo's centre straight ahead.
+function photoBackdrop(img, aspect) {
+  const W = 4096, H = 2048, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  const tiny = document.createElement('canvas'); tiny.width = 48; tiny.height = 24; tiny.getContext('2d').drawImage(img, 0, 0, 48, 24);
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(tiny, 0, 0, W, H);
+  g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 0, W, H);
+  const deg = Math.max(60, Math.min(200, aspect * 80));   // how wide it spreads around you
+  let pw = W * deg / 360, ph = pw / aspect; if (ph > H * 0.78) { ph = H * 0.78; pw = ph * aspect; }
+  const p = document.createElement('canvas'); p.width = Math.round(pw); p.height = Math.round(ph); const q = p.getContext('2d');
+  q.drawImage(img, 0, 0, p.width, p.height);
+  q.globalCompositeOperation = 'destination-in';
+  const fx = q.createLinearGradient(0, 0, p.width, 0); fx.addColorStop(0, 'rgba(0,0,0,0)'); fx.addColorStop(0.05, '#000'); fx.addColorStop(0.95, '#000'); fx.addColorStop(1, 'rgba(0,0,0,0)');
+  q.fillStyle = fx; q.fillRect(0, 0, p.width, p.height);
+  const fy = q.createLinearGradient(0, 0, 0, p.height); fy.addColorStop(0, 'rgba(0,0,0,0)'); fy.addColorStop(0.06, '#000'); fy.addColorStop(0.94, '#000'); fy.addColorStop(1, 'rgba(0,0,0,0)');
+  q.fillStyle = fy; q.fillRect(0, 0, p.width, p.height);
+  g.drawImage(p, W * 0.75 - p.width / 2, H / 2 - p.height / 2);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
 }

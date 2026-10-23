@@ -6,6 +6,7 @@
 //  · your own books (PDF, EPUB, text, web articles, photographed pages) - see books.js - read aloud with the sentence glowing
 // The line under your gaze (or finger) is softly highlighted; pinch the page and swipe to turn it.
 import * as THREE from 'three';
+import { setElementVolume } from './windows.js';
 import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
 import * as Q from './quran.js';
@@ -203,7 +204,7 @@ class QuranBook {
 // Quran.com recordings: one file per surah + every word's time → the word lights up as it is recited.
 // alquran.cloud recordings: one file per ayah.
 class Recitation {
-  constructor(r) { this.r = r; this.audio = r.app.media.audioEl(); this.rec = Q.RECITERS.find(x => x.id === settings.reciter) || Q.RECITERS[0]; this.key = null; this.state = 'stop'; this.surah = null; this.reps = 0; }
+  constructor(r) { this.r = r; this.audio = r.app.media.audioEl(); setElementVolume(this.audio, settings.reciteVolume ?? 1); this.rec = Q.RECITERS.find(x => x.id === settings.reciter) || Q.RECITERS[0]; this.key = null; this.state = 'stop'; this.surah = null; this.reps = 0; }
   get playing() { return this.state === 'play'; }
   setReciter(id) { const was = this.playing ? this.key : null; this.stop(); this.rec = Q.RECITERS.find(x => x.id === id) || Q.RECITERS[0]; saveSettings({ reciter: this.rec.id }); if (was) this.play(was); }
   async play(key) {
@@ -893,6 +894,7 @@ export class ReaderWindow {
         { label: 'وقفة بعد كل آية', sub: pz < 0 ? 'حتى أضغط ▶' : pz ? Q.arNum(pz) + ' ث' : 'بلا وقفة', act: () => { const o = [0, 2, 4, 8, -1]; saveSettings({ recitePause: o[(o.indexOf(pz) + 1) % o.length] }); } },
         { label: 'تكرار الآية', sub: rp > 1 ? '× ' + Q.arNum(rp) : 'مرة واحدة', act: () => { const o = [1, 2, 3, 5, 10]; saveSettings({ reciteRepeat: o[(o.indexOf(rp) + 1) % o.length] }); } },
         { label: 'سرعة التلاوة', sub: '× ' + rate, act: () => { const o = [1, 1.15, 1.3, 0.8, 0.9]; saveSettings({ reciteRate: o[(o.indexOf(rate) + 1) % o.length] }); if (this.recite) this.recite.audio.playbackRate = settings.reciteRate; } },
+        { label: 'مستوى الصوت', sub: Math.round((settings.reciteVolume ?? 1) * 100) + '%', act: () => { const o = [1, 0.75, 0.5, 0.25]; const v = o[(o.indexOf(settings.reciteVolume ?? 1) + 1) % o.length]; saveSettings({ reciteVolume: v }); if (this.recite) setElementVolume(this.recite.audio, v); } },
         { label: 'إيقاف عند الالتفات', sub: settings.readerLookAway !== false ? 'يعمل' : 'متوقف', act: () => saveSettings({ readerLookAway: settings.readerLookAway === false }) },
         { label: 'تمييز السطر بالنظر', sub: settings.readerLine !== false ? 'يعمل' : 'متوقف', act: () => saveSettings({ readerLine: settings.readerLine === false }) },
         { label: 'التفسير بجانبي المصحف', sub: settings.readerTafsir !== false ? 'ظاهر' : 'مخفي', act: () => { saveSettings({ readerTafsir: settings.readerTafsir === false }); this.applyLayout(); } },
