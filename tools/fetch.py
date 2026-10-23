@@ -37,10 +37,10 @@ try:
     import numpy as np, trimesh, fast_simplification
     exec(open('tools/rules.py').read())
     RULES.insert(0, ('abs', r'rectus abdominis|pyramidalis'))
-    RULES.insert(2, ('obliques', r'abdominal oblique|transversus abdominis'))
+    RULES.insert(2, ('obliques', r'external abdominal oblique'))
     RULES.insert(3, ('neck', r'scalenus|sternohyoid|omohyoid|platysma|longus colli|longus capitis'))
     RULES.insert(4, ('other', r'masseter|temporalis|frontalis|occipitalis|orbicularis o|zygomaticus|bucinator|risorius|depressor anguli|depressor labii|levator labii|levator anguli|mentalis|nasalis|procerus|corrugator'))
-    INNER = r'arytenoid|cricothyroid|thyro-aryt|rectus muscle$|^(inferior|superior) oblique muscle$|glossus|pharyn|palat|levator palpebrae|tarsus|diaphragm|intercostal|interspinales|intertransversarii|rotatores|subcostal|transversus thoracis|obturator internus|gemellus|coccygeus|levator ani|pubo|ilioco|sphincter'
+    INNER = r'internal abdominal oblique|transversus abdominis|arytenoid|cricothyroid|thyro-aryt|rectus muscle$|^(inferior|superior) oblique muscle$|glossus|pharyn|palat|levator palpebrae|tarsus|diaphragm|intercostal|interspinales|intertransversarii|rotatores|subcostal|transversus thoracis|obturator internus|gemellus|coccygeus|levator ani|pubo|ilioco|sphincter'
     ARM, LEG = ('delts', 'biceps', 'triceps', 'forearms'), ('glutes', 'quads', 'hamstrings', 'adductors', 'calves', 'shins')
     BONE_SKIP = r'tooth|incisor|canine|molar|premolar|malleus|incus|stapes|cartilage of ear|alar cartilage|nasal|arytenoid|corniculate|cricoid|thyroid cartilage|concha|lacrimal|ethmoid|hyoid'
     d = np.load('dump.npz'); names = list(d['names'])
