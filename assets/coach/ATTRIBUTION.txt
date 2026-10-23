@@ -1,6 +1,7 @@
-body.glb — muscles and skeleton from BodyParts3D 4.0, © The Database Center for Life Science (DBCLS),
-  licensed CC BY-SA 2.1 Japan (https://dbarchive.biosciencedbc.jp/en/bodyparts3d/). Grouped by muscle,
-  simplified and compressed for Madar; this derived file is shared under the same licence.
+body.glb — muscles and skeleton from Z-Anatomy (Gauthier Kervyn, https://www.z-anatomy.com,
+  https://github.com/Z-Anatomy/Models-of-human-anatomy), licensed CC BY-SA 4.0, itself built on BodyParts3D
+  © The Database Center for Life Science (DBCLS), CC BY-SA 2.1 Japan. Exported from the Blender template, grouped
+  by muscle, simplified and compressed for Madar; this derived file is shared under CC BY-SA 4.0.
 anat_front.webp, anat_back.webp — «Muscular system.svg» and «Muscular system-back.svg», Wikimedia Commons,
   CC BY-SA 3.0 (https://commons.wikimedia.org/wiki/File:Muscular_system.svg), rasterised.
 Xbot.glb — three.js examples (Mixamo character).

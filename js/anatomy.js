@@ -1,4 +1,4 @@
-// The coach's anatomical figure: the real muscles and skeleton of BodyParts3D (DBCLS, CC BY-SA 2.1 JP), grouped by
+// The coach's anatomical figure: the real muscles and skeleton of Z-Anatomy (CC BY-SA 4.0, on BodyParts3D), grouped by
 // Madar's muscle names, fitted to the coach's skeleton so it performs every exercise - the worked muscles glow.
 // The mesh is bound to the same bones as the simple mannequin: each vertex follows the nearest bones of its own
 // body part (an arm muscle never follows the chest), blended over the two closest so joints bend smoothly.
@@ -161,8 +161,8 @@ export async function buildAnatomy(fig) {
     const sm = new THREE.SkinnedMesh(geo, mat); sm.name = p.name; sm.frustumCulled = false;
     meshes.push(sm);
   }
-  // ---- the abdominal wall (rectus abdominis is missing from BodyParts3D): eight rounded segments over the belly
-  {
+  // ---- the abdominal wall when the model has no rectus abdominis (BodyParts3D): eight rounded segments over the belly
+  if (!meshes.some(m => m.name === 'abs')) {
     const hipY = P('Hips').y, ch2 = P('Spine2'), frontZ = (() => { const bm = meshes.find(m => m.name === 'bone'); let z = -1; if (bm) { const a = bm.geometry.attributes.position; for (let i = 0; i < a.count; i += 3) { const y = a.getY(i), x = a.getX(i); if (Math.abs(x - P('Hips').x) < 0.07 && y > hipY + 0.05 && y < ch2.y) z = Math.max(z, a.getZ(i)); } } return z > -1 ? z : P('Spine1').z + 0.11; })();
     const parts2 = [], y0 = hipY - 0.04, y1 = ch2.y - 0.02, segH = (y1 - y0) / 4;
     for (let r = 0; r < 4; r++) for (const sx of [-1, 1]) {

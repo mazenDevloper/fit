@@ -19,11 +19,14 @@ const APPS = [
   { id: 'news', name: 'أخبار', icon: 'أ', color: '#1a73e8', kind: 'web', url: 'https://news.google.com/?hl=ar' },
   { id: 'wiki', name: 'ويكيبيديا', icon: 'W', color: '#555555', kind: 'web', url: 'https://ar.wikipedia.org/' },
   { id: 'claude', name: 'Claude', icon: 'C', color: '#d97757', kind: 'web', url: 'https://claude.ai/' },
+  { id: 'coach', name: 'التمارين', icon: '💪', color: '#ea580c', kind: 'coach' },
+  { id: 'health', name: 'جسمي', icon: '📊', color: '#059669', kind: 'health' },
   { id: 'video', name: 'فيديو من جهازك', icon: '🎞', color: '#334155', kind: 'video' },
 ];
 const PRESETS = {
   sport: { n: 2, ratios: [0.75, 0.25], panes: [{ app: 'live' }, { app: 'scores' }] },
   watch: { n: 2, ratios: [0.7, 0.3], panes: [{ app: 'youtube' }, { app: 'matches' }] },
+  fit: { n: 2, ratios: [0.62, 0.38], panes: [{ app: 'coach' }, { app: 'health' }] },
   quran: { n: 2, ratios: [0.5, 0.5], panes: [{ app: 'quran' }, { app: 'youtube' }] },
 };
 let state = load();
@@ -47,7 +50,9 @@ function getSports() {
 const lay = $('#lay');
 const canvases = new Set();
 function orientCol() { return state.orient === 'col' || (state.orient !== 'row' && innerHeight > innerWidth); }
+const mounted = [];
 function render() {
+  while (mounted.length) { try { mounted.pop().destroy(); } catch {} }
   lay.innerHTML = ''; canvases.clear();
   lay.classList.toggle('col', orientCol());
   const n = state.solo != null ? 1 : state.n;
@@ -77,6 +82,13 @@ function pane(i, ratio) {
     body.appendChild(f);
   } else if (a.kind === 'scores' || a.kind === 'matches') {
     const c = document.createElement('canvas'); body.appendChild(c); c.dataset.kind = a.kind; canvases.add(c); getSports();
+  } else if (a.kind === 'coach' || a.kind === 'health') {
+    // the fitness apps (loaded on demand: the 3D coach is heavy)
+    const go = id => { state.panes[i] = { app: id }; render(); };
+    import('./fitapp.js').then(m => {
+      if (!body.isConnected) return;
+      mounted.push(a.kind === 'coach' ? m.mountCoach(body, { onHealth: () => go('health') }) : m.mountHealth(body, { onTrain: () => { const j = state.panes.findIndex(x => x.app === 'coach'); if (j >= 0 && j !== i) render(); else go('coach'); } }));
+    }).catch(e => { body.innerHTML = '<div class="empty">تعذّر التحميل: ' + (e.message || e) + '</div>'; });
   } else if (a.kind === 'video') {
     if (p.blobUrl) { const v = document.createElement('video'); v.src = p.blobUrl; v.controls = true; v.playsInline = true; v.autoplay = true; body.appendChild(v); }
     else { const e = document.createElement('div'); e.className = 'empty'; e.innerHTML = '<label style="padding:12px 16px;border-radius:12px;background:rgba(255,255,255,.1)">🎞 اختر فيديو من جهازك<input type="file" accept="video/*" hidden></label>'; e.querySelector('input').onchange = ev => { const file = ev.target.files?.[0]; if (file) { p.blobUrl = URL.createObjectURL(file); p.title = file.name; render(); } }; body.appendChild(e); }
