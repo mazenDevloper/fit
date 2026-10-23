@@ -1,7 +1,7 @@
 // Virtual environments shown instead of (or dimming) the real room.
 import * as THREE from 'three';
 import { neonDesk, study, lounge, realStudy, realNeon, realStudio } from './rooms.js';
-import { space, library, viewOffice, gaming, readingRoom, gym } from './rooms2.js';
+import { space, library, viewOffice, gaming, readingRoom, gym, neonLounge } from './rooms2.js';
 
 export const ENVS = {
   passthrough: { label: 'الواقع', note: 'غرفتك الحقيقية', immersive: false },
@@ -21,6 +21,7 @@ export const ENVS = {
   viewOffice:  { label: 'مكتب بإطلالة', note: 'غروب على المدينة', immersive: true },
   nightOffice: { label: 'مكتب ليلي', note: 'أضواء المدينة في الليل', immersive: true },
   gaming:      { label: 'غرفة الألعاب', note: 'نيون بنفسجي وشاشات', immersive: true },
+  neonLounge:  { label: 'صالة النيون', note: 'أبيض ووردي وسماوي — كنب منحني وتلفاز', immersive: true },
   gym:         { label: 'صالة التمرين', note: 'أرض واسعة ومرآة ومعدات', immersive: true },
   gamingRed:   { label: 'غرفة الألعاب · أحمر', note: 'إضاءة حمراء وبرتقالية', immersive: true },
   gallery:     { label: 'من المكتبة', note: 'بيئة اخترتها من مكتبة البيئات', immersive: true },
@@ -92,6 +93,7 @@ export function makeEnvironments() {
   all.nightOffice = lazyRoom(() => viewOffice(true), 0.3);
   all.gaming = lazyRoom(() => gaming('neon'), 0.25);
   all.gym = lazyRoom(gym, 0.3);
+  all.neonLounge = lazyRoom(neonLounge, 0.25);
   all.gamingRed = lazyRoom(() => gaming('red'), 0.25);
   Object.values(all).forEach(x => { x.visible = false; });
   return all;

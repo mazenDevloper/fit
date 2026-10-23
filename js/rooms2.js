@@ -3,6 +3,8 @@
 // (Poly Haven, CC0) and 360° photographs behind the windows; each one is built the first time you choose it.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { tex, mesh, box, cyl, plane, glow, radial, noise, glb, place, photoSphere, pbr, std, emit, tame, pointL, realRoom, FLOOR, BASE } from './rooms.js';
 
 const SPACE = new URL('../assets/space/', import.meta.url).href;
@@ -490,6 +492,142 @@ export function gym() {
   glb('wall_clock').then(c => R.add(place(tame(c, 0.4), { x: -W / 2 + 0.05, z: 1.4, ry: Math.PI / 2, height: 0.42, y0: FLOOR + 2.2 }))).catch(() => {});
   R.userData.dim = 0.3;
   return ticking(R, (dt, t) => { bag.rotation.z = Math.sin(t * 0.9) * 0.025; bag.rotation.x = Math.sin(t * 0.7 + 1) * 0.02; });
+}
+
+// ---------------------------------------------------------------- neon lounge (a gaming lounge in soft white, pink and cyan)
+// White plaster walls and a glossy floor, neon tubes running along the walls and ceiling, a long curved sofa glowing
+// pink underneath, a glass table on sled legs, poufs, an egg chair, a TV in a cyan frame, a door, a lamp and a palm.
+function roundedPath(pts, r) {   // a polyline with rounded corners (points as Vector3)
+  const path = new THREE.CurvePath();
+  let prev = pts[0].clone();
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], c = pts[i + 1];
+    if (!c) { path.add(new THREE.LineCurve3(prev, b.clone())); break; }
+    const d1 = b.clone().sub(a), d2 = c.clone().sub(b), k = Math.min(r, d1.length() / 2, d2.length() / 2);
+    const p1 = b.clone().sub(d1.normalize().multiplyScalar(k)), p2 = b.clone().add(d2.normalize().multiplyScalar(k));
+    path.add(new THREE.LineCurve3(prev, p1)); path.add(new THREE.QuadraticBezierCurve3(p1, b.clone(), p2)); prev = p2;
+  }
+  return path;
+}
+function roundedRectPts(cx, cy, w, h) { return [[cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2], [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2], [cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2]]; }
+let loungeEnv = null;
+export function neonLounge() {
+  const R = new THREE.Group(), W = 7.2, D = 7, H = 3.0, F = FLOOR;
+  const PINK = 0xff5f8f, CYAN = 0x3ff0ff;
+  // a soft studio environment for the glossy surfaces (made once)
+  try { const rr = window.madar?.renderer?.renderer; if (rr && !loungeEnv) { const pm = new THREE.PMREMGenerator(rr); loungeEnv = pm.fromScene(new RoomEnvironment(), 0.04).texture; pm.dispose(); } } catch {}
+  R.add(new THREE.HemisphereLight(0xb9c4f0, 0x6a5a7a, 0.42), new THREE.AmbientLight(0xa8a4c8, 0.16));
+  // ---- surfaces
+  const plaster = new THREE.MeshStandardMaterial({ color: 0xc4c1d6, roughness: 0.88, map: tex(512, 512, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); noise(x, w, h, 14000, () => `rgba(110,100,140,${Math.random() * 0.035})`); }, [3, 2]) });
+  const floorM = new THREE.MeshStandardMaterial({ color: 0xa9a7bc, roughness: 0.16, metalness: 0.05, envMap: loungeEnv, envMapIntensity: 0.55, map: tex(512, 512, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); noise(x, w, h, 20000, () => `rgba(90,85,120,${Math.random() * 0.05})`); }, [4, 4]) });
+  plane(R, W, D, floorM, 0, F, 0, 0, -Math.PI / 2);
+  plane(R, W, H, plaster, 0, F + H / 2, -D / 2, 0); plane(R, D, H, plaster, -W / 2, F + H / 2, 0, Math.PI / 2);
+  plane(R, D, H, plaster, W / 2, F + H / 2, 0, -Math.PI / 2); plane(R, W, H, plaster, 0, F + H / 2, D / 2, Math.PI);
+  plane(R, W, D, std(0xd2d0e0, { roughness: 0.95 }), 0, F + H, 0, 0, Math.PI / 2);
+  // lowered ceiling border (the cyan light runs along its edge)
+  const sof = std(0xd8d6e6, { roughness: 0.9 });
+  box(R, W, 0.22, 0.5, sof, 0, F + H - 0.11, -D / 2 + 0.25); box(R, 0.5, 0.22, D, sof, W / 2 - 0.25, F + H - 0.11, 0); box(R, 0.5, 0.22, D, sof, -W / 2 + 0.25, F + H - 0.11, 0);
+  // the front wall's recessed panel behind the sofa
+  box(R, 4.6, 1.95, 0.04, std(0xcfcde0, { roughness: 0.85 }), -1.0, F + 1.6, -D / 2 + 0.02);
+  // ---- neon: a bright core + two soft halos, and their reflection in the floor
+  const tubes = [];
+  const neon = (pts, color, r = 0.28, wallNormal = null) => {
+    const v = pts.map(p => p.isVector3 ? p : new THREE.Vector3(...p));
+    const curve = roundedPath(v, r), seg = Math.max(24, Math.round(curve.getLength() * 30));
+    const core = new THREE.Mesh(new THREE.TubeGeometry(curve, seg, 0.014, 8, false), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.35), toneMapped: false }));
+    const h1 = new THREE.Mesh(new THREE.TubeGeometry(curve, seg, 0.04, 8, false), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    const h2 = new THREE.Mesh(new THREE.TubeGeometry(curve, seg, 0.11, 8, false), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    h1.renderOrder = h2.renderOrder = -2; R.add(core, h1, h2); tubes.push(core);
+    // the floor reflects it (a dimmer copy upside down under the glossy floor)
+    const ref = new THREE.Mesh(core.geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+    ref.scale.y = -1; ref.position.y = 2 * F; ref.renderOrder = -3; R.add(ref);
+    return core;
+  };
+  const z0 = -D / 2 + 0.05, xR = W / 2 - 0.05, xL = -W / 2 + 0.05;
+  // pink: down the left of the front wall, along it above the sofa, down at its end
+  neon([[xL, F + 2.6, -2.2], [xL, F + 2.6, z0 + 0.0001], [-3.0, F + 2.6, z0], [-3.0, F + 1.2, z0], [0.55, F + 1.2, z0], [0.55, F + 0.62, z0]], PINK, 0.32);
+  neon([[xL, F + 0.06, -0.6], [xL, F + 0.06, z0 + 0.0001], [-3.0, F + 0.06, z0]], PINK, 0.2);
+  // cyan: across the top of the front wall and down beside the sofa, around the ceiling border, along the right wall
+  neon([[-1.4, F + 2.74, z0], [0.95, F + 2.74, z0], [0.95, F + 0.95, z0]], CYAN, 0.3);
+  neon([[-W / 2 + 0.5, F + H - 0.23, D / 2 - 0.3], [-W / 2 + 0.5, F + H - 0.23, -D / 2 + 0.5], [W / 2 - 0.5, F + H - 0.23, -D / 2 + 0.5], [W / 2 - 0.5, F + H - 0.23, D / 2 - 0.3]], CYAN, 0.45);
+  neon([[xR, F + 2.55, -D / 2 + 0.6], [xR, F + 2.55, 2.6]], CYAN, 0.2);
+  // the TV on the right wall in its rounded cyan frame
+  const tvz = -1.25, tvy = F + 1.5;
+  neon(roundedRectPts(tvz, tvy, 1.7, 1.3).map(([z, y]) => [xR - 0.01, y, z]), CYAN, 0.32);
+  box(R, 0.05, 1.42, 1.85, std(0xcfcde0, { roughness: 0.85 }), W / 2 - 0.025, tvy, tvz);
+  const scr = tex(1024, 1024, (g, w, h) => {
+    const q = g.createLinearGradient(0, 0, w, h); q.addColorStop(0, '#15182a'); q.addColorStop(1, '#0a0b14'); g.fillStyle = q; g.fillRect(0, 0, w, h);
+    g.lineWidth = 14; g.strokeStyle = 'rgba(255,95,140,0.55)'; g.beginPath(); g.moveTo(80, 700); g.lineTo(480, 700); g.quadraticCurveTo(560, 700, 560, 620); g.lineTo(560, 240); g.stroke();
+    g.strokeStyle = 'rgba(63,240,255,0.25)'; g.beginPath(); g.moveTo(0, 120); g.lineTo(w, 60); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.05)'; g.beginPath(); g.moveTo(0, 0); g.lineTo(w * 0.55, 0); g.lineTo(w * 0.2, h); g.lineTo(0, h); g.fill();
+  });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 1.0), new THREE.MeshStandardMaterial({ map: scr, roughness: 0.08, metalness: 0.4, envMap: loungeEnv, envMapIntensity: 0.6 }));
+  screen.position.set(W / 2 - 0.06, tvy, tvz); screen.rotation.y = -Math.PI / 2; R.add(screen);
+  // a low white console under it
+  const white = std(0xf1eef4, { roughness: 0.55, envMap: loungeEnv, envMapIntensity: 0.25 });
+  { const m_ = new THREE.Mesh(new RoundedBoxGeometry(0.4, 0.28, 1.5, 4, 0.06), white); m_.position.set(W / 2 - 0.25, F + 0.14, tvz); R.add(m_); }
+  // the door further along the right wall (a rounded inset outline)
+  box(R, 0.04, 2.25, 1.0, std(0xd6d4e3, { roughness: 0.8 }), W / 2 - 0.02, F + 1.12, 1.15);
+  const doorLine = roundedPath(roundedRectPts(1.15, F + 1.1, 0.88, 2.1).map(([z, y]) => new THREE.Vector3(W / 2 - 0.045, y, z)), 0.18);
+  R.add(new THREE.Mesh(new THREE.TubeGeometry(doorLine, 120, 0.006, 6, false), std(0xa9a6bb)));
+  // ---- the sofa: a long curved white sofa with cushions and a pink light under it
+  const fabric = new THREE.MeshStandardMaterial({ color: 0xf3eef2, roughness: 0.92, map: tex(256, 256, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); noise(g, w, h, 9000, () => `rgba(120,110,140,${Math.random() * 0.07})`); }, [4, 4]) });
+  const sofa = new THREE.Group(); sofa.position.set(-1.0, F, -D / 2 + 0.62); R.add(sofa);
+  const L = 3.6, rb = (w, h, d, r, x, y, z, m = fabric) => { const o = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 5, r), m); o.position.set(x, y, z); sofa.add(o); return o; };
+  rb(L, 0.32, 0.95, 0.14, 0, 0.2, 0.02, white);                 // the shell base
+  rb(L, 0.6, 0.28, 0.13, 0, 0.62, -0.36, white);                // the back
+  for (const sx of [-1, 1]) rb(0.3, 0.5, 0.98, 0.14, sx * (L / 2 - 0.1), 0.42, 0.02, white);   // the arms
+  for (let i = 0; i < 3; i++) rb(1.0, 0.16, 0.7, 0.07, -1.05 + i * 1.05, 0.43, 0.08);              // seat cushions
+  for (let i = 0; i < 3; i++) rb(1.0, 0.42, 0.18, 0.08, -1.05 + i * 1.05, 0.72, -0.2).rotation.x = -0.12;   // back cushions
+  [[-1.35, 0.1], [-0.8, -0.15], [-0.25, 0.05], [0.55, -0.1], [1.1, 0.12], [1.42, -0.05]].forEach(([x, rz]) => { const p = rb(0.4, 0.38, 0.13, 0.08, x, 0.74, -0.04); p.rotation.set(-0.25, 0, rz); });
+  // its pink LED along the bottom of the front and the sides, and the glow on the floor
+  const lp = roundedPath([[-L / 2 - 0.02, 0.05, -0.45], [-L / 2 - 0.02, 0.05, 0.52], [L / 2 + 0.02, 0.05, 0.52], [L / 2 + 0.02, 0.05, -0.45]].map(a => new THREE.Vector3(...a)), 0.16);
+  sofa.add(new THREE.Mesh(new THREE.TubeGeometry(lp, 120, 0.012, 6, false), new THREE.MeshBasicMaterial({ color: 0xffb3c8, toneMapped: false })));
+  const lp2 = roundedPath([[-L / 2 - 0.02, 0.36, -0.45], [-L / 2 - 0.02, 0.36, 0.52], [L / 2 + 0.02, 0.36, 0.52]].map(a => new THREE.Vector3(...a)), 0.14);
+  sofa.add(new THREE.Mesh(new THREE.TubeGeometry(lp2, 120, 0.01, 6, false), new THREE.MeshBasicMaterial({ color: 0xffb3c8, toneMapped: false })));
+  glow(R, 4.6, 1.8, PINK, 0.5, -1.0, F + 0.004, -D / 2 + 1.25, 0, -Math.PI / 2);
+  pointL(R, PINK, 1.6, 4.5, -1.0, F + 0.35, -D / 2 + 1.3); pointL(R, PINK, 1.2, 4, -2.5, F + 1.6, -D / 2 + 0.5);
+  pointL(R, CYAN, 1.2, 5, 1.6, F + 2.5, -D / 2 + 0.6); pointL(R, CYAN, 1.1, 4.5, W / 2 - 0.6, F + 1.6, tvz);
+  // ---- glass coffee table on two white sled legs
+  const tz = -D / 2 + 1.75, tx = -0.75;
+  const glassM = new THREE.MeshPhysicalMaterial({ color: 0xc8d4e8, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.38, envMap: loungeEnv, envMapIntensity: 1.4, clearcoat: 1 });
+  const ts = new THREE.Shape(); ts.absellipse(0, 0, 0.75, 0.3, 0, Math.PI * 2);
+  const top = new THREE.Mesh(new THREE.ExtrudeGeometry(ts, { depth: 0.025, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.008, curveSegments: 48 }), glassM);
+  top.rotation.x = -Math.PI / 2; top.position.set(tx, F + 0.42, tz); R.add(top);
+  for (const sx of [-1, 1]) { const leg = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.4, 0.5, 4, 0.05), white); leg.position.set(tx + sx * 0.4, F + 0.2, tz); R.add(leg); }
+  // ---- poufs: one by the table, a big round one at the front left
+  const pouf = (x, z, rad, hgt) => {
+    const pts = []; for (let i = 0; i <= 16; i++) { const t = i / 16, a = t * Math.PI; pts.push(new THREE.Vector2(rad * (0.82 + 0.18 * Math.sin(a)) * (i === 0 || i === 16 ? 0.001 + (1 - Math.abs(Math.cos(a))) : 1), hgt * t)); }
+    pts[0].x = 0; pts[16].x = 0;
+    const m = new THREE.Mesh(new THREE.LatheGeometry(pts, 48), fabric); m.position.set(x, F, z); R.add(m); return m;
+  };
+  pouf(0.85, -D / 2 + 1.55, 0.36, 0.42); pouf(-3.0, -0.25, 0.95, 0.5);
+  // ---- the egg chair, glowing pink at its base
+  const egg = new THREE.Group(); egg.position.set(2.0, F, -1.3); egg.rotation.y = -0.6; egg.scale.setScalar(0.9); R.add(egg);
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.62, 48, 32, Math.PI * 0.375, Math.PI * 1.25, 0, Math.PI * 0.8), new THREE.MeshStandardMaterial({ color: 0xf4eef2, roughness: 0.5, side: THREE.DoubleSide, envMap: loungeEnv, envMapIntensity: 0.3 }));
+  shell.scale.set(1, 1.2, 0.95); shell.rotation.y = Math.PI / 2; shell.position.y = 0.82; egg.add(shell);
+  const seat = new THREE.Mesh(new RoundedBoxGeometry(0.78, 0.14, 0.62, 4, 0.06), fabric); seat.position.set(0, 0.4, 0.05); egg.add(seat);
+  const eggBase = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 0.12, 48), white); eggBase.position.y = 0.06; egg.add(eggBase);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.53, 0.012, 8, 64), new THREE.MeshBasicMaterial({ color: 0xffb3c8, toneMapped: false })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.05; egg.add(ring);
+  glow(R, 1.8, 1.8, PINK, 0.45, 2.0, F + 0.005, -1.25, 0, -Math.PI / 2);
+  // ---- a white side table with a glass lamp, a palm in a white pot
+  const st = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.5, 0.5, 4, 0.06), white); st.position.set(1.2, F + 0.25, -D / 2 + 0.35); R.add(st);
+  const lampBase = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), glassM); lampBase.scale.set(0.8, 1.4, 0.8); lampBase.position.set(1.2, F + 0.66, -D / 2 + 0.35); R.add(lampBase);
+  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 0.2, 32, 1, true), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4e6, emissiveIntensity: 0.9, side: THREE.DoubleSide })); shade.position.set(1.2, F + 0.92, -D / 2 + 0.35); R.add(shade);
+  pointL(R, 0xfff0dc, 0.5, 2.2, 1.2, F + 0.95, -D / 2 + 0.45); glow(R, 0.7, 0.7, 0xfff0dc, 0.15, 1.2, F + 1.0, -D / 2 + 0.06);
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.2, 0.55, 32), white); pot.position.set(-3.2, F + 0.27, -D / 2 + 0.4); R.add(pot);
+  const frond = tex(256, 512, (g, w, h) => {
+    g.strokeStyle = '#2f4a2a'; g.lineWidth = 6; g.beginPath(); g.moveTo(w / 2, h); g.quadraticCurveTo(w / 2 + 10, h / 2, w / 2, 10); g.stroke();
+    for (let i = 0; i < 26; i++) { const y = 30 + i * 18, l = 110 * Math.sin(Math.PI * (i + 1) / 28); g.strokeStyle = i % 2 ? '#3d6b37' : '#2f5a2c'; g.lineWidth = 8; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(w / 2, y); g.quadraticCurveTo(w / 2 + sd * l * 0.6, y - 10, w / 2 + sd * l, y + 26); g.stroke(); } }
+  });
+  const leafM = new THREE.MeshStandardMaterial({ map: frond, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide, roughness: 0.7 });
+  for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2, f = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.95), leafM); f.position.set(-3.2 + Math.cos(a) * 0.18, F + 0.95, -D / 2 + 0.4 + Math.sin(a) * 0.18); f.rotation.set(-0.5 * Math.sin(a), -a + Math.PI / 2, 0.6 * Math.cos(a)); R.add(f); }
+  // a white column at the right edge of the room (as in the picture)
+  { const m_ = new THREE.Mesh(new RoundedBoxGeometry(0.35, H, 0.6, 4, 0.05), white); m_.position.set(W / 2 - 0.18, F + H / 2, 2.6); R.add(m_); }
+  if (loungeEnv) R.traverse(o => { if (o.isMesh && o.material?.isMeshStandardMaterial && !o.material.envMap) { o.material.envMap = loungeEnv; o.material.envMapIntensity = Math.min(o.material.envMapIntensity ?? 0.3, 0.25); } });
+  R.rotation.y = 0.35; R.position.set(-0.4, 0, -1.9);   // the corner a little to your right, the sofa wall ahead-left - like the picture
+  R.userData.dim = 0.25;
+  return R;
 }
 
 // ---------------------------------------------------------------- photo-real reading room (a 360° photo + furniture)

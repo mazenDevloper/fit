@@ -111,7 +111,7 @@ export class ControlCenter {
   drawEnv(ctx, W, H, p) {
     this.frame(ctx, W, H, 'البيئة');
     // the everyday places (and the one you are in); everything else is one tap away in the library
-    const cur = envKey(settings.environment), quick = ['passthrough', 'dim', 'space', 'library', 'viewOffice', 'nightOffice', 'gaming', 'reading', 'realStudio'];
+    const cur = envKey(settings.environment), quick = ['passthrough', 'dim', 'space', 'library', 'viewOffice', 'nightOffice', 'neonLounge', 'gaming', 'reading', 'realStudio'];
     const list = [...quick, ...(quick.includes(cur) || !ENV_ORDER.includes(cur) ? [] : [cur]), 'more'], rh = Math.min(60, (H - 110) / list.length);
     list.forEach((k, i) => {
       const y = 96 + i * rh, id = 'e' + k, on = k === cur, hov = p.isHover(id);
