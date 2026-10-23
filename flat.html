@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>مدار 2D</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<script type="importmap">{ "imports": { "three": "./lib/three/three.module.js", "three/addons/": "./lib/three/addons/" } }</script>
+<style>
+:root{--bg:#0b0d12;--panel:#151925;--line:rgba(255,255,255,.1);--text:#eef2fb;--dim:#9aa3b8;--acc:#ff9650;--font:system-ui,-apple-system,"SF Arabic","Geeza Pro","Segoe UI",Tahoma,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden}
+#top{position:fixed;inset:0 0 auto 0;height:calc(40px + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) calc(8px + env(safe-area-inset-right,0px)) 0 calc(8px + env(safe-area-inset-left,0px));display:flex;align-items:center;gap:6px;background:#0e1118;border-bottom:1px solid var(--line);z-index:5;transition:transform .2s}
+body.hideTop #top{transform:translateY(-100%)}
+#top b{font-size:15px;margin-inline-end:4px}
+#top button,.sheet button{border:0;border-radius:11px;padding:6px 10px;background:rgba(255,255,255,.08);color:var(--text);font:700 13px var(--font);white-space:nowrap}
+#top button.on{background:var(--acc);color:#2a1405}
+#top .sp{flex:1}
+#lay{position:fixed;left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);top:calc(40px + env(safe-area-inset-top,0px));bottom:0;display:flex;transition:top .2s}
+body.hideTop #lay{top:env(safe-area-inset-top,0px)}
+#lay.col{flex-direction:column}
+.pane{position:relative;min-width:0;min-height:0;background:#000;display:flex;flex-direction:column;overflow:hidden}
+.pane .bar{height:28px;flex:none;display:flex;align-items:center;gap:6px;padding:0 6px;background:var(--panel);font-size:12px;color:var(--dim);border-bottom:1px solid var(--line)}
+.pane .bar .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:700}
+.pane .bar button{border:0;background:transparent;color:var(--text);font:800 15px var(--font);padding:2px 6px;border-radius:8px}
+.pane .bar button:active{background:rgba(255,255,255,.15)}
+.pane .body{flex:1;position:relative;min-height:0}
+.pane iframe,.pane video,.pane canvas{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.pane canvas{background:#0b0d12}
+.pane.active{box-shadow:inset 0 0 0 2px rgba(255,150,80,.55)}
+.div{flex:none;width:10px;background:#0e1118;cursor:col-resize;position:relative;touch-action:none;z-index:2}
+#lay.col .div{width:auto;height:10px;cursor:row-resize}
+.div::after{content:"";position:absolute;inset:50% auto auto 50%;width:4px;height:40px;margin:-20px 0 0 -2px;border-radius:2px;background:rgba(255,255,255,.35)}
+#lay.col .div::after{width:40px;height:4px;margin:-2px 0 0 -20px}
+#shield{position:fixed;inset:0;z-index:4;display:none}
+body.dragging #shield{display:block}
+.sheet{position:fixed;inset:auto 0 0 0;max-height:78%;overflow:auto;background:#121621;border-top:1px solid var(--line);border-radius:18px 18px 0 0;padding:14px calc(14px + env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) calc(14px + env(safe-area-inset-left,0px));z-index:10;transform:translateY(105%);transition:transform .22s}
+.sheet.open{transform:none}
+.sheet h3{margin:4px 0 10px;font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-bottom:12px}
+.grid button{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;border-radius:14px;font-size:12px}
+.grid button i{font-style:normal;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:900;font-size:16px;color:#fff}
+.row{display:flex;gap:8px;margin-bottom:10px}
+.row input{flex:1;min-width:0;padding:9px 11px;border-radius:11px;border:1px solid var(--line);background:#0b0d12;color:var(--text);font:14px var(--font);direction:ltr}
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9;display:none}
+#scrim.on{display:block}
+.empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font-size:14px;text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<div id="top">
+  <b>مدار 2D</b>
+  <button data-preset="sport" type="button">⚽ رياضي</button>
+  <button data-preset="watch" type="button">🎬 مشاهدة</button>
+  <button data-preset="quran" type="button">📖 قرآن</button>
+  <span class="sp"></span>
+  <button data-split="1" type="button">▢</button>
+  <button data-split="2" type="button">◫</button>
+  <button data-split="3" type="button">▥</button>
+  <button id="flip" type="button" title="أفقي / عمودي">⇄</button>
+  <button id="hide" type="button" title="إخفاء الشريط">⤒</button>
+  <button id="home" type="button">مدار</button>
+</div>
+<div id="lay"></div>
+<div id="shield"></div>
+<div id="scrim"></div>
+<div id="sheet" class="sheet"></div>
+<script type="module" src="js/flat.js"></script>
+</body>
+</html>
