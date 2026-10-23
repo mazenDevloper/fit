@@ -8,7 +8,8 @@ def get(u):
     t = __import__('time').time(); r = urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=900); d = r.read(); log.append(f'{u} {len(d)} {__import__("time").time()-t:.0f}s'); open('out/anat/log.txt', 'w').write('\n'.join(log)); return d
 r0 = subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', '--break-system-packages', 'trimesh', 'fast-simplification', 'numpy'], capture_output=True, text=True)
 log.append('pip ' + str(r0.returncode) + r0.stderr[-300:]); open('out/anat/log.txt', 'w').write('\n'.join(log))
-import traceback, time
+import traceback, time, site, importlib
+site.addsitedir(site.getusersitepackages()); importlib.invalidate_caches()
 T0=time.time()
 try:
     import numpy as np, trimesh, fast_simplification
