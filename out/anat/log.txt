@@ -1,1 +1,7 @@
 pip 0
+Traceback (most recent call last):
+  File "/home/runner/work/fit/fit/tools/fetch.py", line 14, in <module>
+    import numpy as np, trimesh, fast_simplification
+ModuleNotFoundError: No module named 'numpy'
+
+t 0.002767801284790039
