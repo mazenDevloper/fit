@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: if [ -f tools/need-browser ]; then npm i playwright@1.48.2 && timeout 600 npx playwright install --with-deps chromium chrome >/dev/null; fi
-      - run: if [ -f tools/fetch.py ] && [ -f tools/run-fetch ]; then sudo apt-get -qq install -y imagemagick >/dev/null || true; timeout 900 python3 tools/fetch.py || true; fi
+      - run: if [ -f tools/fetch.py ] && [ -f tools/run-fetch ]; then sudo apt-get -qq install -y imagemagick >/dev/null || true; timeout 2700 python3 tools/fetch.py || true; fi
       - run: if [ ! -f tools/run-fetch ]; then mkdir -p out; (python3 -m http.server 8000 &) ; sleep 1; timeout 1800 node tools/test.mjs || true; fi
       - run: |
           git config user.name bot; git config user.email bot@x
