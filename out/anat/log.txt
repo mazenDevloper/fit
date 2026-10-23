@@ -1,7 +1,23 @@
 pip 0
+https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_parts_list_e.txt 59351 1s
+https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_element_parts.txt 651179 4s
+picked {"bone": 263, "obliques": 4, "chest": 4, "upperBack": 4, "glutes": 2, "adductors": 2, "neck": 2, "biceps": 2, "triceps": 2}
+https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip 64888505 283s
+objs in zip 1258
 Traceback (most recent call last):
-  File "/home/runner/work/fit/fit/tools/fetch.py", line 14, in <module>
-    import numpy as np, trimesh, fast_simplification
-ModuleNotFoundError: No module named 'numpy'
+  File "/home/runner/work/fit/fit/tools/fetch.py", line 80, in <module>
+    mesh.fix_normals()
+  File "/home/runner/.local/lib/python3.12/site-packages/trimesh/base.py", line 1968, in fix_normals
+    multibody = self.body_count > 1
+                ^^^^^^^^^^^^^^^
+  File "/home/runner/.local/lib/python3.12/site-packages/trimesh/caching.py", line 133, in get_cached
+    value = function(*args, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/.local/lib/python3.12/site-packages/trimesh/base.py", line 1065, in body_count
+    count, labels = graph.csgraph.connected_components(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/.local/lib/python3.12/site-packages/trimesh/exceptions.py", line 35, in __getattribute__
+    raise exc_type(*exc_args)
+ModuleNotFoundError: No module named 'scipy'
 
-t 0.002767801284790039
+t 292.8388640880585

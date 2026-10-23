@@ -1,0 +1,118 @@
+concept id	representation id	en
+FMA3734	BP10374	aorta
+FMA3736	BP10408	ascending aorta
+FMA3768	BP10404	arch of aorta
+FMA3784	BP10373	descending aorta
+FMA3789	BP6896	abdominal aorta
+FMA3802	BP9674	trunk of right coronary artery
+FMA3807	BP9911	right conus artery
+FMA3815	BP9354	first anterior ventricular branch of right coronary artery
+FMA3818	BP9776	marginal branch of right coronary artery
+FMA3837	BP9298	first posterior ventricular branch of right coronary artery
+FMA3840	BP9400	posterior interventricular branch of right coronary artery
+FMA3855	BP10074	trunk of left coronary artery
+FMA3860	BP9547	diagonal branch of anterior descending branch of left coronary artery
+FMA3862	BP9548	anterior interventricular branch of left coronary artery
+FMA3868	BP9555	conus branch of anterior interventricular branch of left coronary artery
+FMA3872	BP10050	first right anterior branch of anterior interventricular branch of left coronary artery
+FMA3874	BP10042	second right anterior branch of anterior interventricular branch of left coronary artery
+FMA3876	BP9888	third right anterior branch of anterior interventricular branch of left coronary artery
+FMA3895	BP9745	circumflex branch of left coronary artery
+FMA3932	BP9434	brachiocephalic artery
+FMA3941	BP9519	right common carotid artery
+FMA3949	BP9518	right internal carotid artery
+FMA3953	BP9433	right subclavian artery
+FMA3958	BP9432	right vertebral artery
+FMA3969	BP6787	right internal thoracic artery
+FMA3988	BP6788	right superior epigastric artery
+FMA3992	BP6801	right thyrocervical trunk
+FMA4057	BP6800	right dorsal scapular artery
+FMA4058	BP9517	left common carotid artery
+FMA4062	BP9516	left internal carotid artery
+FMA4066	BP9323	left vertebral artery
+FMA4068	BP6869	left internal thoracic artery
+FMA4077	BP6871	left musculophrenic artery
+FMA4083	BP6870	left superior epigastric artery
+FMA4084	BP6859	left thyrocervical trunk
+FMA4086	BP6890	left costocervical trunk
+FMA4088	BP6888	left superior intercostal artery
+FMA4134	BP6889	left deep cervical artery
+FMA4149	BP6933	esophageal artery
+FMA4634	BP6926	right subcostal artery
+FMA4654	BP6929	left subcostal artery
+FMA4694	BP9324	left subclavian artery
+FMA4706	BP10136	coronary sinus
+FMA4707	BP10060	great cardiac vein
+FMA4708	BP9886	left marginal vein
+FMA4712	BP9556	posterior vein of left ventricle
+FMA4713	BP9528	middle cardiac vein
+FMA4714	BP9967	small cardiac vein
+FMA4716	BP9791	right marginal vein
+FMA4717	BP9792	anterior cardiac venous tree
+FMA4720	BP10386	superior vena cava
+FMA4751	BP10410	right brachiocephalic vein
+FMA4754	BP10409	right internal jugular vein
+FMA4755	BP10415	right subclavian vein
+FMA4758	BP6755	right internal thoracic vein
+FMA4761	BP10379	left brachiocephalic vein
+FMA4797	BP7497	left superior intercostal vein
+FMA4838	BP10421	azygos vein
+FMA4944	BP10418	hemiazygos vein
+FMA5039	BP6822	right costocervical trunk
+FMA5042	BP6820	right superior intercostal artery
+FMA7088	BP9305	heart
+FMA7096	BP9831	right atrium
+FMA7097	BP9454	left atrium
+FMA7098	BP9598	right ventricle
+FM
+----
+concept id	name	element file id
+FMA3734	aorta	FJ1931
+FMA3734	aorta	FJ1932
+FMA3734	aorta	FJ3411
+FMA3734	aorta	FJ3413
+FMA3734	aorta	FJ3427
+FMA3736	ascending aorta	FJ3413
+FMA3768	arch of aorta	FJ3411
+FMA3784	descending aorta	FJ1931
+FMA3784	descending aorta	FJ1932
+FMA3784	descending aorta	FJ3427
+FMA3789	abdominal aorta	FJ1932
+FMA3802	trunk of right coronary artery	FJ2723
+FMA3807	right conus artery	FJ2670
+FMA3807	right conus artery	FJ2676
+FMA3815	first anterior ventricular branch of right coronary artery	FJ2671
+FMA3815	first anterior ventricular branch of right coronary artery	FJ2673
+FMA3815	first anterior ventricular branch of right coronary artery	FJ2677
+FMA3818	marginal branch of right coronary artery	FJ2667
+FMA3818	marginal branch of right coronary artery	FJ2668
+FMA3818	marginal branch of right coronary artery	FJ2672
+FMA3818	marginal branch of right coronary artery	FJ2674
+FMA3818	marginal branch of right coronary artery	FJ2675
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2714
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2715
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2716
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2717
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2718
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2719
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2720
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2721
+FMA3837	first posterior ventricular branch of right coronary artery	FJ2722
+FMA3840	posterior interventricular branch of right coronary artery	FJ2692
+FMA3840	posterior interventricular branch of right coronary artery	FJ2693
+FMA3840	posterior interventricular branch of right coronary artery	FJ2694
+FMA3840	posterior interventricular branch of right coronary artery	FJ2695
+FMA3840	posterior interventricular branch of right coronary artery	FJ2696
+FMA3840	posterior interventricular branch of right coronary artery	FJ2697
+FMA3840	posterior interventricular branch of right coronary artery	FJ2698
+FMA3840	posterior interventricular branch of right coronary artery	FJ2699
+FMA3840	posterior interventricular branch of right coronary artery	FJ2700
+FMA3855	trunk of left coronary artery	FJ2737
+FMA3860	diagonal branch of anterior descending branch of left coronary artery	FJ2633
+FMA3860	diagonal branch of anterior descending branch of left coronary artery	FJ2634
+FMA3860	diagonal branch of anterior descending branch of left coronary artery	FJ2635
+FMA3860	diagonal branch of anterior descending branch of left coronary artery	FJ2636
+FMA3860	diagonal branch of anterior descending branch of left coronary artery	FJ2637
+FMA3860	diagonal branch of anterior descending branch of left coronary artery	FJ2638
+FMA3860	diagonal branch of anterior descending branch of left coronary artery	FJ2639
+FMA3860	diagonal branch of anterior descending branch of left coronary artery	F
