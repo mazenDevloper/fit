@@ -6,7 +6,8 @@ UA = {'User-Agent': 'MadarBot/1.0 (https://github.com/mazenDevloper/fit)'}
 log = []
 def get(u):
     r = urllib.request.urlopen(urllib.request.Request(u, headers=UA), timeout=600); d = r.read(); log.append(f'{u} {len(d)}'); return d
-subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'trimesh', 'fast-simplification', 'numpy'], check=True)
+r0 = subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', '--break-system-packages', 'trimesh', 'fast-simplification', 'numpy'], capture_output=True, text=True)
+log.append('pip ' + str(r0.returncode) + r0.stderr[-300:]); open('out/anat/log.txt', 'w').write('\n'.join(log))
 import numpy as np, trimesh, fast_simplification
 parts = get(B + 'partof_parts_list_e.txt').decode('utf-8', 'replace')
 elems = get(B + 'partof_element_parts.txt').decode('utf-8', 'replace')
