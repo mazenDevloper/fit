@@ -1,23 +1,36 @@
 pip 0
-https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_parts_list_e.txt 59351 1s
-https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_element_parts.txt 651179 4s
-picked {"bone": 263, "obliques": 4, "chest": 4, "upperBack": 4, "glutes": 2, "adductors": 2, "neck": 2, "biceps": 2, "triceps": 2}
-https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/partof_BP3D_4.0_obj_99.zip 64888505 283s
-objs in zip 1258
-Traceback (most recent call last):
-  File "/home/runner/work/fit/fit/tools/fetch.py", line 80, in <module>
-    mesh.fix_normals()
-  File "/home/runner/.local/lib/python3.12/site-packages/trimesh/base.py", line 1968, in fix_normals
-    multibody = self.body_count > 1
-                ^^^^^^^^^^^^^^^
-  File "/home/runner/.local/lib/python3.12/site-packages/trimesh/caching.py", line 133, in get_cached
-    value = function(*args, **kwargs)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/.local/lib/python3.12/site-packages/trimesh/base.py", line 1065, in body_count
-    count, labels = graph.csgraph.connected_components(
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/.local/lib/python3.12/site-packages/trimesh/exceptions.py", line 35, in __getattribute__
-    raise exc_type(*exc_args)
-ModuleNotFoundError: No module named 'scipy'
+picked {"bone": 258, "upperBack": 12, "other": 90, "obliques": 4, "neck": 14, "adductors": 8, "glutes": 8, "quads": 10, "hamstrings": 8, "shins": 12, "calves": 8, "lowerBack": 24, "traps": 6, "delts": 6, "chest": 6, "biceps": 8, "triceps": 8, "forearms": 42}
+https://dbarchive.biosciencedbc.jp/data/bodyparts3d/LATEST/isa_BP3D_4.0_obj_99.zip 142903898 400s
+objs in zip 2234
+normals No module named 'networkx'
+bone: 258 files 590006 → 49998 tris
+upperBack: 12 files 25400 → 9000 tris
+normals No module named 'networkx'
+other: 90 files 745608 → 90289 tris
+normals No module named 'networkx'
+obliques: 4 files 322076 → 13635 tris
+normals No module named 'networkx'
+neck: 14 files 77070 → 8999 tris
+adductors: 8 files 24628 → 9000 tris
+glutes: 8 files 22064 → 8999 tris
+normals No module named 'networkx'
+quads: 10 files 49264 → 9000 tris
+hamstrings: 8 files 28324 → 8999 tris
+shins: 12 files 31532 → 9000 tris
+calves: 8 files 27648 → 8998 tris
+normals No module named 'networkx'
+lowerBack: 24 files 133984 → 18453 tris
+normals No module named 'networkx'
+traps: 6 files 44196 → 9000 tris
+normals No module named 'networkx'
+delts: 6 files 10812 → 9000 tris
+chest: 6 files 20992 → 9000 tris
+biceps: 8 files 10944 → 9000 tris
+triceps: 8 files 12608 → 9000 tris
+normals No module named 'networkx'
+forearms: 42 files 107524 → 16332 tris
+bbox min [-323.39199829 -236.22986772  -72.79979706] max [ 324.18632596   24.64298048 1636.29775807]
+raw glb 6523508
+meshopt 0 npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
-t 292.8388640880585
+glb 1392848
