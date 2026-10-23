@@ -1,0 +1,36 @@
+$ curl -sL -o za.zip https://github.com/Z-Anatomy/Models-of-human-anatomy/raw/master/Z-Anatomy.zip && ls -la za.zip && unzip -o -q za.zip -d za && find za -maxdepth 3 | head -50
+  -> 0 3s -rw-r--r-- 1 runner runner 86734957 Oct 23 20:37 za.zip
+za
+za/Z-Anatomy
+za/Z-Anatomy/Anatomy-shortcuts.py
+za/Z-Anatomy/Startup.blend
+za/Z-Anatomy/Anatomy_Bright.xml
+za/Z-Anatomy/Anatomy_Dark.xml
+za/Z-Anatomy/__init__.py
+za/Z-Anatomy/splash.png
+ 
+$ curl -sL -o bl.tar.xz https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz && tar -xf bl.tar.xz && ls
+  -> 0 19s bl.tar.xz
+blender-4.2.3-linux-x64
+out
+tools
+za
+za.zip
+ 
+$ find za -name "*.blend" | head -5
+  -> 0 0s za/Z-Anatomy/Startup.blend
+ 
+$ ./blender-4.2.3-linux-x64/blender -b "za/Z-Anatomy/Startup.blend" --python inv.py
+  -> 0 28s Base Data'
+  CUOesophagus/GEOMETRY_EVAL() via 'ObData Geom Eval Done'
+  OBOesophagus-profile/TRANSFORM_FINAL() via 'Curve Bevel Transform'
+  OBOesophagus-profile/TRANSFORM_SIMULATION_INIT() via 'Simulation -> Final Transform'
+  OBOesophagus-profile/TRANSFORM_EVAL() via 'Transform Eval -> Simulation Init'
+  OBOesophagus-profile/TRANSFORM_PARENT() via 'Eval'
+  OBOesophagus-profile/TRANSFORM_LOCAL() via 'ObLocal -> ObParent'
+  OBOesophagus-profile/TRANSFORM_INIT() via 'Transform Init'
+Detected 1 dependency cycles
+
+Blender quit
+Error: Not freed memory blocks: 322, total unfreed memory 0.002457 MB
+ 
