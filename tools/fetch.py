@@ -38,6 +38,10 @@ try:
     exec(open('tools/rules.py').read())
     RULES.insert(0, ('abs', r'rectus abdominis|pyramidalis'))
     RULES.insert(2, ('obliques', r'abdominal oblique|transversus abdominis'))
+    RULES.insert(3, ('neck', r'scalenus|sternohyoid|omohyoid|platysma|longus colli|longus capitis'))
+    RULES.insert(4, ('other', r'masseter|temporalis|frontalis|occipitalis|orbicularis o|zygomaticus|bucinator|risorius|depressor anguli|depressor labii|levator labii|levator anguli|mentalis|nasalis|procerus|corrugator'))
+    INNER = r'arytenoid|cricothyroid|thyro-aryt|rectus muscle$|^(inferior|superior) oblique muscle$|glossus|pharyn|palat|levator palpebrae|tarsus|diaphragm|intercostal|interspinales|intertransversarii|rotatores|subcostal|transversus thoracis|obturator internus|gemellus|coccygeus|levator ani|pubo|ilioco|sphincter'
+    ARM, LEG = ('delts', 'biceps', 'triceps', 'forearms'), ('glutes', 'quads', 'hamstrings', 'adductors', 'calves', 'shins')
     BONE_SKIP = r'tooth|incisor|canine|molar|premolar|malleus|incus|stapes|cartilage of ear|alar cartilage|nasal|arytenoid|corniculate|cricoid|thyroid cartilage|concha|lacrimal|ethmoid|hyoid'
     d = np.load('dump.npz'); names = list(d['names'])
     log.append(f'objects {len(names)}'); save()
@@ -52,6 +56,10 @@ try:
         if g is None:
             if re.search(r'muscle|head of|part of', base) and not re.search(r'facial|auricular|ocular|tongue|palat|pharyn|laryn|perine|anal|urethr|levator ani|coccygeus|diaphragm|platysma|mentalis|orbicularis|zygomaticus|buccinator|nasalis|risorius|depressor|levator labii|temporalis|masseter|pterygoid|digastric|stylo|mylo|genio|hyoid|epicranius|procerus|corrugator|cremaster|tensor tympani|stapedius|uvula|sphincter|ischio|bulbo', base): g = 'other'
             else: unmatched.append(n); continue
+        if re.search(INNER, base): continue
+        z = float(d[f'v{i}'][:, 2].mean())
+        if g in ARM and z < 0.75: g = 'other'
+        if g in LEG and z > 1.05: g = 'other'
         groups[g].append(i)
     open('out/za/unmatched.txt', 'w').write('\n'.join(sorted(set(unmatched))))
     open('out/za/groups.json', 'w').write(json.dumps({g: sorted(set(re.sub(r'\.[lr]$', '', names[i].split('|')[1]) for i in v)) for g, v in groups.items()}, ensure_ascii=False, indent=0))
