@@ -1,37 +1,37 @@
 $ curl -sL -o za.zip https://github.com/Z-Anatomy/Models-of-human-anatomy/raw/master/Z-Anatomy.zip && unzip -o -q za.zip -d za
-  -> 0 3s  
+  -> 0 4s  
 $ curl -sL -o bl.tar.xz https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz && tar -xf bl.tar.xz
-  -> 0 20s  
+  -> 0 19s  
 $ ./blender-4.2.3-linux-x64/blender -b za/Z-Anatomy/Startup.blend --python dump.py 2>&1 | grep -E "dumped|ERR|Error" | head -40
   -> 0 30s dumped 960
 Error: Not freed memory blocks: 322, total unfreed memory 0.002457 MB
  
 objects 960
 chest: 6 objects 11160 → 10000 tris
-other: 141 objects 497034 → 18000 tris
+other: 116 objects 218728 → 18000 tris
 delts: 6 objects 20488 → 10000 tris
 triceps: 10 objects 26356 → 10000 tris
 traps: 8 objects 36056 → 9998 tris
 bone: 218 objects 597497 → 69999 tris
 biceps: 8 objects 21104 → 10000 tris
-forearms: 44 objects 143840 → 14000 tris
+forearms: 42 objects 137472 → 13998 tris
 glutes: 18 objects 47224 → 9998 tris
 shins: 16 objects 41588 → 10000 tris
 obliques: 8 objects 236118 → 9998 tris
 adductors: 10 objects 33888 → 9998 tris
-lowerBack: 30 objects 116200 → 10000 tris
 hamstrings: 12 objects 47912 → 10000 tris
 upperBack: 18 objects 76180 → 13998 tris
 calves: 12 objects 49396 → 10000 tris
-neck: 8 objects 35220 → 10000 tris
+neck: 24 objects 82644 → 9998 tris
+lowerBack: 24 objects 80480 → 9998 tris
 abs: 4 objects 43432 → 4000 tris
 quads: 12 objects 73036 → 13998 tris
 bbox min [-0.33483417 -0.13771145  0.00804413] max [0.33483417 0.12993795 1.70619667]
-raw 4778280
+raw 4774044
 $ npx -y @gltf-transform/cli@4 meshopt out/za/body_raw.glb out/za/body.glb
-  -> 0 9s info: prune: Removed types... Accessor (38)
+  -> 0 10s info: prune: Removed types... Accessor (38)
 info: prune: Removed types... Accessor (19)
-info: body_raw.glb (4.78 MB) → body.glb (925.42 KB)
+info: body_raw.glb (4.77 MB) → body.glb (925.73 KB)
  npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
-glb 925416
+glb 925728

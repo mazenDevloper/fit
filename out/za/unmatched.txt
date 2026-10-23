@@ -2,20 +2,10 @@ Anterior belly of digastric muscle.l
 Anterior belly of digastric muscle.r
 Anterior intermuscular septum of leg.l
 Anterior intermuscular septum of leg.r
-Bucinator.l
-Bucinator.r
 Coccygeus muscle.l
 Coccygeus muscle.r
 Common tendinous ring.l
 Common tendinous ring.r
-Corrugator supercilii.l
-Corrugator supercilii.r
-Deep part of masseter.l
-Deep part of masseter.r
-Depressor anguli oris.l
-Depressor anguli oris.r
-Depressor labii inferioris.l
-Depressor labii inferioris.r
 Depressor septi nasi.l
 Depressor septi nasi.r
 Diaphragm
@@ -59,10 +49,6 @@ Lateral intermuscular septum of arm.l
 Lateral intermuscular septum of arm.r
 Lateral patellar retinaculum.l
 Lateral patellar retinaculum.r
-Levator anguli oris.l
-Levator anguli oris.r
-Levator labii superioris.l
-Levator labii superioris.r
 Levator nasolabialis.l
 Levator nasolabialis.r
 Levator palpebrae superioris.l
@@ -80,50 +66,28 @@ Medial patellar retinaculum.l
 Medial patellar retinaculum.r
 Medial pterygoid muscle.l
 Medial pterygoid muscle.r
-Mentalis muscle.l
-Mentalis muscle.r
 Middle pharyngeal constrictor.l
 Middle pharyngeal constrictor.r
 Mylohyoid muscle.l
 Mylohyoid muscle.r
-Nasalis muscle.l
-Nasalis muscle.r
-Omohyoid muscle.l
-Omohyoid muscle.r
-Orbicularis oris muscle.l
-Orbicularis oris muscle.r
-Orbital part of orbicularis oculi.l
-Orbital part of orbicularis oculi.r
 Palatopharyngeus muscle.l
 Palatopharyngeus muscle.r
-Palpebral part of orbicularis oculi.l
-Palpebral part of orbicularis oculi.r
-Platysma.l
-Platysma.r
 Posterior belly of digastric muscle.l
 Posterior belly of digastric muscle.r
 Posterior intermuscular septum of leg.l
 Posterior intermuscular septum of leg.r
-Procerus muscle.l
-Procerus muscle.r
 Pronator quadratus.l
 Pronator quadratus.r
 Pubo-analis muscle.l
 Pubo-analis muscle.r
 Pubococcygeus muscle.l
 Pubococcygeus muscle.r
-Risorius muscle.l
-Risorius muscle.r
 Rotatores.l
 Rotatores.r
-Sternohyoid muscle.l
-Sternohyoid muscle.r
 Stylohyoid muscle.l
 Stylohyoid muscle.r
 Stylopharyngeus muscle.l
 Stylopharyngeus muscle.r
-Superficial part of masseter.l
-Superficial part of masseter.r
 Superior extensor retinaculum of ankle.l
 Superior extensor retinaculum of ankle.r
 Superior fibular retinaculum.l
@@ -134,15 +98,9 @@ Superior pharyngeal constrictor.l
 Superior pharyngeal constrictor.r
 Superior tarsus.l
 Superior tarsus.r
-Temporalis muscle.l
-Temporalis muscle.r
 Tendinous arch of levator ani.l
 Tendinous arch of levator ani.r
 Thyrohyoid muscle.l
 Thyrohyoid muscle.r
 Transverse intermuscular septum of leg.l
 Transverse intermuscular septum of leg.r
-Zygomaticus major muscle.l
-Zygomaticus major muscle.r
-Zygomaticus minor muscle.l
-Zygomaticus minor muscle.r
