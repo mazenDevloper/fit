@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>أرسل إلى · مدار و DriveCast</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#0b0d12;--card:#151925;--line:rgba(255,255,255,.09);--text:#eef2fb;--dim:#9aa3b8;--acc:#7cc4ff;--font:system-ui,-apple-system,"SF Arabic","Geeza Pro","Segoe UI",Tahoma,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font)}
+main{max-width:560px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+h1{font-size:20px;margin:4px 0 14px;display:flex;align-items:center;gap:8px}
+h1 small{font-size:12px;color:var(--dim);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.pv img,.pv video{display:block;width:100%;max-height:260px;object-fit:cover;background:#000}
+.pv .meta{padding:12px 14px}
+.pv b{display:block;font-size:15px;line-height:1.5;word-break:break-word}
+.pv span{display:block;font-size:12px;color:var(--dim);margin-top:4px;direction:ltr;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pv .ic{font-size:44px;padding:22px 0 4px;text-align:center}
+.thumbs{display:flex;gap:6px;padding:8px;overflow-x:auto}.thumbs img{width:76px;height:76px;object-fit:cover;border-radius:12px;max-height:none}
+h2{font-size:13px;color:var(--dim);margin:18px 2px 8px;font-weight:700}
+.acts,.devs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+button{font:inherit;color:var(--text);border:1px solid var(--line);background:var(--card);border-radius:16px;padding:12px;text-align:right;display:flex;align-items:center;gap:10px;min-height:56px}
+button i{font-style:normal;font-size:22px;width:28px;text-align:center}
+button div{display:flex;flex-direction:column;gap:2px}button div small{color:var(--dim);font-size:11px}
+button.on{border-color:var(--acc);background:rgba(124,196,255,.14)}
+.devs button.go{background:linear-gradient(135deg,#2563eb,#7c3aed);border:0}
+.devs button.off{opacity:.45}
+#status{margin-top:16px;min-height:22px;text-align:center;font-weight:700}
+#status.ok{color:#34d399}#status.err{color:#f87171}
+.bar{height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden;margin-top:8px;display:none}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+.manual{display:flex;gap:8px;margin-top:6px}.manual input{flex:1;min-width:0;padding:12px;border-radius:14px;border:1px solid var(--line);background:#0e1118;color:var(--text);font:15px var(--font);direction:ltr}
+</style>
+</head>
+<body>
+<main>
+  <h1>📤 أرسل إلى <small id="conn">…</small></h1>
+  <div id="pv" class="card pv"></div>
+  <div id="manualBox" hidden><div class="manual"><input id="manual" placeholder="الصق رابطاً أو اكتب نصاً" autocomplete="off"><button id="manualGo" style="min-height:0;padding:10px 14px">التالي</button></div></div>
+  <h2 id="actT">ماذا تريد؟</h2>
+  <div id="acts" class="acts"></div>
+  <h2>إلى أين؟</h2>
+  <div id="devs" class="devs"></div>
+  <div class="bar" id="bar"><i></i></div>
+  <div id="status"></div>
+</main>
+<script type="module" src="js/share.js"></script>
+</body>
+</html>

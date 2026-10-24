@@ -61,13 +61,53 @@ export class HubClient {
   }
   // open anything that came from a device / the library
   open(it) {
-    const app = this.app, W = app.windows;
+    const app = this.app, W = app.windows, mode = it?.mode;
     if (!it) return;
-    if (it.kind === 'yt') return W.open({ kind: 'web', url: 'https://www.youtube.com/watch?v=' + it.id, title: it.title || 'YouTube', start: it.t || 0 });
-    if (it.kind === 'iptv' || it.kind === 'video' || it.kind === '360') return W.open({ kind: 'video', url: it.url || it.id, name: it.title || '', start: it.t || 0, proj: it.kind === '360' ? '360' : null });
+    if (it.kind === 'yt') return W.open({ kind: 'web', url: 'https://www.youtube.com/watch?v=' + it.id, title: it.title || 'YouTube', start: it.t || 0, aspect: it.short ? 0.6 : 0 });
+    if (it.kind === 'iptv' || it.kind === 'video' || it.kind === '360') {
+      if (mode === 'save') return this.fileToLibrary(it, false);
+      return W.open({ kind: 'video', url: it.url || it.id, name: it.title || '', start: it.t || 0, proj: it.kind === '360' ? '360' : null });
+    }
     if (it.kind === 'article') return app.readWeb?.(it.url);
     if (it.kind === 'scene') return app.extras?.openScene(it.name || it.title);
+    if (it.kind === 'web') {
+      if (mode === 'read' || mode === 'listen') return app.readWeb?.(it.url);
+      if (mode === 'summary') return app.extras?.summarize(it.url, it.title);
+      return W.open({ kind: 'web', url: it.url, title: it.title || '' });
+    }
+    if (it.kind === 'pdf' || it.kind === 'image' || it.kind === 'file') return this.fileToLibrary(it, true);
+    if (it.kind === 'map') {
+      const q = it.lat != null ? it.lat + ',' + it.lon : encodeURIComponent(it.url || it.title || '');
+      if (mode === 'save') { app.toast('📍 حُفظ المكان', 2000); return; }
+      return W.open({ kind: 'web', url: 'https://www.google.com/maps?q=' + q + '&z=15&output=embed', title: '🗺 ' + (it.title || 'خريطة'), direct: true });
+    }
+    if (it.kind === 'text') {
+      if (mode === 'speak') { try { const u = new SpeechSynthesisUtterance(it.text); u.lang = 'ar-SA'; speechSynthesis.speak(u); } catch {} return; }
+      return W.open({ kind: 'widget', type: 'note', data: { text: it.text || it.title } });
+    }
     if (it.url) return W.open({ kind: 'web', url: it.url, title: it.title || '' });
+  }
+  // a shared file (on the server) into Madar's library, then shown the way you chose
+  async fileToLibrary(it, show) {
+    const app = this.app;
+    try {
+      app.toast('⬇️ ' + (it.title || 'ملف'), 3000);
+      const r = await fetch(it.url); const blob = await r.blob();
+      const { importFiles } = await import('./db.js');
+      const made = await importFiles([new File([blob], it.title || it.url.split('/').pop(), { type: blob.type || it.type || '' })]);
+      const m = made[0]; if (!m) { app.toast('نوع الملف غير مدعوم', 2500); return; }
+      app.renderLibrary?.(); app.launcher?.refresh?.();
+      if (!show || it.mode === 'save') { app.toast('💾 حُفظ في المكتبة: ' + m.name, 2500); return; }
+      if (m.type === 'doc') return app.openReader('doc', m.id);
+      if (m.type === 'image') {
+        if (it.mode === 'frame') { app.extras?.widget('photos'); return; }
+        if (it.mode === 'env') { const { importEnvironment } = await import('./db.js'); const e = await importEnvironment([new File([blob], it.title || 'env.jpg', { type: blob.type })]); if (e) await app.gallery.applyMine(e.id); return; }
+        const w = app.windows.open({ kind: 'image', itemId: m.id, name: m.name });
+        if (it.mode === 'spatial') setTimeout(() => w?.toggleSpatial?.(), 1500);
+        return w;
+      }
+      return app.windows.open({ kind: m.type, itemId: m.id, name: m.name });
+    } catch (e) { app.toast('تعذّر فتح الملف: ' + (e.message || e), 3000); }
   }
   control(action, value) {
     const vids = this.app.windows.windows.filter(w => w.kind === 'video' || w.yt);
@@ -100,6 +140,8 @@ export class HubClient {
     if (this.greeted || !this.app.active) return;
     this.greeted = true;
     if (this.pending) { const p = this.pending; this.pending = null; this.app.notify({ icon: '📥', title: 'وصل أثناء غيابك', body: p.title || '', actions: [['افتح', () => this.open(p)]] }); return; }
+    const inbox = (this.state.inbox || []).filter(x => Date.now() - (x.at || 0) < 3 * 864e5 && !x.seenBy?.includes(this.me.id));
+    if (inbox.length) { const x = inbox[0]; this.app.notify({ icon: '🕒', title: 'محفوظ لوقت لاحق (' + inbox.length + ')', body: x.title || x.url || '', actions: [['افتح', () => { this.open(x); this.op({ op: 'set', key: 'inbox', value: (this.state.inbox || []).filter(y => y !== x) }); }]] }); }
     const r = Object.values(this.state.resume || {}).filter(x => x.from?.id !== this.me.id && Date.now() - x.at < 12 * 3600e3).sort((a, b) => b.at - a.at)[0];
     if (r) this.app.notify({ icon: '▶', title: 'تابع من ' + (r.from?.name || KIND_AR[r.from?.kind] || 'جهازك'), body: (r.title || '') + ' · من ' + fmtTime(r.t), actions: [['أكمل', () => this.open(r)]] });
   }
