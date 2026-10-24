@@ -1,0 +1,8 @@
+https://huggingface.co/api/models/onnx-community/depth-anything-v2-small 1941 0s
+onnx-community/depth-anything-v2-small: .gitattributes, README.md, config.json, onnx/model.onnx, onnx/model_bnb4.onnx, onnx/model_fp16.onnx, onnx/model_int8.onnx, onnx/model_q4.onnx, onnx/model_q4f16.onnx, onnx/model_quantized.onnx, onnx/model_uint8.onnx, preprocessor_config.json, quantize_config.json
+https://huggingface.co/api/models/onnx-community/DepthPro-ONNX 1318 0s
+onnx-community/DepthPro-ONNX: .gitattributes, README.md, config.json, onnx/model.onnx, onnx/model.onnx_data, onnx/model_bnb4.onnx, onnx/model_fp16.onnx, onnx/model_int8.onnx, onnx/model_q4.onnx, onnx/model_q4f16.onnx, onnx/model_quantized.onnx, onnx/model_uint8.onnx, preprocessor_config.json
+https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx 27258801 0s
+https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_q4f16.onnx 19126267 0s
+https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/preprocessor_config.json 461 0s
+https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/config.json 38 0s
