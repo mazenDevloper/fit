@@ -1,0 +1,15 @@
+A hello: {"type":"hello","state":{"resume":{},"history":[],"scenes":{},"notes":{},"body":{},"workouts":{},"plan":{},"islands":[],"articles":[],"briefs":[],"ai":[],"stats":{},"photos":[]},"devices":[{"id":"test-madar","name":"TestMadar","kind":"madar","app":"madar","since":1792824499010}],"you":{"id":"test-ma
+
+B hello: {"type":"hello","state":{"resume":{},"history":[],"scenes":{},"notes":{},"body":{},"workouts":{},"plan":{},"islands":[],"articles":[],"briefs":[],"ai":[],"stats":{},"photos":[]},"devices":[{"id":"test
+
+A got: {"type":"devices","devices":[{"id":"test-car","name":"TestCar","kind":"car","app":"drivecast","since":1792824499090},{"id":"test-madar","name":"TestMadar","kind":"madar","app":"madar","since":17928244
+
+A got resume: {"type":"resume","item":{"id":"dQw4w9WgXcQ","kind":"yt","t":125,"dur":212,"title":"Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)","at":1792824499106,"from":{"id":"test-car","name":"TestCar","kind":"car","app":"drivecast"},"thumb":"https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg","channel":"Rick Astley"},"from":{"id":"test-car","name":"TestCar","kind":"car","app":"drivecast"
+
+B got msg: {"type":"msg","from":{"id":"test-madar","name":"TestMadar","kind":"madar","app":"madar"},"msg":{"type":"toast","text":"مرحبا من مدار"}}
+
+islands: {"at":1792824499325,"islands":[{"id":"ev:الظهر","kind":"prayer","icon":"🕌","title":"الظهر","at":1792829580000,"tint":"#0f766e"},{"id":"c:dQw4w9WgXcQ","kind":"continue","icon":"▶","title":"Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)","sub":"من TestCar · 2:05","thumb":"https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg","tint":"#e11d48","action":{"type":"open","item":{"id":"dQw4w9WgXcQ","kind":"yt","t":125,"dur":212,"title":"Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)","at":1792824499106,"from":{"id":"test-car","name":"TestCar","kind":"car","app":"drivecast"},"thumb":"https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg","channel":"Rick Astley"}}}]}
+
+library: {"ok":true,"continue":[{"id":"9wuazcBtXAI","title":"كيف نقرأ سورة (المسد) القلقلة الكبرى  #فارس_عنتر","thumb":"https://i.ytimg.com/vi/9wuazcBtXAI/hqdefault.jpg","channel":"فارس عنتر","live":false,"t":10},{"id":"PErl62ZWDZE","title":"سورة الفرقان كاملة من قيام ١٤٤٦هـ || القارئ عثمان مشعل الحداد","thumb":"https://i.ytimg.com/vi/PErl62ZWDZE/hqdefault.jpg","channel":"تلاوات قراء الكويت","live":false,"t":409}],"saved":[{"id":"PErl62ZWDZE","title":"سورة الفرقان كاملة من قيام ١٤٤٦هـ || القارئ عثمان مشعل الحداد","thumb":"https://i.ytimg.com/vi/PErl62ZWDZE/hqdefault.jpg","channel":"تلاوات قراء الكويت",
+
+suggest: {"place":"car","hour":10,"items":[],"today":{"car":0,"room":0}}
