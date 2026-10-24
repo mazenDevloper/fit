@@ -1,0 +1,47 @@
+name: Windows apps (Madar + DriveCast)
+# Builds مدار and DriveCast for Windows (installer + portable .exe) and publishes them as the "desktop-latest" release.
+on:
+  push:
+    branches: [desktop]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        app: [madar, drivecast]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Prepare ${{ matrix.app }}
+        shell: bash
+        run: |
+          pip install pillow
+          mkdir build && cp app/main.js build/ && cd build && python ../app/build.py ${{ matrix.app }}
+          npm i --no-audit --no-fund -D electron@32.2.7 electron-builder@24.13.3
+      - name: Build the .exe
+        shell: bash
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
+        run: cd build && npx electron-builder --win --x64 --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exe-${{ matrix.app }}
+          path: build/dist/*.exe
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: Publish "desktop-latest"
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          ls -la out
+          gh release delete desktop-latest --yes --cleanup-tag -R ${{ github.repository }} || true
+          gh release create desktop-latest out/*.exe -R ${{ github.repository }} --target "$GITHUB_SHA" --prerelease --title "مدار و DriveCast لويندوز" \
+            --notes "Madar-Setup.exe / DriveCast-Setup.exe: مثبّت مع اختصار على سطح المكتب. Madar-Portable.exe / DriveCast-Portable.exe: يعمل مباشرة بدون تثبيت. يفتحان الموقع الحي (التحديثات تصل تلقائياً). F11 ملء الشاشة · F5 تحديث."
