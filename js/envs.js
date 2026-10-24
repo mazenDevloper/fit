@@ -24,6 +24,8 @@ export const ENVS = {
   neonLounge:  { label: 'صالة النيون', note: 'أبيض ووردي وسماوي — كنب منحني وتلفاز', immersive: true },
   gym:         { label: 'صالة التمرين', note: 'أرض واسعة ومرآة ومعدات', immersive: true },
   gamingRed:   { label: 'غرفة الألعاب · أحمر', note: 'إضاءة حمراء وبرتقالية', immersive: true },
+  jupiter:     { label: 'المشتري', note: 'على قمر جليدي والمشتري يملأ السماء', immersive: true },
+  aurora:      { label: 'الشفق القطبي', note: 'جبال آيسلندا تحت أضواء الشمال', immersive: true },
   gallery:     { label: 'من المكتبة', note: 'بيئة اخترتها من مكتبة البيئات', immersive: true },
   mine:        { label: 'بيئتي', note: 'بيئة استوردتها أنت', immersive: true },
 };
@@ -79,6 +81,44 @@ export function makeEnvironments() {
     c += vec3(1.0,0.85,0.6) * (sun + pow(max(0.0, dot(vP, sd)), 40.0) * 0.5);
     gl_FragColor = vec4(min(c, 1.0),1.0); }`));
   all.sunset = g;
+  // Jupiter (visionOS 26): standing on an icy moon, the giant planet with its bands and the Great Red Spot overhead
+  g = new THREE.Group();
+  g.add(dome(`varying vec3 vP; uniform float uT;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
+    void main(){ vec3 c = vec3(0.004,0.005,0.012) + vec3(0.6) * step(0.9985, h(floor(vP.xy * 400.0 + vP.z * 91.0)));
+      vec3 J = normalize(vec3(0.3, 0.62, -1.0)); float d = acos(clamp(dot(vP, J), -1.0, 1.0)), R = 0.3;
+      if (d < R) { vec3 up = vec3(0.0,1.0,0.0); vec3 x = normalize(cross(up, J)); vec3 y = cross(J, x);
+        vec2 q = vec2(dot(vP - J, x), dot(vP - J, y)) / sin(R); float lat = q.y;
+        float band = sin(lat * 26.0 + sin(q.x * 6.0 + lat * 9.0) * 0.6);
+        vec3 col = mix(vec3(0.82,0.70,0.55), vec3(0.62,0.42,0.30), smoothstep(-0.3, 0.6, band));
+        col = mix(col, vec3(0.93,0.88,0.80), smoothstep(0.75, 1.0, sin(lat * 13.0 + 1.3)));
+        float spot = length((q - vec2(0.22, -0.36)) * vec2(1.0, 1.8)); col = mix(vec3(0.72,0.30,0.18), col, smoothstep(0.08, 0.13, spot));
+        float limb = sqrt(max(0.0, 1.0 - dot(q, q))); c = col * (0.25 + 0.9 * limb) * smoothstep(1.0, 0.97, length(q)); }
+      gl_FragColor = vec4(c, 1.0); }`));
+  { const ice = new THREE.Mesh(new THREE.CircleGeometry(40, 96), new THREE.MeshStandardMaterial({ color: 0x232a36, roughness: 0.95, metalness: 0.0 }));
+    ice.rotation.x = -Math.PI / 2; ice.position.y = -1.6; g.add(ice);
+    for (let i = 0; i < 40; i++) { const r = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2 + Math.random() * 0.8, 0), new THREE.MeshStandardMaterial({ color: 0x8796ab, roughness: 0.9, flatShading: true })); const a = Math.random() * Math.PI * 2, d = 4 + Math.random() * 25; r.position.set(Math.cos(a) * d, -1.6, Math.sin(a) * d); r.scale.y = 0.5; g.add(r); }
+    const sun = new THREE.DirectionalLight(0xfff1dc, 0.8); sun.position.set(-3, 4, -2); g.add(sun); g.add(new THREE.HemisphereLight(0xd8c6a8, 0x1a2030, 0.35)); }
+  g.userData.dim = 0.3; all.jupiter = g;
+  // Aurora over Icelandic mountains (like Thórsmörk at night)
+  g = new THREE.Group();
+  const aur = dome(`varying vec3 vP; uniform float uT;
+    float n(vec2 p){ return sin(p.x) * sin(p.y * 1.3 + p.x * 0.7); }
+    void main(){ float hgt = vP.y; float az = atan(vP.x, -vP.z);
+      vec3 c = mix(vec3(0.01,0.02,0.05), vec3(0.03,0.05,0.12), smoothstep(-0.1, 0.5, hgt));
+      float st = step(0.9982, fract(sin(dot(floor(vP.xz * 380.0 + vP.y * 77.0), vec2(12.99,78.23))) * 43758.5)); c += vec3(0.7) * st * smoothstep(0.05, 0.3, hgt);
+      for (int i = 0; i < 3; i++) { float fi = float(i); float y0 = 0.32 + fi * 0.09 + 0.05 * sin(az * 3.0 + uT * 0.15 + fi);
+        float curtain = exp(-pow((hgt - y0) * 9.0, 2.0)) * (0.6 + 0.4 * sin(az * 22.0 + uT * 0.6 + fi * 2.0 + 3.0 * n(vec2(az * 4.0, uT * 0.1))));
+        c += mix(vec3(0.1,0.95,0.55), vec3(0.6,0.3,0.95), fi / 2.0) * curtain * 0.55 * smoothstep(0.0, 0.25, hgt); }
+      float ridge = 0.06 + 0.07 * abs(sin(az * 2.3)) + 0.04 * abs(sin(az * 7.1 + 1.0)) + 0.02 * sin(az * 23.0);
+      if (hgt < ridge) c = mix(vec3(0.015,0.02,0.03), vec3(0.03,0.05,0.06), smoothstep(ridge - 0.03, ridge, hgt));
+      gl_FragColor = vec4(c, 1.0); }`);
+  aur.material.uniforms = { uT: { value: 0 } }; g.add(aur);
+  { const snow = new THREE.Mesh(new THREE.CircleGeometry(40, 64), new THREE.MeshStandardMaterial({ color: 0x2c3a44, roughness: 0.95 })); snow.rotation.x = -Math.PI / 2; snow.position.y = -1.6; g.add(snow);
+    g.add(new THREE.HemisphereLight(0x6fe0b8, 0x0a1018, 0.5)); }
+  const tickers = new THREE.Group(); tickers.userData.tick = (dt, t) => { aur.material.uniforms.uT.value = t; };
+  g.add(tickers); g.children.unshift(g.children.pop());   // the tick lives on the first child
+  g.userData.dim = 0.2; all.aurora = g;
   // furnished rooms: built the first time they are chosen (keeps start-up light)
   all.neonDesk = lazyRoom(neonDesk);
   all.study = lazyRoom(study);

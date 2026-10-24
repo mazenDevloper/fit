@@ -379,7 +379,7 @@ export class StereoRenderer {
     r.clear(true, true, true);
     if (envMode !== 'immersive' && !this.nativeCam) r.render(this.bgScene, this.bgCam);
     r.clearDepth();
-    r.render(this.scene, cam);
+    if (envMode === 'portal' && this.portal) this.portal.pass(r, cam, this.scene); else r.render(this.scene, cam);
     if (this.maskOn && u.uHas.value > 0) r.render(this.handScene, this.bgCam);
     else if (this.maskOn && this.nativeCam && envMode !== 'immersive') r.render(this.holeScene, this.bgCam);
     r.clearDepth();
@@ -414,7 +414,7 @@ export class StereoRenderer {
       r.clear(true, true, true);
       if (envMode !== 'immersive' && !this.nativeCam) r.render(this.bgScene, this.bgCam);
       r.clearDepth();
-      r.render(this.scene, cam);
+      if (envMode === 'portal' && this.portal) this.portal.pass(r, cam, this.scene); else r.render(this.scene, cam);
       if (this.maskOn && u.uHas.value > 0) r.render(this.handScene, this.bgCam);
       else if (this.maskOn && this.nativeCam && envMode !== 'immersive') r.render(this.holeScene, this.bgCam);
       r.clearDepth();

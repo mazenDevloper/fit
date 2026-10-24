@@ -18,6 +18,7 @@ import { ManuscriptWindow } from './manuscript.js';
 import { FurnitureWindow } from './furniture.js';
 import { CoachWindow } from './coach.js';
 import { saveWebArticle } from './books.js';
+import { Extras } from './extras.js';
 import { Ambient } from './ambient.js';
 import { SURAHS } from './quran.js';
 import { Slam } from './slam.js';
@@ -30,12 +31,13 @@ import { ScreenHost, ScreenViewer, WebHost, qrSvg, AGENT_DOWNLOAD, lib } from '.
 import { Room } from './room.js';
 import { IOS, NativeHead, NativeSlam, setupNative, toggleDeskHole } from './native.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
-import { listItems, importFiles, deleteItem, formatSize, importPhotoBook, importEnvironment } from './db.js';
+import { listItems, importFiles, deleteItem, formatSize, importPhotoBook, importEnvironment, getItem } from './db.js';
+import { depthMap, cachedDepth, saveDepth, forgetDepth } from './depth.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '97';
+export const APP_VERSION = '98';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -120,6 +122,7 @@ class App {
     this.controls = new Controls(this);
     this.gaze = new GazeTracker(this);
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
+    this.extras = new Extras(this);
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     if (IOS) setupNative(this);
     this.interaction.setTargets();
@@ -176,7 +179,7 @@ class App {
     n.hidden = false;
   }
 
-  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || []), ...(this.gallery?.targets || [])]; }
+  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || []), ...(this.gallery?.targets || []), ...(this.extras?.targets || [])]; }
   notify(n) { if (this.active && this.notifier) this.notifier.push(n); else this.toast(n.title, 3000); }
   links() { return loadLinks(); }
   toast(msg, ms) { this.toastUI.show(msg, ms); }
@@ -446,6 +449,7 @@ class App {
     } catch (e) { this.toast('المساعد غير متاح الآن', 2500); return; }
     if (!r || !r.say) { this.toast('لم أفهم: «' + q + '»', 2500); return; }
     this.aiHist = [...(this.aiHist || []), { role: 'user', content: q }, { role: 'assistant', content: r.say }].slice(-8);
+    this.extras?.logAnswer(q, r.say);
     this.notifier.cur = null; this.notifier.queue = [];
     const a = r.action || {};
     const run = () => {
@@ -461,6 +465,7 @@ class App {
     try { const u = new SpeechSynthesisUtterance(r.say); u.lang = 'ar-SA'; u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {}
     this.log('المساعد: ' + q + ' → ' + r.say);
   }
+  receiveScene(d, from) { this.extras?.receiveScene(d, from); }
   receiveText(d, from) {
     const t = String(d.text || '');
     this.notify({ icon: '💬', title: from?.name || 'جهاز', body: t.slice(0, 120), actions: /^https?:\/\//.test(t) ? [['افتح', () => this.windows.open({ kind: 'web', url: t.trim() })]] : [] });
@@ -801,7 +806,7 @@ class App {
       const box = $('#envs'), cur = envKey(settings.environment);
       const sw = { passthrough: 'linear-gradient(135deg,#8a8f99,#c9ccd2)', dim: 'linear-gradient(135deg,#2a2d35,#4b4f5a)', night: 'radial-gradient(circle at 30% 30%,#2a3a70,#070b1a)', cinema: 'radial-gradient(circle at 50% 35%,#2a3550,#0b0910 70%)', sunset: 'linear-gradient(180deg,#3a2f6a,#ff8c52 75%,#5a3030)',
         neonDesk: 'linear-gradient(135deg,#4b5688,#ff5fd6)', study: 'linear-gradient(135deg,#c8afe0,#f4f3f6)', realNeon: 'linear-gradient(135deg,#223a8a,#5fdcff)', realStudio: 'linear-gradient(135deg,#e4c6f6,#f0eef2)', lounge: 'linear-gradient(135deg,#5a3020,#ffb070)', realStudy: 'linear-gradient(135deg,#d8d0c0,#fff4e0)',
-        space: 'radial-gradient(circle at 60% 85%,#3a7bd5 0 22%,#0a1430 23%,#01020a 70%)', library: 'linear-gradient(135deg,#4a2f1c,#c9a24a)', reading: 'linear-gradient(135deg,#8a7a60,#f2e6cc)', viewOffice: 'linear-gradient(180deg,#f7b267,#f25c54 60%,#3a2c40)', nightOffice: 'linear-gradient(180deg,#0b1030,#3a4a8a 60%,#ffcf6a)', gaming: 'linear-gradient(135deg,#8a3cff,#18d8ff)', gamingRed: 'linear-gradient(135deg,#ff2a3c,#ff9a1a)' };
+        space: 'radial-gradient(circle at 60% 85%,#3a7bd5 0 22%,#0a1430 23%,#01020a 70%)', library: 'linear-gradient(135deg,#4a2f1c,#c9a24a)', reading: 'linear-gradient(135deg,#8a7a60,#f2e6cc)', viewOffice: 'linear-gradient(180deg,#f7b267,#f25c54 60%,#3a2c40)', nightOffice: 'linear-gradient(180deg,#0b1030,#3a4a8a 60%,#ffcf6a)', gaming: 'linear-gradient(135deg,#8a3cff,#18d8ff)', gamingRed: 'linear-gradient(135deg,#ff2a3c,#ff9a1a)', jupiter: 'radial-gradient(circle at 60% 35%,#d9b48a 0 25%,#0a0c14 26%)', aurora: 'linear-gradient(180deg,#0a1630,#2ee59d 60%,#101820)' };
       box.innerHTML = '';
       ENV_ORDER.forEach(k => {
         const b = document.createElement('button'); b.type = 'button'; b.className = k === cur ? 'on' : '';
@@ -828,7 +833,24 @@ class App {
       const kind = { video: 'فيديو', image: 'صورة', model: 'مجسم ' + (it.format || '').toUpperCase(), doc: 'كتاب ' + ({ images: 'مصوّر', web: 'مقال' }[it.format] || (it.format || '').toUpperCase()), env: 'بيئة ' + (it.format || '').toUpperCase() }[it.type] || it.type;
       li.innerHTML = `<span class="badge ${it.type}"></span><div class="meta"><b></b><small>${kind} · ${formatSize(it.size)}${it.files.length > 1 ? ' · ' + it.files.length + ' ملفات' : ''}</small></div><button class="del" type="button" aria-label="حذف">حذف</button>`;
       li.querySelector('b').textContent = it.name;
-      li.querySelector('.del').addEventListener('click', async () => { await deleteItem(it.id); this.renderLibrary(); });
+      li.querySelector('.del').addEventListener('click', async () => { await deleteItem(it.id); forgetDepth(it.id); this.renderLibrary(); });
+      if (it.type === 'image') {   // 2D → spatial: the depth is estimated here once, the photo then opens in 3D
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'del'; b.style.marginInlineEnd = '6px';
+        const set = () => { b.textContent = cachedDepth(it.id) ? '🧊 مجسّمة ✓' : '🧊 اجعلها مجسّمة'; };
+        set();
+        b.addEventListener('click', async () => {
+          if (cachedDepth(it.id)) { forgetDepth(it.id); set(); return; }
+          b.disabled = true;
+          try {
+            const full = await getItem(it.id), img = new Image(), url = URL.createObjectURL(full.files[0].blob);
+            img.src = url; await img.decode();
+            saveDepth(it.id, await depthMap(img, { onStep: m => { b.textContent = m; } }));
+            URL.revokeObjectURL(url);
+          } catch (e) { $('#libStatus').textContent = 'تعذّر التحويل: ' + (e.message || e); }
+          b.disabled = false; set();
+        });
+        li.insertBefore(b, li.querySelector('.del'));
+      }
       ul.appendChild(li);
     }
   }
@@ -904,6 +926,7 @@ class App {
     if (settings.walk && !IOS) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
+    this.extras.enter();
     if (settings.ambient && settings.ambient !== 'off') setTimeout(() => this.ambient.set(settings.ambient), 1500);
     // Your teams from cplay2 (once a day), then matches for the live island.
     if (!settings.myTeamsAt || Date.now() - settings.myTeamsAt > 864e5) { saveSettings({ myTeamsAt: Date.now() }); setTimeout(() => this.sports.syncFavorites(), 4000); }
@@ -960,6 +983,7 @@ class App {
     // closeAll schedules an empty save; keep the real layout instead.
     clearTimeout(this.windows.saveTimer);
     saveLayout({ windows: snapshot });
+    this.extras.exit();
     this.launcher.close(); this.calibration.close();
     this.slam.stop();
     const s = this.camVideo.srcObject; if (s) s.getTracks().forEach(t => t.stop());
@@ -1017,6 +1041,13 @@ class App {
     return true;
   }
 
+  // Thermal guard: inside a virtual place the camera only feeds hand tracking - a small picture, 20 a second.
+  coolCamera(immersive) {
+    const tr = this.camVideo?.srcObject?.getVideoTracks?.()[0]; if (!tr?.applyConstraints || IOS) return;
+    const c = immersive ? { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: settings.handsEnabled ? 20 : 10, max: 24 } }
+      : { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: settings.cool ? { ideal: 30, max: 30 } : { ideal: 60, max: 60 } };
+    tr.applyConstraints(c).catch(() => {});
+  }
   // iOS can stop the camera (e.g. when another app or audio takes over). Restart it quietly.
   async recoverCamera(why) {
     if (!this.active || this.recovering) return;
@@ -1087,7 +1118,7 @@ class App {
 
   // ---------- Voice commands (optional) ----------
   startVoice() {
-    if (!settings.voice) return;
+    if (!settings.voice || this.extras?.captions.on) return;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return;
     try {
@@ -1109,7 +1140,7 @@ class App {
     this.stopVoice();
     try {
       const rec = new SR();
-      rec.lang = 'ar-SA'; rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.lang = 'ar-SA'; rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 1; rec.madarMode = mode;
       let finalText = '';
       rec.onresult = e => {
         let txt = '';
@@ -1124,17 +1155,18 @@ class App {
       rec.onend = () => {
         if (this.voice === rec) this.voice = null;
         const t = finalText.trim(); if (!t) return;
-        if (mode === 'dictate') this.dictate(t); else this.voiceCommand(t);
+        if (mode === 'dictate') this.dictate(t); else if (mode === 'assist') this.askAssistant(t); else this.voiceCommand(t);
         if (settings.voice && this.active) setTimeout(() => this.startVoice(), 400);
       };
       rec.start();
       this.voice = rec;
       blip('open', settings.sounds);
-      this.toast(mode === 'dictate' ? '✍️ تكلم الآن… سأكتب ما تقول' : '🎙 تكلم الآن… مثل: «اعرض شاشة التابلت»', 3000);
+      this.toast(mode === 'dictate' ? '✍️ تكلم الآن… سأكتب ما تقول' : mode === 'assist' ? '✨ أسمعك… اسأل المساعد' : '🎙 تكلم الآن… مثل: «اعرض شاشة التابلت»', 3000);
     } catch (e) { this.toast('تعذّر تشغيل الميكروفون', 2500); }
   }
   // Spoken text goes where typing would go: the keyboard, the controlled device, or the open page.
   dictate(t) {
+    if (this.extras?.takeDictation(t)) { this.toast('✍️ ' + t, 1500); return; }
     const kb = this.windows.windows.find(w => w.kind === 'keyboard');
     if (kb) { kb.text += (kb.text && !kb.text.endsWith(' ') ? ' ' : '') + t; kb.panel.redraw(); this.toast('✍️ ' + t, 2000); return; }
     const m = [...this.windows.windows].reverse().find(x => x.remote && x.control);
@@ -1145,6 +1177,7 @@ class App {
   }
   voiceCommand(t) {
     t = t.trim();
+    if (this.extras?.voice(t)) { this.toast('🎙 ' + t, 1500); this.log('أمر صوتي: ' + t); return; }
     const has = (...w) => w.some(x => t.includes(x));
     const after = (...w) => { for (const x of w) { const i = t.indexOf(x); if (i >= 0) return t.slice(i + x.length).trim(); } return ''; };
     const pointed = () => this.controls.pointedWindow() || [...this.windows.windows].reverse().find(w => w.kind !== 'keyboard');
@@ -1223,6 +1256,9 @@ class App {
         || this.windows.windows.some(w => w.kind === 'web' || w.kind === 'game' || (w.video && !w.video.paused) || w.moving || w.busy?.());
       if (!busy) return;
     }
+    // Idle: 45 s without moving your head, nothing playing or animating → 6 pictures a second (any movement: full speed)
+    if (settings.idleSlow !== false && this.lastQ && now - (this.movingAt || 0) > 45000 && now - this.last < 160 && !this.hands.slots?.some(s => s.active)
+      && !this.windows.windows.some(w => (w.video && !w.video.paused) || w.kind === 'web' || w.kind === 'game' || w.kind === 'coach' || w.moving)) return;
     if ((settings.cool || settings.lite) && this.lastQ) {
       if ((settings.coolMax || settings.lite || now - (this.movingAt || 0) > 250) && now - this.last < 28) return;
     }
@@ -1237,13 +1273,17 @@ class App {
     this.controls.update(dt);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
+    this.extras.update(dt, now);
     this.toastUI.update(now, this.renderQ);
     this.sports?.update(now, this.renderQ);
     if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }
     if (this.launcher.group.visible) this.launcher.group.updateMatrixWorld();
     this.control.update(now); this.lookUp.update(); this.notifier.update(now); this.iphone.update(now);
     const ek = envKey(settings.environment);
-    this.envs[ek]?.children[0]?.userData.tick?.(dt, now / 1000);   // animated places (space, gaming room, library dust)
+    // animated places (space, gaming room, library dust) - a third of the frames in maximum cooling
+    this.envDt = (this.envDt || 0) + dt;
+    this.envN = (this.envN || 0) + 1;
+    if (!settings.coolMax || this.envN % 3 === 0) { this.envs[ek]?.children[0]?.userData.tick?.(this.envDt, now / 1000); this.envDt = 0; }
     // A 360° picture surrounds you completely: hide the room/sky so nothing cuts into it.
     const around = this.windows.windows.some(w => w.sphere) || !!this.immersiveScene?.visible, cinema = !!this.windows.cinema;
     for (const k in this.envs) this.envs[k].visible = !around && !cinema && k === ek;
@@ -1254,7 +1294,7 @@ class App {
     if (room && room.userData.shadowsDirty) { room.userData.shadowsDirty = false; this.renderer.renderer.shadowMap.needsUpdate = true; }
     if (dim !== this.lightDim) { this.renderer.renderer.shadowMap.needsUpdate = true; this.lightDim = dim; this.globalLights?.forEach(([l, i]) => { l.intensity = i * dim; }); this.renderer.scene.environmentIntensity = dim; }
     this.renderer.updateHandMask(settings.handsEnabled && this.hands.state === 'ready' ? this.hands.slots : null, now);
-    this.envModeNow = cinema || this.immersiveScene?.visible ? 'immersive' : isImmersive(ek) ? 'immersive' : ek;
+    this.envModeNow = cinema || this.immersiveScene?.visible ? 'immersive' : this.extras.portal.active() && !around ? 'portal' : isImmersive(ek) ? 'immersive' : ek;
     this.eyeBreak(now);
     this.renderer.render(this.renderQ, this.envModeNow);
   }

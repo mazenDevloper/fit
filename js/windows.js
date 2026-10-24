@@ -1,13 +1,14 @@
 // Spatial windows (video, image, web, info panels) and 3D model volumes, plus the manager that places and saves them.
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, TEXT_SCALE, canvasTexture, blip } from './ui.js';
+import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, TEXT_SCALE, canvasTexture, blip, audioContext } from './ui.js';
 import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem, importFiles } from './db.js';
 import { settings, saveSettings, loadLinks, saveLinks } from './config.js';
 import { CSS_K, EYE } from './render.js';
 import { drawMatches , drawBoard } from './sports.js';
 import { BalloonGame } from './games.js';
+import { depthMap, cachedDepth, saveDepth, forgetDepth } from './depth.js';
 
 const BROWSE_ORIGIN = 'https://drivecast.c-p.workers.dev';
 const CONTENT_VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -160,12 +161,32 @@ export function setElementVolume(el, v) {
   if (!el._gain && !el.crossOrigin && !/^(blob|data):/.test(el.currentSrc || el.src || '')) return;   // not CORS-clean: a gain would silence it
   try {
     if (!el._gain) {
-      AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+      AC = AC || audioContext() || new (window.AudioContext || window.webkitAudioContext)();
       const src = AC.createMediaElementSource(el), g = AC.createGain(); src.connect(g).connect(AC.destination); el._gain = g;
     }
     if (AC.state === 'suspended') AC.resume().catch(() => {});
     el._gain.gain.value = v; try { el.volume = 1; } catch {}
   } catch {}
+}
+
+// Spatial audio: the sound goes through a stereo panner so it comes from where its window is (extras.js moves it).
+export function spatialize(el) {
+  if (!el) return null;
+  if (el._pan) return el._pan;
+  if (el._noPan || el.srcObject || (!el.crossOrigin && !/^(blob|data):/.test(el.currentSrc || el.src || ''))) { el._noPan = true; return null; }
+  try {
+    AC = AC || audioContext() || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state !== 'running') { AC.resume?.().catch(() => {}); return null; }   // only once sound is allowed (after a tap)
+    if (!AC.createStereoPanner) { el._noPan = true; return null; }
+    const pan = AC.createStereoPanner();
+    if (el._gain) { el._gain.disconnect(); el._gain.connect(pan).connect(AC.destination); }
+    else {
+      const src = AC.createMediaElementSource(el), g = AC.createGain();
+      g.gain.value = el.volume ?? 1; src.connect(g).connect(pan).connect(AC.destination); el._gain = g;
+    }
+    if (AC.state === 'suspended') AC.resume().catch(() => {});
+    el._pan = pan; return pan;
+  } catch { el._noPan = true; return null; }
 }
 
 let winId = 0;
@@ -721,7 +742,9 @@ export class VideoWindow extends SpatialWindow {
       this.lastFrameTime = -1;
     } else {
       this.canvas = null;
-      this.tex = new THREE.VideoTexture(v);
+      // a plain texture updated by hand (see update): only new frames, only while you can see the window, and at
+      // most 30 / 25 times a second in the cooling modes - videos behind you cost nothing
+      this.tex = new THREE.Texture(v); this.lastFrameTime = -1;
       this.tex.colorSpace = THREE.SRGBColorSpace;
       this.tex.minFilter = THREE.LinearFilter; this.tex.generateMipmaps = false;
       this.mat.uniforms.uVideo.value = 1;
@@ -939,9 +962,10 @@ export class VideoWindow extends SpatialWindow {
     }
     if (this.sphere) this.sphere.position.copy(this.mgr.headLocal());
     this.mat.uniforms.uHas.value = v.readyState >= 2 && this.tex ? 1 : 0;
-    if (this.canvas && v.readyState >= 2 && v.currentTime !== this.lastFrameTime) {
-      this.lastFrameTime = v.currentTime;
-      try { this.cctx.drawImage(v, 0, 0, this.canvas.width, this.canvas.height); this.tex.needsUpdate = true; } catch {}
+    if (this.tex && v.readyState >= 2 && v.currentTime !== this.lastFrameTime && (now - (this.texAt || 0) >= (settings.coolMax ? 39 : settings.cool ? 32 : 0)) && this.inView(now)) {
+      this.lastFrameTime = v.currentTime; this.texAt = now;
+      if (this.canvas) { try { this.cctx.drawImage(v, 0, 0, this.canvas.width, this.canvas.height); this.tex.needsUpdate = true; } catch {} }
+      else this.tex.needsUpdate = true;
     }
     if (now - this.lastBar > 250) { this.lastBar = now; this.toolbar.redraw(); }
     if (this.remote) this.trackPointer(now);
@@ -954,6 +978,12 @@ export class VideoWindow extends SpatialWindow {
         this.stallAt = now; this.onStall();
       }
     }
+  }
+  // is the window (or its 360° sphere) in front of you? checked 5 times a second
+  inView(now) {
+    if (this.sphere || this.mgr.cinema === this || this.lastFrameTime < 0) return true;
+    if (now - (this.viewAt || 0) > 200) { this.viewAt = now; const p = this.group.getWorldPosition(new THREE.Vector3()), d = p.length(); this.seen = d < 0.8 || p.divideScalar(d).dot(this.mgr.app.headForward) > 0.25 - Math.min(0.4, this.group.scale.x / Math.max(0.5, d) * 0.3); }
+    return this.seen !== false;
   }
   ref() {
     if (this.stream || (this.url && this.url.startsWith('blob:'))) return null;
@@ -985,6 +1015,7 @@ export class ImageWindow extends SpatialWindow {
     this.toolbar = new Toolbar([
       { icon: () => this.proj === '360' ? 'image' : 'globe', action: () => { this.setProjection(this.proj === '360' ? 'flat' : '360'); this.mgr.changed(); } },
       { icon: () => this.curved ? 'flat' : 'curve', action: () => this.setCurved(!this.curved) },
+      { icon: 'cube', active: () => !!this.depth, action: () => this.toggleSpatial() },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
       { icon: 'dots', active: () => !!this.more?.mesh.parent, action: () => this.toggleMore() },
@@ -992,6 +1023,23 @@ export class ImageWindow extends SpatialWindow {
     this.group.add(this.toolbar.mesh);
     this.layout();
     this.load();
+  }
+  // visionOS «مشهد مكاني»: any ordinary photo becomes 3D - the depth is estimated on the phone (once per photo)
+  async toggleSpatial() {
+    const app = this.mgr.app;
+    if (this.depth) { this.depth = null; this.depthSrc = null; if (this.itemId) forgetDepth(this.itemId); this.layout(); this.toolbar.redraw(); app.toast('الصورة مسطحة', 1500); return; }
+    if (this.depthBusy || !this.tex?.image) return;
+    if (this.proj !== 'flat') this.setProjection('flat');
+    if (this.curved) this.setCurved(false);
+    this.depthBusy = true;
+    try {
+      const png = await depthMap(this.tex.image, { onStep: m => app.toast(m, 4000) });
+      if (!this.mgr.windows.includes(this)) return;
+      this.depthSrc = png; saveDepth(this.itemId, png);
+      await this.loadDepth();
+      this.toolbar.redraw();
+    } catch (e) { app.toast('تعذّر تحويل الصورة: ' + (e.message || e), 3500); }
+    this.depthBusy = false;
   }
   async load() {
     const item = this.file ? { name: this.file.name, files: [{ blob: this.file }] } : await getItem(this.itemId);
@@ -1016,6 +1064,7 @@ export class ImageWindow extends SpatialWindow {
       this.setAspect(c.width / c.height);
       const r = c.width / c.height;
       if (this.cut == null && hasAlpha(c)) { this.setCut(1); this.mgr.app.toast('🖼 صورة بلا خلفية', 1800); }
+      if (!this.depthSrc && this.proj === 'flat') this.depthSrc = cachedDepth(this.itemId);   // converted before: spatial again
       if (this.depthSrc) await this.loadDepth();
       if (this.proj && this.proj !== 'flat') this.setProjection(this.proj);
       else if (/360|panorama|بانوراما|مكة|مكه|الحرم/i.test(item.name || '') && Math.abs(r - 2) < 0.15) this.setProjection('360');
@@ -1029,13 +1078,14 @@ export class ImageWindow extends SpatialWindow {
       const c = document.createElement('canvas'); c.width = 160; c.height = Math.max(2, Math.round(160 * img.height / img.width));
       const g = c.getContext('2d'); g.filter = 'blur(1.5px)'; g.drawImage(img, 0, 0, c.width, c.height);
       this.depth = { w: c.width, h: c.height, d: g.getImageData(0, 0, c.width, c.height).data };
-      this.depthAmount = 0.2;
+      this.depthAmount = this.depthAmount || 0.2;
       this.layout(); this.mgr.app.toast('🧊 صورة مجسّمة — حرّك رأسك لترى العمق', 2500);
     } catch { this.mgr.app.toast('تعذّر قراءة عمق الصورة'); }
   }
   layout() {
     super.layout();
     if (!this.depth || this.curved) return;
+    this.frame.visible = false;   // a spatial scene has no frame: the picture itself stands in the room
     const h = this.h, sx = 120, sy = Math.max(2, Math.round(120 * h));
     const geo = new THREE.PlaneGeometry(1, h, sx, sy), pos = geo.attributes.position, uv = geo.attributes.uv, D = this.depth;
     for (let i = 0; i < pos.count; i++) {
@@ -1356,6 +1406,7 @@ export class WebWindow extends SpatialWindow {
       ['قراءة تلقائية', this.autoScroll ? 'مفعّلة' : 'إيقاف', () => { this.autoScroll = !this.autoScroll; this.mgr.app.toast(this.autoScroll ? 'الصفحة تتمرّر ببطء — اضغط مجدداً للإيقاف' : 'توقف التمرير', 2200); }],
       ['المصدر', this.snap ? 'واحد للعينين' : 'مباشر', () => this.toggleLive()],
       ['اقرأ في مدار', 'كتاب', () => this.mgr.app.readWeb?.(this.pageUrl || this.url)],
+      ['ملخص', 'لخّص الصفحة', () => this.mgr.app.extras?.summarize(this.pageUrl || this.url, this.title)],
     ];
   }
   // 🎬 Live: both eyes show the real page (moving video inside sites); otherwise one picture for both eyes.
@@ -1737,6 +1788,7 @@ export class ModelVolume {
       { icon: 'target', action: () => this.mgr.app.controls.toggleOrbit(this), active: () => this.mgr.app.controls.orbit?.win === this },
       { icon: 'reset', action: () => { this.rot = 0; this.group.scale.setScalar(1); this.mgr.changed(); } },
       { icon: 'home', active: () => !!this.envPin, action: () => this.mgr.pinToEnv(this, !this.envPin) },
+      { icon: 'mic', action: () => { this.mgr.app.extras.noteTarget = this; this.mgr.app.listen('dictate'); } },
       { icon: 'minus', action: () => this.scaleBy(1 / 1.15) },
       { icon: 'plus', action: () => this.scaleBy(1.15) },
     ]).install();
@@ -1774,6 +1826,19 @@ export class ModelVolume {
     this.group.remove(this.loader); this.loader.geometry.dispose();
   }
   scaleBy(f) { this.group.scale.setScalar(THREE.MathUtils.clamp(this.group.scale.x * f, 0.1, 12)); this.mgr.changed(); }
+  // visionOS 27 Quick Look annotations: notes floating above the model (say «ملاحظة …» while pointing at it, or 🎙)
+  addNote(t) {
+    t = String(t || '').trim(); if (!t) return;
+    (this.notes ||= []).push(t);
+    const i = this.notes.length - 1, ctx2 = document.createElement('canvas').getContext('2d');
+    ctx2.font = '700 40px system-ui'; const wpx = Math.min(900, ctx2.measureText(t).width + 90);
+    const panel = new CanvasPanel(wpx / 1500, 0.06, (ctx, W, H, p) => {
+      roundRect(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2); ctx.fillStyle = 'rgba(250,204,21,0.92)'; ctx.fill();
+      text(ctx, '📝 ' + t, W / 2, H / 2 + 2, H * 0.42, { weight: 700, color: '#2b2203', dir: 'auto', maxWidth: W - 30, fit: true });
+      p.region(0, 0, W, H, () => { this.notes.splice(this.notes.indexOf(t), 1); this.group.remove(panel.mesh); panel.dispose(); this.noteMeshes = this.noteMeshes.filter(m => m !== panel.mesh); this.mgr.changed(); this.mgr.refreshTargets(); this.mgr.app.toast('حُذفت الملاحظة', 1200); }, 'x');
+    }, { pxPerM: 1500 });
+    (this.noteMeshes ||= []).push(panel.mesh); this.group.add(panel.mesh); this.mgr.refreshTargets();
+  }
   rotateBy(a) { this.rot += a; }
   onDragEnd() {}
   update(dt) {
@@ -1787,10 +1852,11 @@ export class ModelVolume {
     this.group.rotation.y = Math.atan2(-wp.x, -wp.z);
     this.pivot.rotation.y = this.rot - this.group.rotation.y;
     this.shadow.rotation.z = 0;
+    if (this.noteMeshes) { const top = this.proxy.position.y * 2 + 0.06; this.noteMeshes.forEach((m, i) => m.position.set(0, top + i * 0.075, 0)); }
   }
   serialize() {
     const g = this.group;
-    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : this.files ? null : this.includes ? { url: this.url, name: this.name, includes: this.includes } : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin, ek: this.envPin || undefined };
+    return { kind: 'model', ref: this.itemId ? { item: this.itemId } : this.files ? null : this.includes ? { url: this.url, name: this.name, includes: this.includes } : { url: this.url }, p: g.position.toArray().map(v => +v.toFixed(3)), s: +g.scale.x.toFixed(3), r: +this.rot.toFixed(3), spin: this.spin, ek: this.envPin || undefined, n: this.notes?.length ? this.notes : undefined };
   }
   dispose() {
     this.toolbar.dispose();
@@ -1993,7 +2059,7 @@ export class WindowManager {
         win.wallLock = !!s.wl; if (s.ek) win.envPin = s.ek;
         if (s.vol != null && win.setVolume) setTimeout(() => win.setVolume(s.vol, false), 1500);
         if (s.cut) setTimeout(() => win.setCut?.(s.cut), 400);
-        if (s.kind === 'model') { win.rot = s.r || 0; win.spin = !!s.spin; }
+        if (s.kind === 'model') { win.rot = s.r || 0; win.spin = !!s.spin; (s.n || []).forEach(t => win.addNote(t)); }
         else if (s.c) { win.curved = true; win.updateRadius(); win.layout(); }
         this.root.add(win.group);
         this.windows.push(win);

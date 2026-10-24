@@ -39,7 +39,7 @@ export class Launcher {
     this.panel.redraw();
   }
   open() {
-    this.refresh();
+    this.refresh(); this.folder = null; this.edit = false;
     const yaw = this.app.windows.forwardYaw();
     const d = settings.viewMode !== 'sbs' ? 1.75 : 1.25;
     this.group.position.set(-Math.sin(yaw) * d, -0.08, -Math.cos(yaw) * d);
@@ -97,7 +97,7 @@ export class Launcher {
     const a = this.app;
 
     if (this.tab === 'apps') {
-      const list = [
+      let list = [
         ['book', 'المصحف', 'تلاوة وتفسير بصفحتين', () => { this.close(); a.openReader('quran'); }],
         ['stack', 'رف الكتب', 'كتبك و PDF والمقالات', () => { this.close(); a.openShelf(); }],
         ['muscle', 'المدرب الرياضي', 'تمارين مع مجسم وعدّ', () => { this.close(); a.openCoach?.(); }],
@@ -121,6 +121,7 @@ export class Launcher {
           ['video', 'فيديو مكاني', 'فيديو صوّرته بالآيفون ثلاثي الأبعاد', () => { this.close(); window.MadarIOS.send('pickMedia', { spatial: true }); }],
           ['reset', 'غرفة جديدة', 'انسَ مكان النوافذ وابدأ من جديد', () => { this.close(); window.MadarIOS.send('resetWorld', { forget: true }); a.head.recenter(true); a.toast('بدأت غرفة جديدة', 2000); }],
         ] : []),
+        ['image', 'مشهد مكاني', 'حوّل صورة عادية إلى مجسّمة', () => { const w = [...a.windows.windows].reverse().find(x => x.kind === 'image'); if (w) { this.close(); w.toggleSpatial(); } else { this.setTab('library'); a.toast('افتح صورة ثم اضغط 🧊 تحتها', 3000); } }],
         ['target', 'مسح الغرفة', 'تعرّف على عناصر غرفتك ومساحتها', () => { this.close(); a.room.scan(); }],
         ['cube', 'الألعاب', 'ثلاثية الأبعاد وكلاسيكية', () => { this.close(); a.openGames(); }],
         ['globe', 'متصفح مدار', a.browserDevice() ? 'عبر ' + a.browserDevice().name + ' · تقويس و360' : 'يحتاج التابلت في «أجهزتي»', () => { this.close(); a.browserDevice() ? a.openBrowser('https://www.google.com') : a.windows.open({ kind: 'keyboard' }); }],
@@ -133,9 +134,44 @@ export class Launcher {
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['target', 'ضبط العدستين', 'تحريك وتكبير الصورتين', () => { this.close(); a.lensAdjust.open(); }],
       ];
+      const ex = a.extras, W8 = (t, n, d) => [t === 'weather' ? 'sun' : t === 'timer' ? 'clock' : t === 'note' ? 'stack' : t === 'photos' ? 'image' : t === 'nowplaying' ? 'play' : t === 'verse' ? 'book' : t === 'scenes' ? 'grid' : t === 'aihist' ? 'mic' : 'sliders', n, d, () => { this.close(); ex.widget(t); }];
+      if (ex) list.push(
+        ['mic', 'كرة المساعد', settings.orb ? 'ظاهرة · انظر إليها لتتكلم' : 'انظر إليها لتتكلم', () => { this.close(); const on = !settings.orb; saveSettings({ orb: on }); ex.orb.show(on); }],
+        ['eye', 'ما هذا؟', 'اسأل عمّا تراه أمامك', () => { this.close(); ex.lookAndAsk('ما هذا الذي أمامي؟'); }],
+        ['sound', 'الترجمة النصية', ex.captions.on ? 'تعمل' : 'عربي · إنجليزي ← عربي', () => { this.close(); ex.captions.toggle(); }],
+        ['video', 'عرض متعدد', 'شبكة ٢×٢ والصوت يتبع نظرك', () => { this.close(); ex.toggleMultiview(); }],
+        ['hand', 'الرسم في الهواء', ex.sketch.on ? 'يعمل' : 'اقرص وارسم بيدك', () => { this.close(); ex.sketch.toggle(); }],
+        ['walk', 'وضع السفر', settings.travel ? 'يعمل' : 'سيارة · حافلة · طائرة', () => { this.close(); ex.toggleTravel(); }],
+        ['target', 'وضع التركيز', ex.focus ? 'يعمل' : 'تعتيم ما لا تنظر إليه', () => { this.close(); ex.toggleFocus(); }],
+        ['image', 'لقطة للمشهد', 'كل ما تراه في صورة', () => { this.close(); ex.shot(); }],
+        ['stack', 'شارك مساحتي', 'نفس النوافذ على جهاز آخر', () => { this.close(); ex.shareSpace(); }],
+        ['sun', 'الانغماس', Math.round((settings.immersion ?? 1) * 100) + '% من البيئة', () => { const o = [0.25, 0.5, 0.75, 1, 0]; const c = settings.immersion ?? 1; ex.portal.set(o[(o.findIndex(v => v > c + 0.01) + o.length) % o.length]); this.panel.redraw(); }],
+      );
+      // folders (visionOS 26 Home View): setup tools and widgets each in one tile
+      const FOLDERS = {
+        tools: ['grid', 'أدوات الإعداد', ['المعايرة', 'ضبط العدستين', 'إعادة التمركز', 'ترتيب النوافذ', 'دليل الإيماءات', 'لوحة المفاتيح', 'مسح الغرفة', 'البيئة', 'غرفة جديدة', 'تحديث التطبيق']],
+        widgets: ['clock', 'الأدوات المصغّرة', null],
+      };
+      const widgets = [W8('weather', 'الطقس', 'حسب موقعك'), W8('timer', 'المؤقت', 'مؤقت وساعة إيقاف'), W8('note', 'ملاحظة لاصقة', 'تُملى بصوتك'), W8('photos', 'إطار الصور', 'صور مكتبتك'), W8('nowplaying', 'يُعرض الآن', 'تحكم بكل ما يعمل'),
+        W8('verse', 'آية اليوم', 'بصوت العفاسي'), W8('scenes', 'المشاهد', 'احفظ ترتيبك وارجع إليه'), W8('aihist', 'سجل المساعد', 'محادثاتك السابقة'), W8('usage', 'استخدامك', 'وقتك والحرارة')];
+      if (this.folder === 'widgets') list = widgets;
+      else if (this.folder === 'tools') list = list.filter(x => FOLDERS.tools[2].includes(x[1]));
+      else {
+        list = list.filter(x => !FOLDERS.tools[2].includes(x[1]));
+        list.push([FOLDERS.widgets[0], FOLDERS.widgets[1], widgets.length + ' أدوات', () => { this.folder = 'widgets'; this.page = 0; this.panel.redraw(); }], [FOLDERS.tools[0], FOLDERS.tools[1], 'مجلد', () => { this.folder = 'tools'; this.page = 0; this.panel.redraw(); }]);
+        // your own order: «ترتيب الشاشة» then tap tiles - each one tapped jumps to the front
+        const order = settings.appOrder || [];
+        list.sort((x, y) => { const i = order.indexOf(x[1]), j = order.indexOf(y[1]); return (i < 0 ? 999 : i) - (j < 0 ? 999 : j); });
+        list.push(['sliders', this.edit ? 'تم الترتيب' : 'ترتيب الشاشة', this.edit ? 'اضغط لإنهاء' : 'اضغط الأيقونات لتقديمها', () => { this.edit = !this.edit; this.panel.redraw(); }]);
+      }
+      if (this.folder) list.unshift(['chevR', 'رجوع', 'الشاشة الرئيسية', () => { this.folder = null; this.page = 0; this.panel.redraw(); }]);
       const per = 10, pages = Math.ceil(list.length / per);
       this.page = Math.min(this.page, pages - 1);
-      list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'app' + i); });
+      list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => {
+        const [x, y] = cell(i);
+        const run = this.edit && !this.folder && !/^(ترتيب الشاشة|تم الترتيب)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
+        this.tile(ctx, p, x, y, tileW, tileH, ic, l, this.edit && !this.folder ? '⇧ إلى البداية' : s, run, 'app' + i);
+      });
       if (pages > 1) this.pager(ctx, p, W, H, pages);
     } else if (settings.guest && ['devices', 'library', 'links'].includes(this.tab)) {
       text(ctx, '👤 وضع الضيف', W / 2, H * 0.45, 52, { weight: 800 });
@@ -201,6 +237,11 @@ export class Launcher {
         ['snow', 'التبريد', settings.cool ? 'يعمل' : 'جودة قصوى', () => { saveSettings({ cool: !settings.cool }); a.renderer.resize(); a.toast(settings.cool ? 'التبريد: يكتمل بعد الدخول التالي' : 'الجودة القصوى', 3000); this.panel.redraw(); }],
         ['sun', 'رسم ذكي', settings.smartRender !== false ? 'رسم عند الحركة' : 'متوقف', () => { saveSettings({ smartRender: settings.smartRender === false }); this.panel.redraw(); }],
         ['walk', 'المشي', on(settings.walk), () => { a.toggleWalk(); this.panel.redraw(); }],
+        ['eye', 'التمرير بالنظر', on(settings.lookScroll !== false), () => { saveSettings({ lookScroll: settings.lookScroll === false }); this.panel.redraw(); }],
+        ['sound', 'الصوت المكاني', on(settings.spatialAudio !== false), () => { saveSettings({ spatialAudio: settings.spatialAudio === false }); this.panel.redraw(); }],
+        ['hand', 'قائمة الكف', on(settings.palmMenu !== false), () => { saveSettings({ palmMenu: settings.palmMenu === false }); this.panel.redraw(); }],
+        ['snow', 'حماية حرارية', on(settings.thermalAuto !== false), () => { saveSettings({ thermalAuto: settings.thermalAuto === false }); this.panel.redraw(); }],
+        ['moon', 'إبطاء عند السكون', on(settings.idleSlow !== false), () => { saveSettings({ idleSlow: settings.idleSlow === false }); this.panel.redraw(); }],
         ['exit', 'الخروج', 'الرئيسية', () => { this.close(); a.exit(); }],
       ];
       const per = 10, pages = Math.ceil(list.length / per);

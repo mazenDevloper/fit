@@ -44,7 +44,7 @@ export class ControlCenter {
     const mk = (w, h, fn) => { const c = new CanvasPanel(w, h, fn, { pxPerM: 1300 }); c.mesh.material.depthTest = false; c.mesh.renderOrder = 950; this.group.add(c.mesh); return c; };
     // left → right as you see them: environment · quick controls · status
     this.env = mk(0.42, 0.56, (ctx, W, H, p) => this.drawEnv(ctx, W, H, p));
-    this.quick = mk(0.56, 0.56, (ctx, W, H, p) => this.drawQuick(ctx, W, H, p));
+    this.quick = mk(0.56, 0.7, (ctx, W, H, p) => this.drawQuick(ctx, W, H, p));
     this.status = mk(0.42, 0.56, (ctx, W, H, p) => this.drawStatus(ctx, W, H, p));
     // three panels on a gentle arc around you
     [[this.env, -0.5, 0.32], [this.quick, 0, 0], [this.status, 0.5, -0.32]].forEach(([c, x, ry]) => { c.mesh.position.set(x, 0, Math.abs(x) * 0.18); c.mesh.rotation.y = ry; });
@@ -101,8 +101,14 @@ export class ControlCenter {
       ['ball', 'الجزيرة', settings.island !== false, ['#4ade80', '#15803d'], () => saveSettings({ island: settings.island === false })],
       ['target', 'التمركز', false, ['#2dd4bf', '#0d9488'], () => { a.recenter(); this.close(); }],
       ['stack', 'ترتيب', false, ['#a78bfa', '#7c3aed'], () => { a.windows.arrange(); this.close(); }],
+      ['sun', 'الانغماس ' + Math.round((settings.immersion ?? 1) * 100) + '%', (settings.immersion ?? 1) < 1, ['#fde68a', '#f59e0b'], () => { const o = [0.25, 0.5, 0.75, 1, 0]; const c = settings.immersion ?? 1; a.extras.portal.set(o[(o.findIndex(v => v > c + 0.01) + o.length) % o.length]); }],
+      ['sound', 'ترجمة نصية', !!a.extras?.captions.on, ['#f9a8d4', '#be185d'], () => { this.close(); a.extras.captions.toggle(); }],
+      ['mic', 'كرة المساعد', !!settings.orb, ['#c4b5fd', '#6d28d9'], () => { const on = !settings.orb; saveSettings({ orb: on }); a.extras.orb.show(on); }],
+      ['walk', 'وضع السفر', !!settings.travel, ['#86efac', '#15803d'], () => a.extras.toggleTravel()],
+      ['eye', 'تمرير بالنظر', settings.lookScroll !== false, ['#93c5fd', '#1d4ed8'], () => saveSettings({ lookScroll: settings.lookScroll === false })],
+      ['video', 'عرض متعدد', !!a.extras?.mv, ['#fca5a5', '#b91c1c'], () => { this.close(); a.extras.toggleMultiview(); }],
     ];
-    const cols = 3, r = 66, cw = (W - 60) / cols, top = 170, rh = 190;
+    const cols = 3, r = 50, cw = (W - 60) / cols, top = 140, rh = (H - 175) / 5;
     items.forEach(([ic, l, on, col, act], i) => {
       const c = i % cols, row = Math.floor(i / cols);
       roundToggle(ctx, p, W - 30 - cw * (c + 0.5), top + row * rh, r, ic, l, on, col, () => { act(); this.redraw(); }, 'q' + i);
@@ -111,7 +117,7 @@ export class ControlCenter {
   drawEnv(ctx, W, H, p) {
     this.frame(ctx, W, H, 'البيئة');
     // the everyday places (and the one you are in); everything else is one tap away in the library
-    const cur = envKey(settings.environment), quick = ['passthrough', 'dim', 'space', 'library', 'viewOffice', 'nightOffice', 'neonLounge', 'gaming', 'reading', 'realStudio'];
+    const cur = envKey(settings.environment), quick = ['passthrough', 'dim', 'space', 'library', 'viewOffice', 'nightOffice', 'neonLounge', 'gaming', 'reading', 'realStudio', 'jupiter', 'aurora'];
     const list = [...quick, ...(quick.includes(cur) || !ENV_ORDER.includes(cur) ? [] : [cur]), 'more'], rh = Math.min(60, (H - 110) / list.length);
     list.forEach((k, i) => {
       const y = 96 + i * rh, id = 'e' + k, on = k === cur, hov = p.isHover(id);

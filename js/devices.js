@@ -114,6 +114,7 @@ export class DeviceHub {
     else if (d.type === 'browser-open') this.app.receiveBrowserOpen?.(d, from);
     else if (d.type === 'watch' && /^\d{6}$/.test(d.code)) this.app.receiveWatch?.(d.code, from);
     else if (d.type === 'text') this.app.receiveText?.(d, from);
+    else if (d.type === 'scene') this.app.receiveScene?.(d, from);
     else if (d.type === 'file-start') this.incoming.set(d.id, { meta: d, parts: [], got: 0, from });
     else if (d.type === 'file-chunk') { const f = this.incoming.get(d.id); if (f) { f.parts.push(d.data); f.got += d.data.byteLength || d.data.size || 0; this.app.receiveProgress?.(f); } }
     else if (d.type === 'file-end') {

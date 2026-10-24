@@ -249,7 +249,8 @@ export class Interaction {
           this.drawCursor(p, null, 1, true);
         }
         // Pinch in empty space and move: grab the world (move through it, or orbit the chosen model).
-        if (!p.downObj && !p.drag && !p.surf && !p.pendingDrag && !p.zoom && !p.scaleHelper && !this.pointers[1 - i].wasPinch && p.moved > 0.05) {
+        if (this.app.extras?.sketch.on && !p.downObj) p.fired = true;   // drawing in the air: the pinch is the pen
+        else if (!p.downObj && !p.drag && !p.surf && !p.pendingDrag && !p.zoom && !p.scaleHelper && !this.pointers[1 - i].wasPinch && p.moved > 0.05) {
           const c = this.app.controls;
           if (p.world) {
             const dx = s.tx - p.world.tx, dd = s.depth - p.world.depth;
