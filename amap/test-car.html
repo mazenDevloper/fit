@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>اختبار موديل السيارة</title>
+<link rel="icon" href="data:,">
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.152.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.152.0/examples/jsm/"
+    }
+}
+</script>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #6b6660;
+                 font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    canvas { display: block; }
+
+    #drop {
+        position: absolute; inset: 0; z-index: 50;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 1rem; background: rgba(0,0,0,0.85); color: #FDB813; text-align: center; padding: 2rem;
+    }
+    #drop.hidden { display: none; }
+    #drop h2 { font-size: 1.2rem; }
+    #drop p { color: rgba(255,255,255,0.75); font-size: 0.9rem; line-height: 1.8; max-width: 32rem; }
+    #drop.over { background: rgba(253,184,19,0.25); }
+    .pick {
+        background: rgba(253,184,19,0.2); color: #FDB813; border: 1px solid rgba(253,184,19,0.6);
+        padding: 0.6rem 1.2rem; border-radius: 0.6rem; cursor: pointer; font-size: 0.95rem; font-weight: bold;
+    }
+    .pick:hover { background: rgba(253,184,19,0.35); }
+
+    #panel {
+        position: absolute; top: 1rem; right: 1rem; z-index: 40; width: 270px;
+        background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.15); border-radius: 0.75rem; padding: 0.9rem;
+        color: #fff; font-size: 0.85rem; max-height: calc(100vh - 2rem); overflow-y: auto;
+    }
+    #panel h3 { color: #FDB813; font-size: 0.95rem; margin-bottom: 0.7rem; }
+    .row { margin-bottom: 0.8rem; }
+    .row label { display: flex; justify-content: space-between; margin-bottom: 0.3rem; color: rgba(255,255,255,0.85); }
+    .row .val { color: #FDB813; font-weight: bold; }
+    input[type=range] { width: 100%; height: 5px; border-radius: 5px; outline: none;
+        -webkit-appearance: none; background: linear-gradient(to right,#FDB813,#FFD700); }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px;
+        border-radius: 50%; background: #fff; cursor: pointer; }
+    input[type=color] { width: 100%; height: 34px; border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 0.4rem; background: transparent; cursor: pointer; }
+    .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+    .btn { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid transparent;
+        border-radius: 0.45rem; padding: 0.4rem; cursor: pointer; font-size: 0.75rem; }
+    .btn:hover { background: rgba(255,255,255,0.22); }
+    .btn.active { background: rgba(253,184,19,0.25); border-color: #FDB813; color: #FDB813; font-weight: bold; }
+    #info { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid rgba(255,255,255,0.15);
+        color: rgba(255,255,255,0.75); font-size: 0.75rem; line-height: 1.7; }
+    #info b { color: #FDB813; }
+    #hint { position: absolute; bottom: 0.8rem; right: 1rem; z-index: 40;
+        color: rgba(255,255,255,0.65); font-size: 0.75rem; background: rgba(0,0,0,0.5);
+        padding: 0.35rem 0.7rem; border-radius: 0.5rem; }
+</style>
+</head>
+<body>
+
+<div id="drop">
+    <h2>🚗 اختبار موديل السيارة</h2>
+    <p>اسحب ملف <b>car.glb</b> وأفلته هنا، أو اختره من جهازك.<br>
+       الصفحة تعمل بالنقر المزدوج مباشرة، بدون خادم ولا إنترنت للخرائط.</p>
+    <button class="pick" onclick="document.getElementById('file').click()">اختيار ملف car.glb</button>
+    <input type="file" id="file" accept=".glb,.gltf" style="display:none">
+</div>
+
+<div id="panel">
+    <h3>⚙️ الخامة والإضاءة</h3>
+
+    <div class="row">
+        <label><span>اللون</span><span class="val" id="colorVal">#FFF5D6</span></label>
+        <input type="color" id="color" value="#FFF5D6">
+    </div>
+    <div class="row">
+        <label><span>المعدنية</span><span class="val" id="metalVal">0.89</span></label>
+        <input type="range" id="metal" min="0" max="1" step="0.01" value="0.89">
+    </div>
+    <div class="row">
+        <label><span>الخشونة</span><span class="val" id="roughVal">0.25</span></label>
+        <input type="range" id="rough" min="0" max="1" step="0.01" value="0.25">
+    </div>
+    <div class="row">
+        <label><span>الإضاءة المحيطة</span><span class="val" id="ambVal">0.90</span></label>
+        <input type="range" id="amb" min="0" max="2" step="0.05" value="0.9">
+    </div>
+    <div class="row">
+        <label><span>Light 1 (شدة)</span><span class="val" id="l1Val">1.40</span></label>
+        <input type="range" id="l1" min="0" max="3" step="0.1" value="1.4">
+    </div>
+
+    <div class="row btns">
+        <button class="btn active" id="btnMine" onclick="setMode('mine')">إعداداتي</button>
+        <button class="btn" id="btnOrig" onclick="setMode('orig')">خامة الملف</button>
+        <button class="btn" id="btnSpin" onclick="toggleSpin()">دوران تلقائي</button>
+        <button class="btn" onclick="resetView()">إعادة الزاوية</button>
+    </div>
+
+    <div id="info">بانتظار الملف…</div>
+</div>
+
+<div id="hint">اسحب بالفأرة للدوران · عجلة الفأرة للتقريب</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ===== نفس إعدادات AMAP =====
+const IDEAL = { color: 0xFFF5D6, metalness: 0.89, roughness: 0.25, ambient: 0.9, light1: 1.4 };
+const CAR_LENGTH = 20.72;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x6b6660);
+
+const ambient = new THREE.AmbientLight(0xffffff, IDEAL.ambient);
+scene.add(ambient);
+const light1 = new THREE.DirectionalLight(0xffffff, IDEAL.light1);
+light1.position.set(0, 0, 4);
+scene.add(light1);
+const light2 = new THREE.DirectionalLight(0xffffff, 1.0);
+light2.position.set(-30, 10, 20);
+scene.add(light2);
+
+// ground so the wheels have something to stand on, like the map surface
+const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(60, 64),
+    new THREE.MeshStandardMaterial({ color: 0x7a746d, roughness: 1, metalness: 0 })
+);
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+
+const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 2000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 3, 0);
+
+let carModel = null, paintMats = [], originalPaint = null, spinning = false, mode = 'mine';
+
+// ===== نفس دالة الضبط الموجودة في AMAP =====
+function fitCarModel(sceneObj) {
+    const inner = new THREE.Group();
+    inner.add(sceneObj);
+
+    const box = new THREE.Box3().setFromObject(sceneObj);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+
+    sceneObj.position.sub(center);
+    if (size.x > size.z) inner.rotation.y = Math.PI / 2;
+
+    const longest = Math.max(size.x, size.z);
+    if (longest > 0) inner.scale.setScalar(CAR_LENGTH / longest);
+    inner.position.set(0, (size.y * inner.scale.y) / 2, 0);
+
+    const wrapper = new THREE.Group();
+    wrapper.add(inner);
+    wrapper.userData.rawSize = size.toArray().map(v => +v.toFixed(3));
+    wrapper.userData.scale = +inner.scale.x.toFixed(3);
+    return wrapper;
+}
+
+function collectMaterials(model) {
+    const all = [];
+    model.traverse(n => {
+        if (!n.isMesh) return;
+        (Array.isArray(n.material) ? n.material : [n.material]).forEach(m => {
+            if (m && !all.includes(m)) all.push(m);
+        });
+    });
+    return all;
+}
+
+function loadFromURL(url, label) {
+    new GLTFLoader().load(url, gltf => {
+        if (carModel) scene.remove(carModel);
+        carModel = fitCarModel(gltf.scene);
+        scene.add(carModel);
+
+        const all = collectMaterials(carModel);
+        paintMats = all.length <= 2 ? all.slice() : all.filter(m => m.name === 'Meshpart1Mtl');
+        const p = paintMats[0];
+        originalPaint = p ? {
+            color: '#' + p.color.getHexString().toUpperCase(),
+            metalness: +p.metalness.toFixed(2),
+            roughness: +p.roughness.toFixed(2),
+            hasTexture: !!p.map
+        } : null;
+
+        const box = new THREE.Box3().setFromObject(carModel);
+        const size = box.getSize(new THREE.Vector3());
+        const c = box.getCenter(new THREE.Vector3());
+
+        document.getElementById('info').innerHTML =
+            `<b>${label}</b><br>` +
+            `خامات: <b>${all.length}</b> · متحكَّم بها: <b>${paintMats.length}</b>` +
+            (originalPaint && originalPaint.hasTexture ? ' · فيه صورة ✅' : '') + '<br>' +
+            `الحجم بعد الضبط: <b>${size.x.toFixed(2)} × ${size.z.toFixed(2)} × ${size.y.toFixed(2)}</b><br>` +
+            `المركز: <b>${c.x.toFixed(2)}, ${c.z.toFixed(2)}</b> ` +
+            (Math.abs(c.x) < 0.01 && Math.abs(c.z) < 0.01 ? '(في المنتصف ✅)' : '(غير متمركز ⚠️)') + '<br>' +
+            `أدنى نقطة: <b>${box.min.y.toFixed(2)}</b> ` +
+            (Math.abs(box.min.y) < 0.05 ? '(على الأرض ✅)' : '⚠️') +
+            (originalPaint ? `<br>خامة الملف: ${originalPaint.color} · معدنية ${originalPaint.metalness} · خشونة ${originalPaint.roughness}` : '');
+
+        document.getElementById('drop').classList.add('hidden');
+        applyMode();
+        resetView();
+    }, undefined, err => {
+        document.getElementById('info').textContent = 'تعذّر تحميل الملف: ' + err;
+    });
+}
+
+// ===== استقبال الملف من الجهاز (يعمل بدون خادم) =====
+const dropEl = document.getElementById('drop');
+document.getElementById('file').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) loadFromURL(URL.createObjectURL(f), f.name);
+});
+['dragenter', 'dragover'].forEach(ev =>
+    document.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev =>
+    document.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.remove('over'); }));
+document.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f) loadFromURL(URL.createObjectURL(f), f.name);
+});
+
+// لو كان الملف بجانب الصفحة وفُتحت عبر خادم، يُحمَّل تلقائياً
+if (location.protocol !== 'file:') loadFromURL('car.glb', 'car.glb');
+
+// ===== لوحة التحكم =====
+function applyMode() {
+    if (!paintMats.length) return;
+    paintMats.forEach(m => {
+        if (mode === 'orig' && originalPaint) {
+            m.color.set(originalPaint.color);
+            m.metalness = originalPaint.metalness;
+            m.roughness = originalPaint.roughness;
+        } else {
+            m.color.set(document.getElementById('color').value);
+            m.metalness = parseFloat(document.getElementById('metal').value);
+            m.roughness = parseFloat(document.getElementById('rough').value);
+        }
+        m.needsUpdate = true;
+    });
+}
+
+window.setMode = function(m) {
+    mode = m;
+    document.getElementById('btnMine').classList.toggle('active', m === 'mine');
+    document.getElementById('btnOrig').classList.toggle('active', m === 'orig');
+    applyMode();
+};
+window.toggleSpin = function() {
+    spinning = !spinning;
+    document.getElementById('btnSpin').classList.toggle('active', spinning);
+};
+window.resetView = function() {
+    camera.position.set(30, 18, 30);
+    controls.target.set(0, 3, 0);
+    controls.update();
+};
+
+const bind = (id, valId, fmt) => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => {
+        document.getElementById(valId).textContent = fmt(el.value);
+        if (id === 'amb') ambient.intensity = parseFloat(el.value);
+        else if (id === 'l1') light1.intensity = parseFloat(el.value);
+        else { mode = 'mine'; setMode('mine'); }
+    });
+};
+bind('color', 'colorVal', v => v.toUpperCase());
+bind('metal', 'metalVal', v => (+v).toFixed(2));
+bind('rough', 'roughVal', v => (+v).toFixed(2));
+bind('amb', 'ambVal', v => (+v).toFixed(2));
+bind('l1', 'l1Val', v => (+v).toFixed(2));
+
+addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+});
+
+resetView();
+(function animate() {
+    requestAnimationFrame(animate);
+    if (spinning && carModel) carModel.rotation.y += 0.004;
+    controls.update();
+    renderer.render(scene, camera);
+})();
+
+window.__test = { get model() { return carModel; }, get paintMats() { return paintMats; },
+                  get originalPaint() { return originalPaint; }, THREE };
+</script>
+</body>
+</html>

@@ -1,0 +1,1920 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" style="zoom:99%;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#000000">
+    <title>Dashboard Map - الخريطة الرئيسية</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Three.js with proper importmap for GLTF loading -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.152.0/build/three.module.js",
+            "three/examples/jsm/loaders/GLTFLoader": "https://unpkg.com/three@0.152.0/examples/jsm/loaders/GLTFLoader.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+
+        window.THREE = THREE;
+        window.GLTFLoader = GLTFLoader;
+        console.log("✅ Three.js & GLTFLoader are now Global");
+    </script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #map-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #dashboard-google-map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            inset: 0;
+        }
+
+        /* Hide Google Maps controls in fullscreen mode */
+        body.fullscreen-mode .gm-control-active,
+        body.fullscreen-mode [aria-label="Map camera controls"],
+        body.fullscreen-mode .gm-control,
+        body.fullscreen-mode [role="button"][aria-label*="Map"],
+        body.fullscreen-mode [aria-label*="Fullscreen"],
+        body.fullscreen-mode [aria-label*="Street View"],
+        body.fullscreen-mode [aria-label*="Zoom"] {
+            display: none !important;
+        }
+
+        /* Geolocation Error Overlay */
+        #geolocation-error-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            z-index: 10;
+            border-radius: 1.5rem;
+            color: white;
+            gap: 1rem;
+        }
+
+        #geolocation-error-overlay.hidden {
+            display: none;
+        }
+
+        #geolocation-error-overlay h3 {
+            font-weight: bold;
+            font-size: 1.125rem;
+            margin-bottom: 0.5rem;
+        }
+
+        #geolocation-error-overlay p {
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Map Controls */
+        .map-controls {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .map-button {
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 50%;
+            width: 2.5rem;
+            height: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .map-button:hover {
+            background: rgba(255, 255, 255, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            transform: scale(1.1);
+        }
+
+        .map-button:active {
+            transform: scale(0.95);
+        }
+
+        #get-my-location-button-dashboard {
+            background: rgb(37, 99, 235);
+            color: white;
+        }
+
+        #get-my-location-button-dashboard:hover {
+            background: rgb(29, 78, 216);
+        }
+
+        /* Scale Controls */
+        #map-tuner-controls {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .scale-control {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 0.5rem;
+            border-radius: 0.75rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .scale-button {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: bold;
+        }
+
+        .scale-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .scale-label {
+            color: white;
+            font-size: 0.75rem;
+            align-self: center;
+            min-width: 2rem;
+            text-align: center;
+        }
+
+        /* Loading spinner */
+        .loading-spinner {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+        }
+
+        .loading-spinner.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #fff;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Control Panel - لوحة التحكم */
+        .control-panel {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            min-width: 280px;
+            /* Stop before the Size/Tilt buttons at the bottom */
+            max-height: calc(100vh - 12rem);
+            height: auto;
+            max-width: 400px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-panel { top: 4rem; }
+        .control-panel.collapsed { display: none; }
+
+        /* Show/hide button for the control panel */
+        #panel-toggle {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 102;
+            background: rgba(0, 0, 0, 0.85);
+            color: #FDB813;
+            border: 1px solid rgba(253, 184, 19, 0.5);
+            border-radius: 0.75rem;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Map type switcher */
+        #map-type-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 101;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 0.4rem;
+            border-radius: 0.75rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .map-type-button {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.85);
+            border: 1px solid transparent;
+            border-radius: 0.5rem;
+            padding: 0.35rem 0.6rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .map-type-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .map-type-button.active {
+            background: rgba(253, 184, 19, 0.25);
+            border-color: #FDB813;
+            color: #FDB813;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            #map-type-controls {
+                top: 0.5rem;
+                right: 0.5rem;
+                padding: 0.3rem;
+            }
+
+            .map-type-button {
+                font-size: 0.7rem;
+                padding: 0.3rem 0.45rem;
+            }
+        }
+
+        #save-tuner-button {
+            background: rgba(0, 0, 0, 0.6);
+            color: #FDB813;
+            border: 1px solid rgba(253, 184, 19, 0.5);
+            width: 2.5rem;
+            height: 2.5rem;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        #save-tuner-button:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        #save-tuner-button.saved {
+            background: rgba(34, 197, 94, 0.9);
+            border-color: rgba(34, 197, 94, 1);
+            color: #fff;
+        }
+
+        #clear-cache-button {
+            background: rgba(0, 0, 0, 0.6);
+            color: #FDB813;
+            border: 1px solid rgba(253, 184, 19, 0.5);
+            width: 2rem;
+            height: 2rem;
+            font-size: 0.9rem;
+            line-height: 1;
+        }
+
+        #clear-cache-button:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        /* Keep the Size/Tilt buttons above the panel */
+        #map-tuner-controls { z-index: 101 !important; }
+
+        /* Scrollbar styling */
+        .control-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .control-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .control-panel::-webkit-scrollbar-thumb {
+            background: rgba(253, 184, 19, 0.4);
+            border-radius: 3px;
+        }
+
+        .control-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(253, 184, 19, 0.6);
+        }
+
+        .control-panel-title {
+            color: #FDB813;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-align: right;
+        }
+
+        .control-group {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .control-label {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-value {
+            color: #FDB813;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .slider-container {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .slider-container input[type="range"] {
+            flex: 1;
+            height: 5px;
+            border-radius: 5px;
+            background: linear-gradient(to right, #FDB813, #FFD700);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .slider-value {
+            color: #FDB813;
+            font-weight: bold;
+            min-width: 45px;
+            text-align: right;
+            font-size: 0.8rem;
+        }
+
+        .color-picker-container {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            margin-top: 0.5rem;
+        }
+
+        .color-picker-container input[type="color"] {
+            width: 50px;
+            height: 40px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 0.375rem;
+            cursor: pointer;
+            padding: 2px;
+        }
+
+        .color-code {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #FDB813;
+            padding: 0.4rem;
+            border-radius: 0.375rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            text-align: center;
+            cursor: pointer;
+            user-select: all;
+        }
+
+        .copy-button {
+            background: rgba(253, 184, 19, 0.2);
+            color: #FDB813;
+            border: 1px solid rgba(253, 184, 19, 0.5);
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s ease;
+        }
+
+        .copy-button:hover {
+            background: rgba(253, 184, 19, 0.3);
+            border-color: rgba(253, 184, 19, 0.8);
+        }
+
+        .preview-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .preview-item {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.4rem;
+            border-radius: 0.375rem;
+            text-align: center;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .preview-item-value {
+            color: #FDB813;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+
+        /* Light Control Section Styling */
+        .light-section-header {
+            background: rgba(253, 184, 19, 0.15);
+            border-left: 3px solid #FDB813;
+            padding: 0.6rem;
+            border-radius: 0.375rem;
+            margin-bottom: 0.8rem;
+            font-weight: bold;
+            color: #FDB813;
+            font-size: 0.9rem;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .control-panel {
+                top: 3.5rem;
+                left: 0.5rem;
+                min-width: 250px;
+                max-width: calc(100vw - 1rem);
+                max-height: calc(100vh - 11rem);
+                padding: 0.75rem;
+            }
+
+            .map-controls {
+                bottom: 0.5rem;
+                right: 0.5rem;
+            }
+
+            .map-button {
+                width: 2rem;
+                height: 2rem;
+            }
+
+            #panel-toggle {
+                top: 0.5rem;
+                left: 0.5rem;
+            }
+
+            #map-tuner-controls {
+                bottom: 0.5rem;
+                left: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Map Container -->
+    <div id="map-container">
+        <div id="dashboard-google-map"></div>
+
+        <!-- Geolocation Error Overlay -->
+        <div id="geolocation-error-overlay" class="hidden">
+            <i data-lucide="map-pin-off" class="w-12 h-12 text-red-500"></i>
+            <h3>خدمة تحديد المواقع معطلة</h3>
+            <p>يرجى تمكين أذونات الموقع في إعدادات المتصفح لهذا الموقع للاستفادة من ميزات الخريطة.</p>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="loading-spinner active">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Map Controls -->
+        <!-- Map type switcher -->
+        <div id="map-type-controls">
+            <button class="map-type-button" id="btn-map-3d" onclick="setMapType('3d')">🏙️ خريطة 3D</button>
+            <button class="map-type-button" id="btn-map-2d" onclick="setMapType('2d')">🗺️ خريطة 2D</button>
+            <button class="map-type-button" id="btn-map-satellite" onclick="setMapType('satellite')">🛰️ قمر صناعي</button>
+            <button class="map-type-button" id="btn-map-streetview" onclick="setMapType('streetview')">👁️ ستريت فيو</button>
+        </div>
+
+        <div class="map-controls">
+            <button id="get-my-location-button-dashboard" class="map-button" title="تحديث الموقع الحالي">
+                <i data-lucide="map-pin" class="w-5 h-5"></i>
+            </button>
+            <button id="save-tuner-button" class="map-button" title="حفظ Zoom / Size / Tilt" onclick="saveTunerNow()">💾</button>
+            <button id="clear-cache-button" class="map-button" title="مسح ذاكرة المتصفح" onclick="clearBrowserCache()">🧹</button>
+        </div>
+
+        <!-- Scale Controls -->
+        <div id="map-tuner-controls">
+            <div class="scale-control">
+                <button class="scale-button" onclick="adjustScale(0.05)">+</button>
+                <span class="scale-label">Size</span>
+                <button class="scale-button" onclick="adjustScale(-0.05)">-</button>
+            </div>
+            <div class="scale-control">
+                <button class="scale-button" onclick="adjustTilt(5)">↑</button>
+                <span class="scale-label">Tilt</span>
+                <button class="scale-button" onclick="adjustTilt(-5)">↓</button>
+            </div>
+        </div>
+
+        <!-- Material & Lighting Control Panel -->
+        <!-- Show/hide button for the control panel -->
+        <button id="panel-toggle" onclick="toggleControlPanel()">⚙️ إظهار التحكم</button>
+
+        <div class="control-panel collapsed" id="control-panel">
+            <div class="control-panel-title">
+                <span>⚙️ التحكم بالإضاءة واللون</span>
+            </div>
+
+            <!-- Ambient Light Control -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>الإضاءة المحيطة</span>
+                    <span class="control-value" id="ambientLightValue">0.90</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="ambientLightSlider" min="0" max="1" step="0.05" value="0.90"
+                           oninput="updateAmbientLight(this.value)">
+                    <span class="slider-value" id="ambientLightDisplay">0.90</span>
+                </div>
+            </div>
+
+            <!-- Metalness Control -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>المعدنية (Metalness)</span>
+                    <span class="control-value" id="metalnessValue">0.89</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="metalnessSlider" min="0" max="1" step="0.01" value="0.89"
+                           oninput="updateMetalness(this.value)">
+                    <span class="slider-value" id="metalnessDisplay">0.89</span>
+                </div>
+            </div>
+
+            <!-- Roughness Control -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>الخشونة (Roughness)</span>
+                    <span class="control-value" id="roughnessValue">0.25</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="roughnessSlider" min="0" max="1" step="0.01" value="0.25"
+                           oninput="updateRoughness(this.value)">
+                    <span class="slider-value" id="roughnessDisplay">0.25</span>
+                </div>
+            </div>
+
+            <!-- EnvMap Intensity Control -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>انعكاس البيئة</span>
+                    <span class="control-value" id="envMapIntensityValue">1.00</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="envMapIntensitySlider" min="0" max="2" step="0.1" value="1.00"
+                           oninput="updateEnvMapIntensity(this.value)">
+                    <span class="slider-value" id="envMapIntensityDisplay">1.00</span>
+                </div>
+            </div>
+
+            <!-- Color Picker -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>لون الطلاء</span>
+                </div>
+                <div class="color-picker-container">
+                    <input type="color" id="colorPicker" value="#FFF5D6"
+                           oninput="updateCarColor(this.value)">
+                    <input type="text" class="color-code" id="colorCode" value="#FFF5D6" readonly>
+                </div>
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>إعدادات سريعة</span>
+                </div>
+                <div class="preview-box">
+                    <button class="copy-button" onclick="applyPreset('light')">فاتح ✨</button>
+                    <button class="copy-button" onclick="applyPreset('dark')">داكن 🌙</button>
+                    <button class="copy-button" onclick="applyPreset('metallic')">معدني 💎</button>
+                    <button class="copy-button" onclick="applyPreset('reset')">إعادة تعيين</button>
+                </div>
+            </div>
+
+            <!-- Current Settings Display -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>الإعدادات الحالية</span>
+                </div>
+                <div class="preview-box">
+                    <div class="preview-item">
+                        <div>الإضاءة</div>
+                        <div class="preview-item-value" id="currentAmbientDisplay">0.90</div>
+                    </div>
+                    <div class="preview-item">
+                        <div>المعدنية</div>
+                        <div class="preview-item-value" id="currentMetalnessDisplay">0.89</div>
+                    </div>
+                    <div class="preview-item">
+                        <div>الخشونة</div>
+                        <div class="preview-item-value" id="currentRoughnessDisplay">0.25</div>
+                    </div>
+                    <div class="preview-item">
+                        <div>اللون</div>
+                        <div class="preview-item-value" id="currentColorDisplay">#FFF5D6</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Lights Control -->
+            <div class="control-group" style="border-top: 2px solid rgba(253, 184, 19, 0.3); padding-top: 1rem;">
+                <div class="control-label" style="color: #FDB813; font-weight: bold; font-size: 1rem; margin-bottom: 1rem;">
+                    <span>🔦 التحكم المتقدم بالإضاءات</span>
+                </div>
+            </div>
+
+            <!-- Light 1 Control -->
+            <div class="control-group">
+                <div class="light-section-header">
+                    💡 Light 1 - من اليسار الخلف
+                </div>
+
+                <!-- Light 1 X Position -->
+                <div class="control-label">
+                    <span>X</span>
+                    <span class="control-value" id="light1XValue">0</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="light1XSlider" min="-50" max="50" step="1" value="0"
+                           oninput="updateLight1Position('x', this.value)">
+                    <span class="slider-value" id="light1XDisplay">0</span>
+                </div>
+
+                <!-- Light 1 Y Position -->
+                <div class="control-label">
+                    <span>Y</span>
+                    <span class="control-value" id="light1YValue">0</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="light1YSlider" min="0" max="50" step="1" value="0"
+                           oninput="updateLight1Position('y', this.value)">
+                    <span class="slider-value" id="light1YDisplay">0</span>
+                </div>
+
+                <!-- Light 1 Z Position -->
+                <div class="control-label">
+                    <span>Z</span>
+                    <span class="control-value" id="light1ZValue">4</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="light1ZSlider" min="-50" max="50" step="1" value="4"
+                           oninput="updateLight1Position('z', this.value)">
+                    <span class="slider-value" id="light1ZDisplay">4</span>
+                </div>
+
+                <!-- Light 1 Intensity -->
+                <div class="control-label">
+                    <span>Intensity</span>
+                    <span class="control-value" id="light1IntensityValue">1.4</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="light1IntensitySlider" min="0" max="2" step="0.1" value="1.4"
+                           oninput="updateLight1Intensity(this.value)">
+                    <span class="slider-value" id="light1IntensityDisplay">1.4</span>
+                </div>
+            </div>
+
+            <!-- Light 2 Control -->
+            <div class="control-group">
+                <div class="light-section-header" style="border-left-color: #87CEEB; background: rgba(135, 206, 235, 0.15); color: #87CEEB;">
+                    💡 Light 2 - من اليسار الأمام
+                </div>
+
+                <!-- Light 2 X Position -->
+                <div class="control-label">
+                    <span>X</span>
+                    <span class="control-value" id="light2XValue">-30</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="light2XSlider" min="-50" max="50" step="1" value="-30"
+                           oninput="updateLight2Position('x', this.value)">
+                    <span class="slider-value" id="light2XDisplay">-30</span>
+                </div>
+
+                <!-- Light 2 Y Position -->
+                <div class="control-label">
+                    <span>Y</span>
+                    <span class="control-value" id="light2YValue">10</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="light2YSlider" min="0" max="50" step="1" value="10"
+                           oninput="updateLight2Position('y', this.value)">
+                    <span class="slider-value" id="light2YDisplay">10</span>
+                </div>
+
+                <!-- Light 2 Z Position -->
+                <div class="control-label">
+                    <span>Z</span>
+                    <span class="control-value" id="light2ZValue">20</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="light2ZSlider" min="-50" max="50" step="1" value="20"
+                           oninput="updateLight2Position('z', this.value)">
+                    <span class="slider-value" id="light2ZDisplay">20</span>
+                </div>
+
+                <!-- Light 2 Intensity -->
+                <div class="control-label">
+                    <span>Intensity</span>
+                    <span class="control-value" id="light2IntensityValue">1.0</span>
+                </div>
+                <div class="slider-container">
+                    <input type="range" id="light2IntensitySlider" min="0" max="2" step="0.1" value="1.0"
+                           oninput="updateLight2Intensity(this.value)">
+                    <span class="slider-value" id="light2IntensityDisplay">1.0</span>
+                </div>
+            </div>
+
+            <!-- Copy Code Button -->
+            <button class="copy-button" style="width: 100%; margin-top: 0.5rem;" onclick="copyCurrentSettings()">
+                📋 نسخ الإعدادات
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ============= Global Variables =============
+        const GOOGLE_MAPS_API_KEY = 'AIzaSyBRqAHJ2elbE_Z7NXXYC50XZpqi6HbG6Rk';
+        let googleMapsPromise = null;
+        let mapsInitialized = false;
+        let locationWatchId = null;
+        let isUserInteracting = false;
+
+        // App State
+        window.appState = {
+            currentLocation: { lat: 17.021, lng: 54.110 },
+            car: { heading: 0 }
+        };
+
+        // ============= Cookies (zoom / size / tilt) =============
+        const TUNER_COOKIE = 'amap_tuner';
+
+        function setCookie(name, value, days = 365) {
+            try {
+                const exp = new Date(Date.now() + days * 864e5).toUTCString();
+                document.cookie = `${name}=${encodeURIComponent(value)};expires=${exp};path=/;SameSite=Lax`;
+            } catch (e) { console.warn('Cookie write failed:', e); }
+        }
+
+        function getCookie(name) {
+            try {
+                const hit = document.cookie.split('; ').find(c => c.startsWith(name + '='));
+                return hit ? decodeURIComponent(hit.split('=').slice(1).join('=')) : null;
+            } catch (e) { return null; }
+        }
+
+        // ============= Per-map-type settings =============
+        // Every map type keeps its own zoom / size / tilt.
+        // Street View keeps its own view angle (POV) and zoom.
+        window.TUNER_DEFAULTS = {
+            current: '3d',
+            types: {
+                '3d':        { zoom: 21.055910323703504, tilt: 67.5, scale: 1.92, offset: 0 },
+                'satellite': { zoom: 21.055910323703504, tilt: 67.5, scale: 1.92, offset: 0 },
+                '2d':        { zoom: 21.055910323703504, tilt: 0,    scale: 1.92, offset: 0 }
+            },
+            streetview: { heading: 0, pitch: 0, zoom: 1, open: false }
+        };
+        const MAP_TYPES = ['3d', '2d', 'satellite'];
+        const TUNER_KEYS = ['zoom', 'tilt', 'scale', 'offset'];
+
+        window.tunerStore = JSON.parse(JSON.stringify(window.TUNER_DEFAULTS));
+        // Live values of the current type (the rest of the code uses window.tuner)
+        window.tuner = { ...window.tunerStore.types['3d'], mapType: '3d' };
+
+        (function loadTuner() {
+            const raw = getCookie(TUNER_COOKIE);
+            if (!raw) return;
+            try {
+                const saved = JSON.parse(raw);
+
+                if (saved.types) {
+                    MAP_TYPES.forEach(t => {
+                        if (!saved.types[t]) return;
+                        TUNER_KEYS.forEach(k => {
+                            const v = saved.types[t][k];
+                            if (typeof v === 'number' && isFinite(v)) window.tunerStore.types[t][k] = v;
+                        });
+                    });
+                    if (saved.streetview) {
+                        ['heading', 'pitch', 'zoom'].forEach(k => {
+                            const v = saved.streetview[k];
+                            if (typeof v === 'number' && isFinite(v)) window.tunerStore.streetview[k] = v;
+                        });
+                        window.tunerStore.streetview.open = !!saved.streetview.open;
+                    }
+                    if (MAP_TYPES.includes(saved.current)) window.tunerStore.current = saved.current;
+                } else {
+                    // Old cookie (one set of values) — copy it to every type
+                    MAP_TYPES.forEach(t => TUNER_KEYS.forEach(k => {
+                        const v = saved[k];
+                        if (typeof v === 'number' && isFinite(v)) window.tunerStore.types[t][k] = v;
+                    }));
+                    window.tunerStore.types['2d'].tilt = 0;
+                    if (MAP_TYPES.includes(saved.mapType)) window.tunerStore.current = saved.mapType;
+                }
+
+                // the car is always centred now, so any saved screen offset is dropped
+                MAP_TYPES.forEach(t => { window.tunerStore.types[t].offset = 0; });
+
+                const cur = window.tunerStore.current;
+                window.tuner = { ...window.tunerStore.types[cur], mapType: cur };
+                console.log('💾 Restored from cookie:', window.tunerStore);
+            } catch (e) { console.warn('Bad tuner cookie:', e); }
+        })();
+
+        // True once a type's saved values have been applied to the map.
+        // Before that we must not read values off the map, or we would
+        // overwrite the saved ones with whatever the map starts with.
+        window.tunerApplied = false;
+
+        // Copies the live values into the current type's slot
+        window.captureTuner = function() {
+            if (!window.tunerApplied) return;
+            const map = window.dashboardGoogleMap;
+            const type = window.tuner.mapType;
+
+            if (map) {
+                const z = map.getZoom(), t = map.getTilt();
+                if (typeof z === 'number' && isFinite(z)) window.tuner.zoom = z;
+                if (typeof t === 'number' && isFinite(t)) window.tuner.tilt = t;
+            }
+
+            if (window.tunerStore.types[type]) {
+                TUNER_KEYS.forEach(k => {
+                    if (typeof window.tuner[k] === 'number' && isFinite(window.tuner[k])) {
+                        window.tunerStore.types[type][k] = window.tuner[k];
+                    }
+                });
+                window.tunerStore.current = type;
+            }
+
+            const pano = map && map.getStreetView && map.getStreetView();
+            if (pano && pano.getVisible && pano.getVisible()) {
+                const pov = pano.getPov && pano.getPov();
+                if (pov) {
+                    if (typeof pov.heading === 'number') window.tunerStore.streetview.heading = pov.heading;
+                    if (typeof pov.pitch === 'number') window.tunerStore.streetview.pitch = pov.pitch;
+                }
+                const pz = pano.getZoom && pano.getZoom();
+                if (typeof pz === 'number' && isFinite(pz)) window.tunerStore.streetview.zoom = pz;
+                window.tunerStore.streetview.open = true;
+            }
+        };
+
+        window.writeTunerCookie = function() {
+            window.captureTuner();
+            setCookie(TUNER_COOKIE, JSON.stringify(window.tunerStore));
+        };
+
+        let saveTunerTimer = null;
+        window.saveTuner = function() {
+            clearTimeout(saveTunerTimer);
+            saveTunerTimer = setTimeout(window.writeTunerCookie, 300);
+        };
+
+        // Applies a type's saved values to the map
+        window.applyTunerToMap = function(type) {
+            const map = window.dashboardGoogleMap;
+            const cfg = window.tunerStore.types[type];
+            if (!map || !cfg) return;
+
+            window.tuner = { ...cfg, mapType: type };
+            window.tunerApplied = true;
+            map.setMapTypeId(type === 'satellite' ? 'satellite' : 'roadmap');
+            if (typeof cfg.zoom === 'number') map.setZoom(cfg.zoom);
+            map.setTilt(type === '2d' ? 0 : cfg.tilt);
+            if (window.carOverlay) window.carOverlay.requestRedraw();
+        };
+
+        // ============= Google Maps API Loader =============
+        function loadGoogleMaps() {
+            if (googleMapsPromise) return googleMapsPromise;
+
+            googleMapsPromise = new Promise((resolve, reject) => {
+                if (typeof google !== 'undefined' && google.maps) {
+                    resolve();
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry,places`;
+                script.async = true;
+                script.defer = true;
+                script.onload = () => resolve();
+                script.onerror = () => reject('Failed to load Google Maps script.');
+                document.head.appendChild(script);
+            });
+
+            return googleMapsPromise;
+        }
+
+
+        // ============= Map Initialization =============
+        async function initMaps() {
+            window.appState = window.appState || {
+                currentLocation: { lat: 17.021, lng: 54.110 },
+                car: { heading: 0 }
+            };
+
+            if (mapsInitialized) return;
+
+            try {
+                const mainMapElement = document.getElementById('dashboard-google-map');
+                if (!mainMapElement) {
+                    console.error("❌ Map element not found");
+                    return;
+                }
+
+                const commonConfigs = {
+                    center: window.appState.currentLocation,
+                    mapTypeId: 'roadmap',
+                    disableDefaultUI: true,
+                    renderingType: google.maps.RenderingType.VECTOR,
+                    headingInteractionEnabled: true,
+                    tiltInteractionEnabled: true,
+                    gestureHandling: 'greedy'
+                };
+
+                // Create Dashboard Map (3D)
+                window.dashboardGoogleMap = new google.maps.Map(mainMapElement, {
+                    ...commonConfigs,
+                    mapId: '6c6951a9289b612a97923702',
+                    zoom: window.tuner.zoom,
+                    tilt: window.tuner.tilt,
+                    heading: 0,
+                    disableDefaultUI: false
+                });
+
+                // Setup 3D Car System
+                setup3DCarSystem(window.dashboardGoogleMap);
+                attachMapListeners(window.dashboardGoogleMap);
+
+                // Apply the saved map type and its own zoom / size / tilt
+                setMapType(window.tunerStore.current || '3d');
+                if (window.tunerStore.streetview.open) setMapType('streetview');
+
+                // Back to the map when Street View is closed
+                const pano = window.dashboardGoogleMap.getStreetView();
+                pano.addListener('visible_changed', () => {
+                    if (!pano.getVisible()) {
+                        window.tunerStore.streetview.open = false;
+                        window.saveTuner();
+                        markActiveMapType(window.tuner.mapType || '3d');
+                    }
+                });
+                // Street View remembers its own angle and zoom
+                pano.addListener('pov_changed', () => { if (pano.getVisible()) window.saveTuner(); });
+                pano.addListener('zoom_changed', () => { if (pano.getVisible()) window.saveTuner(); });
+
+                // Add Traffic Layer
+                new google.maps.TrafficLayer().setMap(window.dashboardGoogleMap);
+
+                mapsInitialized = true;
+                console.log("✅ Maps initialized successfully");
+
+                // Start continuous location tracking
+                startLiveTracking();
+
+                // Hide loading spinner
+                document.querySelector('.loading-spinner').classList.remove('active');
+
+            } catch (error) {
+                console.error("❌ Map Init Error:", error);
+                showGeolocationErrorOnMap("Failed to initialize map. Please reload the page.");
+            }
+        }
+
+        // ============= Camera eye fix =============
+        // Google Maps gives one combined matrix (projection x view), so Three.js
+        // assumes the camera sits at the car's center. That breaks lighting on
+        // metallic paint: up-facing panels (roof, hood, trunk) render black.
+        // Here we recover the real eye position from the matrix and split it into
+        // view + projection. The final image position is unchanged.
+        function fixCameraEye(camera) {
+            const m = camera.projectionMatrix.elements;
+            const row = i => [m[i], m[4 + i], m[8 + i], m[12 + i]];
+            const A = [row(0), row(1), row(3)];
+            const det = (a, b, c) =>
+                a[0] * (b[1] * c[2] - b[2] * c[1]) -
+                a[1] * (b[0] * c[2] - b[2] * c[0]) +
+                a[2] * (b[0] * c[1] - b[1] * c[0]);
+            const D = det(A[0], A[1], A[2]);
+            if (Math.abs(D) < 1e-12) return;
+            const rhs = A.map(a => -a[3]);
+            const eye = [0, 1, 2].map(k => {
+                const c = A.map((a, i) => { const t = a.slice(0, 3); t[k] = rhs[i]; return t; });
+                return det(c[0], c[1], c[2]) / D;
+            });
+            camera.position.set(eye[0], eye[1], eye[2]);
+            camera.quaternion.identity();
+            camera.scale.set(1, 1, 1);
+            camera.updateMatrixWorld(true);
+            camera.projectionMatrix.multiply(new THREE.Matrix4().makeTranslation(eye[0], eye[1], eye[2]));
+            camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+        }
+
+        // ============= 3D Car System Setup =============
+        async function setup3DCarSystem(map) {
+            if (!map || window.carOverlay) return;
+
+            const overlay = new google.maps.WebGLOverlayView();
+            window.carOverlay = overlay;
+
+            overlay.onAdd = () => {
+                const loader = new window.GLTFLoader();
+                overlay.scene = new THREE.Scene();
+                overlay.camera = new THREE.PerspectiveCamera();
+
+                // Lighting System
+                overlay.scene.add(new THREE.AmbientLight(0xffffff, 0.90));
+
+                // Light 1 - تخزين في window للتحكم عن بعد
+                window.light1 = new THREE.DirectionalLight(0xffffff, 1.4);
+                window.light1.position.set(0, 0, 4);
+                overlay.scene.add(window.light1);
+
+                // Light 2 - تخزين في window للتحكم عن بعد
+                window.light2 = new THREE.DirectionalLight(0xffffff, 1.0);
+                window.light2.position.set(-30, 10, 20);
+                overlay.scene.add(window.light2);
+
+                // Load car model: Netlify first, then the same folder as AMAP.html
+                // (car.glb — one self-contained file, textures included)
+                // same folder first (works offline and on any host), then Netlify
+                const MODEL_URLS = [
+                    'car.glb',
+                    'https://dmusera.netlify.app/car.glb'
+                ];
+                const loadModel = (i = 0) => {
+                    if (i >= MODEL_URLS.length) {
+                        console.error("❌ Could not load car.glb from any source:", MODEL_URLS);
+                        showGeolocationErrorOnMap(
+                            'لم يتم العثور على ملف السيارة car.glb. ضعه بجانب AMAP.html، ' +
+                            'وافتح الصفحة عبر خادم محلي (http://localhost) وليس بالنقر المزدوج.'
+                        );
+                        return;
+                    }
+                    loader.load(MODEL_URLS[i], (gltf) => {
+                        window.carModel = fitCarModel(gltf.scene);
+                        window.carModel.rotation.x = Math.PI / 2;
+                        prepareCarMaterials(window.carModel);
+                        overlay.scene.add(window.carModel);
+                        console.log("✅ Car model loaded from", MODEL_URLS[i]);
+                    }, undefined, (error) => {
+                        console.warn("⚠️ Model failed from", MODEL_URLS[i], error);
+                        loadModel(i + 1);
+                    });
+                };
+                loadModel();
+            };
+
+            overlay.onContextRestored = ({ gl }) => {
+                overlay.renderer = new THREE.WebGLRenderer({
+                    canvas: gl.canvas,
+                    context: gl,
+                    antialias: true,
+                    alpha: true,
+                    precision: 'highp'
+                });
+                overlay.renderer.autoClear = false;
+                overlay.renderer.shadowMap.enabled = true;
+                overlay.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+                overlay.renderer.toneMappingExposure = 1.2;
+                overlay.renderer.outputColorSpace = THREE.SRGBColorSpace;
+            };
+
+            overlay.onDraw = ({ transformer }) => {
+                const { renderer, scene, camera } = overlay;
+                if (!renderer || !window.carModel || !window.appState?.currentLocation) return;
+
+                renderer.resetState();
+
+                const pos = window.appState.currentLocation;
+                const heading = window.appState.car.heading || 0;
+                const zoom = window.dashboardGoogleMap.getZoom();
+
+                const matrix = transformer.fromLatLngAltitude({ ...pos, altitude: 3.5 });
+                camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix);
+                fixCameraEye(camera);   // correct lighting on roof/hood/trunk
+
+                const baseScale = window.tuner?.scale || 0.85;
+                const finalScale = baseScale * Math.pow(2, 20 - zoom);
+
+                window.carModel.scale.set(finalScale, finalScale, finalScale);
+                window.carModel.rotation.y = -(heading * Math.PI) / 180 + Math.PI;
+
+                renderer.render(scene, camera);
+                overlay.requestRedraw();
+            };
+
+            overlay.setMap(map);
+        }
+
+        // ============= Location Tracking (smooth) =============
+        // GPS gives roughly one fix per second. Moving the camera straight to each fix
+        // makes the map jump. Instead every fix sets a target, and an animation frame
+        // loop glides the camera and the car towards it ~60 times a second.
+        window.motion = {
+            target:  null,                 // latest GPS fix
+            current: null,                 // what is on screen right now
+            // seconds to close most of the gap — smaller is snappier, larger is smoother
+            followTime: 0.35,
+            turnTime: 0.25
+        };
+
+        // shortest way round the circle, so 350° → 10° turns 20° and not 340°
+        function headingDelta(from, to) {
+            return ((((to - from) % 360) + 540) % 360) - 180;
+        }
+
+        window.updateGoogleMapLocation = function(pos) {
+            if (!pos || !pos.coords) return;
+
+            const { latitude: lat, longitude: lng } = pos.coords;
+            if (typeof lat !== 'number' || typeof lng !== 'number') return;
+
+            const m = window.motion;
+            const prev = m.target;
+            // the device only reports a heading while moving; keep the last one otherwise
+            let heading = pos.coords.heading;
+            if (typeof heading !== 'number' || isNaN(heading)) {
+                heading = prev ? prev.heading : 0;
+            }
+
+            m.target = { lat, lng, heading };
+            if (!m.current) m.current = { lat, lng, heading };   // first fix: no long glide
+            startMotionLoop();
+        };
+
+        let motionFrame = null, motionLast = 0;
+        function startMotionLoop() {
+            if (motionFrame !== null) return;
+            motionLast = performance.now();
+            motionFrame = requestAnimationFrame(motionStep);
+        }
+
+        function motionStep(now) {
+            motionFrame = requestAnimationFrame(motionStep);
+
+            const m = window.motion;
+            const map = window.dashboardGoogleMap;
+            if (!m.target || !m.current || !map) return;
+
+            const dt = Math.min((now - motionLast) / 1000, 0.1);
+            motionLast = now;
+
+            // frame-rate independent easing: same feel at 30fps and 120fps
+            const posEase  = 1 - Math.exp(-dt / m.followTime);
+            const turnEase = 1 - Math.exp(-dt / m.turnTime);
+
+            const dLat = m.target.lat - m.current.lat;
+            const dLng = m.target.lng - m.current.lng;
+            const dHead = headingDelta(m.current.heading, m.target.heading);
+
+            m.current.lat += dLat * posEase;
+            m.current.lng += dLng * posEase;
+            m.current.heading += dHead * turnEase;
+            // keep the angle inside 0–360 so it never drifts upwards forever
+            m.current.heading = ((m.current.heading % 360) + 360) % 360;
+
+            window.appState.currentLocation = { lat: m.current.lat, lng: m.current.lng };
+            window.appState.car.heading = m.current.heading;
+
+            const pano = map.getStreetView && map.getStreetView();
+            const inStreetView = pano && pano.getVisible && pano.getVisible();
+
+            // already there: nothing to move, so leave the camera alone (saves battery)
+            const settled = Math.abs(dLat) < 1e-8 && Math.abs(dLng) < 1e-8 && Math.abs(dHead) < 0.01;
+            if (settled) return;
+
+            if (!isUserInteracting && !inStreetView) {
+                map.moveCamera({
+                    center: { lat: m.current.lat, lng: m.current.lng },
+                    heading: m.current.heading,
+                    zoom: window.tuner.zoom,
+                    tilt: window.tuner.tilt
+                });
+            }
+
+            if (window.carOverlay) window.carOverlay.requestRedraw();
+        }
+
+        window.startLiveTracking = function() {
+            if (navigator.geolocation) {
+                if (window.locationWatchId) {
+                    navigator.geolocation.clearWatch(window.locationWatchId);
+                }
+
+                window.locationWatchId = navigator.geolocation.watchPosition(
+                    (pos) => {
+                        if (typeof window.updateGoogleMapLocation === 'function') {
+                            window.updateGoogleMapLocation(pos);
+                        }
+                    },
+                    (err) => {
+                        console.error("🚨 Tracking failed:", err.message);
+                        if (err.code === 1) {
+                            showGeolocationErrorOnMap('تم رفض إذن الموقع.');
+                        }
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: 0,       // never reuse an old fix
+                        timeout: 30000       // slow fixes still arrive instead of erroring
+                    }
+                );
+                console.log("📡 Continuous tracking active...");
+            }
+        };
+
+        // ============= Map Control Functions =============
+        window.adjustScale = function(amount) {
+            window.tuner.scale = Math.max(0.1, (window.tuner.scale || 0.75) + amount);
+            window.saveTuner();
+            if (window.carOverlay) window.carOverlay.requestRedraw();
+        };
+
+        window.adjustTilt = function(amount) {
+            if (!window.dashboardGoogleMap) return;
+            let newTilt = Math.min(Math.max(window.dashboardGoogleMap.getTilt() + amount, 0), 75);
+            window.dashboardGoogleMap.setTilt(newTilt);
+            window.tuner.tilt = newTilt;
+            window.saveTuner();
+        };
+
+        window.isEmbedded = window.self !== window.top;
+
+        function showGeolocationErrorOnMap(message) {
+            const overlay = document.getElementById('geolocation-error-overlay');
+            if (overlay) {
+                overlay.classList.remove('hidden');
+                // Inside an iframe the location is blocked unless the parent page
+                // adds allow="geolocation" to the iframe tag
+                const hint = window.isEmbedded
+                    ? ' — الصفحة داخل iframe: أضف allow="geolocation" إلى وسم الـ iframe في الصفحة الأم.'
+                    : '';
+                overlay.querySelector('p').textContent = message + hint;
+            }
+        }
+
+        // Center map on user location
+        async function centerMapOnUserLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        window.updateGoogleMapLocation(pos);
+                        console.log("✅ Location updated");
+                    },
+                    (err) => {
+                        let msg = 'Unable to get your location. Please check permissions.';
+
+                        if (err.code === 1) {
+                            msg = 'Location permission denied. Using default location.';
+                        } else if (err.code === 2) {
+                            msg = 'Unable to determine location. Using default location.';
+                        }
+
+                        const FALLBACK_COORDS = { lat: 17.067330, lng: 54.160190 };
+                        window.appState.currentLocation = FALLBACK_COORDS;
+
+                        const fallbackPos = {
+                            coords: {
+                                latitude: FALLBACK_COORDS.lat,
+                                longitude: FALLBACK_COORDS.lng,
+                                heading: 0
+                            }
+                        };
+                        window.updateGoogleMapLocation(fallbackPos);
+
+                        showGeolocationErrorOnMap(msg);
+                        console.error("Geolocation Error Code:", err.code);
+                    },
+                    { enableHighAccuracy: true }
+                );
+            } else {
+                showGeolocationErrorOnMap('Geolocation is not supported in this browser.');
+            }
+        }
+
+        // ============= Event Listeners =============
+        document.addEventListener('DOMContentLoaded', () => {
+            window.initMap = function() { initMaps(); };
+            loadGoogleMaps().then(initMap);
+
+            const getLocationBtn = document.getElementById('get-my-location-button-dashboard');
+            if (getLocationBtn) {
+                getLocationBtn.addEventListener('click', centerMapOnUserLocation);
+            }
+
+            lucide.createIcons();
+        });
+
+        // Saves zoom and tilt whenever the user changes them
+        window.mapListenersAttached = false;
+        function attachMapListeners(map) {
+            if (!map || window.mapListenersAttached) return;
+            window.mapListenersAttached = true;
+
+            map.addListener('dragstart', () => { isUserInteracting = true; });
+            map.addListener('dragend', () => { isUserInteracting = false; });
+
+            map.addListener('zoom_changed', () => {
+                const z = map.getZoom();
+                if (typeof z === 'number' && z !== window.tuner.zoom) {
+                    window.tuner.zoom = z;
+                    window.saveTuner();
+                }
+            });
+
+            map.addListener('tilt_changed', () => {
+                const t = map.getTilt();
+                if (typeof t === 'number' && t !== window.tuner.tilt) {
+                    window.tuner.tilt = t;
+                    window.saveTuner();
+                }
+            });
+
+            console.log('💾 Zoom/tilt are now saved to cookies');
+        }
+
+        window.addEventListener('load', () => {
+            attachMapListeners(window.dashboardGoogleMap);
+        });
+
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (!mapsInitialized) {
+                    loadGoogleMaps().then(() => {
+                        initMaps();
+                        centerMapOnUserLocation();
+                    }).catch(err => console.error("Failed to load maps:", err));
+                }
+            }, 1000);
+        });
+
+        // ============= Material Control Functions =============
+
+        // Chosen (ideal) values — also what the reset button restores
+        window.IDEAL_PAINT = {
+            ambientLight: 0.90,
+            metalness: 0.89,
+            roughness: 0.25,
+            envMapIntensity: 1.00,
+            carColor: 0xFFF5D6
+        };
+        window.materialSettings = { ...window.IDEAL_PAINT };
+        window.originalPaint = null;   // filled from the GLTF file on load
+        window.paintMaterials = [];
+
+        // ============= Fit any model to the old car's size and place =============
+        // The old model (ES350E.gltf) sat in the scene 20.72 units long, length along Z,
+        // front facing +Z. A new model is re-scaled and turned to match, and is centred
+        // exactly on the GPS point (no sideways offset) with its wheels on the ground.
+        const CAR_LENGTH = 20.72;
+
+        function fitCarModel(scene) {
+            const inner = new THREE.Group();
+            inner.add(scene);
+
+            const box = new THREE.Box3().setFromObject(scene);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+
+            // put the model's own centre on the origin
+            scene.position.sub(center);
+
+            // car.glb runs along X with the front towards -X —
+            // turn it a quarter turn so the front faces +Z like the old model
+            if (size.x > size.z) inner.rotation.y = Math.PI / 2;
+
+            const longest = Math.max(size.x, size.z);
+            if (longest > 0) inner.scale.setScalar(CAR_LENGTH / longest);
+
+            // centred horizontally on the GPS point, wheels resting on the ground plane
+            inner.position.set(0, (size.y * inner.scale.y) / 2, 0);
+
+            const wrapper = new THREE.Group();
+            wrapper.add(inner);
+            console.log('🚗 Model fitted — raw size:', size.toArray().map(v => +v.toFixed(2)),
+                        '| scale:', +inner.scale.x.toFixed(3));
+            return wrapper;
+        }
+
+        // Paint material: car.glb has ONE textured material for the whole car, so the
+        // panel drives that one. ES350E.gltf had a named paint layer (Meshpart1Mtl)
+        // with a black shell underneath; on that model the other layers are pushed
+        // back slightly in depth to stop z-fighting (glass excluded).
+        const PAINT_MATERIALS = ['Meshpart1Mtl'];
+        function prepareCarMaterials(model) {
+            const all = [];
+            model.traverse(node => {
+                if (!node.isMesh) return;
+                (Array.isArray(node.material) ? node.material : [node.material]).forEach(m => {
+                    if (m && !all.includes(m)) all.push(m);
+                });
+            });
+
+            window.paintMaterials = all.filter(m => PAINT_MATERIALS.includes(m.name));
+            if (!window.paintMaterials.length && all.length <= 2) {
+                window.paintMaterials = all.slice();   // single-material model
+            }
+
+            if (all.length > 2) {
+                all.forEach(m => {
+                    if (window.paintMaterials.includes(m)) return;
+                    if (/glass|window/i.test(m.name)) return;
+                    m.polygonOffset = true;
+                    m.polygonOffsetFactor = 4;
+                    m.polygonOffsetUnits = 16;
+                    m.needsUpdate = true;
+                });
+            }
+
+            const paint = window.paintMaterials[0];
+            if (!paint) {
+                console.warn('⚠️ Paint material not found. Materials:', all.map(m => m.name || '(unnamed)'));
+                return;
+            }
+            window.originalPaint = {
+                ambientLight: 0.90,
+                metalness: +paint.metalness.toFixed(2),
+                roughness: +paint.roughness.toFixed(2),
+                envMapIntensity: +(paint.envMapIntensity ?? 1).toFixed(2),
+                carColor: parseInt(paint.color.getHexString(), 16)
+            };
+            console.log('🎨 Original paint in model:', window.originalPaint,
+                        '| controlled materials:', window.paintMaterials.length);
+            applyPreset('reset');   // apply the chosen (ideal) values
+        }
+
+        function updateAmbientLight(value) {
+            const floatValue = parseFloat(value);
+            window.materialSettings.ambientLight = floatValue;
+
+            document.getElementById('ambientLightValue').textContent = floatValue.toFixed(2);
+            document.getElementById('ambientLightDisplay').textContent = floatValue.toFixed(2);
+            document.getElementById('currentAmbientDisplay').textContent = floatValue.toFixed(2);
+
+            if (window.carOverlay && window.carOverlay.scene) {
+                const ambientLight = window.carOverlay.scene.children.find(c => c.isLight && c.type === 'AmbientLight');
+                if (ambientLight) {
+                    ambientLight.intensity = floatValue;
+                }
+            }
+        }
+
+        function updateMetalness(value) {
+            const floatValue = parseFloat(value);
+            window.materialSettings.metalness = floatValue;
+
+            document.getElementById('metalnessValue').textContent = floatValue.toFixed(2);
+            document.getElementById('metalnessDisplay').textContent = floatValue.toFixed(2);
+            document.getElementById('currentMetalnessDisplay').textContent = floatValue.toFixed(2);
+
+            updateCarMaterial();
+        }
+
+        function updateRoughness(value) {
+            const floatValue = parseFloat(value);
+            window.materialSettings.roughness = floatValue;
+
+            document.getElementById('roughnessValue').textContent = floatValue.toFixed(2);
+            document.getElementById('roughnessDisplay').textContent = floatValue.toFixed(2);
+            document.getElementById('currentRoughnessDisplay').textContent = floatValue.toFixed(2);
+
+            updateCarMaterial();
+        }
+
+        function updateEnvMapIntensity(value) {
+            const floatValue = parseFloat(value);
+            window.materialSettings.envMapIntensity = floatValue;
+
+            document.getElementById('envMapIntensityValue').textContent = floatValue.toFixed(2);
+            document.getElementById('envMapIntensityDisplay').textContent = floatValue.toFixed(2);
+
+            updateCarMaterial();
+        }
+
+        function updateCarColor(colorHex) {
+            const colorInt = parseInt(colorHex.replace('#', ''), 16);
+            window.materialSettings.carColor = colorInt;
+
+            document.getElementById('colorCode').value = colorHex.toUpperCase();
+            document.getElementById('colorPicker').value = colorHex;
+            document.getElementById('currentColorDisplay').textContent = colorHex.toUpperCase();
+
+            updateCarMaterial();
+        }
+
+        function updateCarMaterial() {
+            if (!window.carModel) return;
+
+            window.paintMaterials.forEach(m => {
+                m.color.setHex(window.materialSettings.carColor);
+                m.metalness = window.materialSettings.metalness;
+                m.roughness = window.materialSettings.roughness;
+                m.envMapIntensity = window.materialSettings.envMapIntensity;
+                m.needsUpdate = true;
+            });
+            if (window.carOverlay) window.carOverlay.requestRedraw();
+        }
+
+        function applyPreset(preset) {
+            let settings = {};
+
+            switch(preset) {
+                case 'light':
+                    settings = {
+                        ambientLight: 1.0,
+                        metalness: 0.90,
+                        roughness: 0.15,
+                        envMapIntensity: 1.5,
+                        carColor: 0xE8D0B0
+                    };
+                    break;
+                case 'dark':
+                    settings = {
+                        ambientLight: 0.70,
+                        metalness: 0.85,
+                        roughness: 0.30,
+                        envMapIntensity: 1.0,
+                        carColor: 0xB8956F
+                    };
+                    break;
+                case 'metallic':
+                    settings = {
+                        ambientLight: 0.95,
+                        metalness: 0.95,
+                        roughness: 0.10,
+                        envMapIntensity: 1.6,
+                        carColor: 0xD4B896
+                    };
+                    break;
+                case 'reset':
+                    // Back to the chosen (ideal) values
+                    settings = { ...window.IDEAL_PAINT };
+                    break;
+            }
+
+            if (settings.ambientLight !== undefined) {
+                document.getElementById('ambientLightSlider').value = settings.ambientLight;
+                updateAmbientLight(settings.ambientLight);
+            }
+            if (settings.metalness !== undefined) {
+                document.getElementById('metalnessSlider').value = settings.metalness;
+                updateMetalness(settings.metalness);
+            }
+            if (settings.roughness !== undefined) {
+                document.getElementById('roughnessSlider').value = settings.roughness;
+                updateRoughness(settings.roughness);
+            }
+            if (settings.envMapIntensity !== undefined) {
+                document.getElementById('envMapIntensitySlider').value = settings.envMapIntensity;
+                updateEnvMapIntensity(settings.envMapIntensity);
+            }
+            if (settings.carColor !== undefined) {
+                const colorHex = '#' + settings.carColor.toString(16).padStart(6, '0').toUpperCase();
+                document.getElementById('colorPicker').value = colorHex;
+                updateCarColor(colorHex);
+            }
+        }
+
+        function copyCurrentSettings() {
+            const settings = `
+// Material Configuration
+color: 0x${window.materialSettings.carColor.toString(16).toUpperCase()},
+metalness: ${window.materialSettings.metalness},
+roughness: ${window.materialSettings.roughness},
+envMapIntensity: ${window.materialSettings.envMapIntensity}
+
+// Lighting Configuration
+AmbientLight: 0xffffff, ${window.materialSettings.ambientLight}
+
+// Light 1 Position
+Light 1: x=${window.light1?.position.x.toFixed(1)}, y=${window.light1?.position.y.toFixed(1)}, z=${window.light1?.position.z.toFixed(1)}, intensity=${window.light1?.intensity.toFixed(2)}
+
+// Light 2 Position
+Light 2: x=${window.light2?.position.x.toFixed(1)}, y=${window.light2?.position.y.toFixed(1)}, z=${window.light2?.position.z.toFixed(1)}, intensity=${window.light2?.intensity.toFixed(2)}`;
+
+            navigator.clipboard.writeText(settings).then(() => {
+                alert('✅ تم نسخ الإعدادات!\n\n' + settings);
+            }).catch(() => {
+                alert('Error copying to clipboard');
+            });
+        }
+
+        // ============= Map type: 3D / 2D / Satellite / Street View =============
+        window.setMapType = function(type) {
+            const map = window.dashboardGoogleMap;
+            if (!map) return;
+
+            const panorama = map.getStreetView();
+            window.captureTuner();   // keep the current type's values before switching
+
+            if (type === 'streetview') {
+                const pos = window.appState.currentLocation;
+                new google.maps.StreetViewService().getPanorama(
+                    { location: pos, radius: 80 },
+                    (data, status) => {
+                        if (status === 'OK') {
+                            const sv = window.tunerStore.streetview;
+                            panorama.setPosition(data.location.latLng);
+                            panorama.setPov({ heading: sv.heading, pitch: sv.pitch });
+                            if (typeof sv.zoom === 'number') panorama.setZoom(sv.zoom);
+                            panorama.setVisible(true);
+                            sv.open = true;
+                            window.saveTuner();
+                            markActiveMapType('streetview');
+                            console.log('👁️ Street View opened');
+                        } else {
+                            alert('لا تتوفر صور ستريت فيو في هذا الموقع.');
+                            markActiveMapType(window.tuner.mapType);
+                        }
+                    }
+                );
+                return;
+            }
+
+            if (panorama.getVisible()) panorama.setVisible(false);
+            window.tunerStore.streetview.open = false;
+
+            if (!MAP_TYPES.includes(type)) type = '3d';
+            window.applyTunerToMap(type);
+            window.saveTuner();
+            markActiveMapType(type);
+            console.log('🗺️ Map type:', type, window.tunerStore.types[type]);
+        };
+
+        function markActiveMapType(type) {
+            document.querySelectorAll('.map-type-button').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById('btn-map-' + type);
+            if (btn) btn.classList.add('active');
+        }
+
+        // ============= Console test command =============
+        // Type in the browser console:  tunerInfo()
+        window.tunerInfo = function() {
+            const map = window.dashboardGoogleMap;
+            const pano = map && map.getStreetView && map.getStreetView();
+            window.captureTuner();
+
+            const rows = {};
+            MAP_TYPES.forEach(t => {
+                const c = window.tunerStore.types[t];
+                rows[t + (t === window.tuner.mapType ? ' ← current' : '')] =
+                    { zoom: c.zoom, tilt: c.tilt, size: c.scale };
+            });
+            const sv = window.tunerStore.streetview;
+            rows['streetview'] = { zoom: sv.zoom, tilt: '(pitch) ' + sv.pitch, size: '(heading) ' + sv.heading };
+
+            console.log('%c📊 Saved per map type', 'color:#FDB813;font-weight:bold');
+            console.table(rows);
+            console.log('live map:', map ? { zoom: map.getZoom(), tilt: map.getTilt() } : 'map not ready',
+                        '| street view open:', pano && pano.getVisible ? pano.getVisible() : false,
+                        '| inside iframe:', window.self !== window.top,
+                        '| cookie:', getCookie(TUNER_COOKIE) ? 'yes' : 'none');
+            return JSON.parse(JSON.stringify(window.tunerStore));
+        };
+
+        // ============= Save button (Zoom / Size / Tilt) =============
+        // Reads the live values off the map and writes them to the cookie now
+        window.saveTunerNow = function() {
+            window.writeTunerCookie();   // saves the current type + Street View angle
+
+            const btn = document.getElementById('save-tuner-button');
+            if (btn) {
+                btn.textContent = '✅';
+                btn.classList.add('saved');
+                setTimeout(() => { btn.textContent = '💾'; btn.classList.remove('saved'); }, 1200);
+            }
+            console.log('💾 Saved:', window.tunerStore);
+        };
+
+        // ============= Clear browser cache =============
+        // Clears this site's cookies, storage and cached files, then reloads.
+        window.clearBrowserCache = async function() {
+            if (!confirm('مسح ذاكرة المتصفح لهذا الموقع؟\n\nسيتم حذف الإعدادات المحفوظة (Zoom / Size / Tilt) وإعادة تحميل الصفحة.')) return;
+
+            try {
+                document.cookie.split(';').forEach(c => {
+                    const name = c.split('=')[0].trim();
+                    if (!name) return;
+                    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+                    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${location.hostname}`;
+                });
+            } catch (e) { console.warn('Cookies not cleared:', e); }
+
+            try { localStorage.clear(); sessionStorage.clear(); } catch (e) { console.warn('Storage not cleared:', e); }
+
+            try {
+                if (window.caches) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                }
+            } catch (e) { console.warn('Cache Storage not cleared:', e); }
+
+            try {
+                if (navigator.serviceWorker) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r => r.unregister()));
+                }
+            } catch (e) { console.warn('Service workers not removed:', e); }
+
+            console.log('🧹 Browser cache cleared');
+            location.reload(true);
+        };
+
+        // ============= Panel Toggle =============
+        function toggleControlPanel() {
+            const panel = document.getElementById('control-panel');
+            const btn = document.getElementById('panel-toggle');
+            const collapsed = panel.classList.toggle('collapsed');
+            btn.textContent = collapsed ? '⚙️ إظهار التحكم' : '⚙️ إخفاء التحكم';
+        }
+
+        // ============= Light Control Functions =============
+
+        function updateLight1Position(axis, value) {
+            if (!window.light1) return;
+
+            const floatValue = parseFloat(value);
+
+            if (axis === 'x') {
+                window.light1.position.x = floatValue;
+                document.getElementById('light1XValue').textContent = floatValue.toFixed(1);
+                document.getElementById('light1XDisplay').textContent = floatValue.toFixed(1);
+            } else if (axis === 'y') {
+                window.light1.position.y = floatValue;
+                document.getElementById('light1YValue').textContent = floatValue.toFixed(1);
+                document.getElementById('light1YDisplay').textContent = floatValue.toFixed(1);
+            } else if (axis === 'z') {
+                window.light1.position.z = floatValue;
+                document.getElementById('light1ZValue').textContent = floatValue.toFixed(1);
+                document.getElementById('light1ZDisplay').textContent = floatValue.toFixed(1);
+            }
+
+            if (window.carOverlay) window.carOverlay.requestRedraw();
+        }
+
+        function updateLight1Intensity(value) {
+            if (!window.light1) return;
+
+            const floatValue = parseFloat(value);
+            window.light1.intensity = floatValue;
+
+            document.getElementById('light1IntensityValue').textContent = floatValue.toFixed(2);
+            document.getElementById('light1IntensityDisplay').textContent = floatValue.toFixed(2);
+
+            if (window.carOverlay) window.carOverlay.requestRedraw();
+        }
+
+        function updateLight2Position(axis, value) {
+            if (!window.light2) return;
+
+            const floatValue = parseFloat(value);
+
+            if (axis === 'x') {
+                window.light2.position.x = floatValue;
+                document.getElementById('light2XValue').textContent = floatValue.toFixed(1);
+                document.getElementById('light2XDisplay').textContent = floatValue.toFixed(1);
+            } else if (axis === 'y') {
+                window.light2.position.y = floatValue;
+                document.getElementById('light2YValue').textContent = floatValue.toFixed(1);
+                document.getElementById('light2YDisplay').textContent = floatValue.toFixed(1);
+            } else if (axis === 'z') {
+                window.light2.position.z = floatValue;
+                document.getElementById('light2ZValue').textContent = floatValue.toFixed(1);
+                document.getElementById('light2ZDisplay').textContent = floatValue.toFixed(1);
+            }
+
+            if (window.carOverlay) window.carOverlay.requestRedraw();
+        }
+
+        function updateLight2Intensity(value) {
+            if (!window.light2) return;
+
+            const floatValue = parseFloat(value);
+            window.light2.intensity = floatValue;
+
+            document.getElementById('light2IntensityValue').textContent = floatValue.toFixed(2);
+            document.getElementById('light2IntensityDisplay').textContent = floatValue.toFixed(2);
+
+            if (window.carOverlay) window.carOverlay.requestRedraw();
+        }
+    </script>
+</body>
+</html>
