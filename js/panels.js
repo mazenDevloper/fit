@@ -134,7 +134,7 @@ export class Launcher {
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['target', 'ضبط العدستين', 'تحريك وتكبير الصورتين', () => { this.close(); a.lensAdjust.open(); }],
       ];
-      const ex = a.extras, W8 = (t, n, d) => [t === 'weather' ? 'sun' : t === 'timer' ? 'clock' : t === 'note' ? 'stack' : t === 'photos' ? 'image' : t === 'nowplaying' ? 'play' : t === 'verse' ? 'book' : t === 'scenes' ? 'grid' : t === 'aihist' ? 'mic' : 'sliders', n, d, () => { this.close(); ex.widget(t); }];
+      const ex = a.extras, W8 = (t, n, d) => [t === 'weather' ? 'sun' : t === 'timer' ? 'clock' : t === 'note' ? 'stack' : t === 'photos' ? 'image' : t === 'nowplaying' || t === 'dcmedia' ? 'play' : t === 'verse' ? 'book' : t === 'scenes' ? 'grid' : t === 'aihist' ? 'mic' : t === 'dcdash' ? 'ball' : t === 'remote' ? 'target' : 'sliders', n, d, () => { this.close(); ex?.widget(t); }];
       if (ex) list.push(
         ['mic', 'كرة المساعد', settings.orb ? 'ظاهرة · انظر إليها لتتكلم' : 'انظر إليها لتتكلم', () => { this.close(); const on = !settings.orb; saveSettings({ orb: on }); ex.orb.show(on); }],
         ['eye', 'ما هذا؟', 'اسأل عمّا تراه أمامك', () => { this.close(); ex.lookAndAsk('ما هذا الذي أمامي؟'); }],
@@ -151,13 +151,20 @@ export class Launcher {
       const FOLDERS = {
         tools: ['grid', 'أدوات الإعداد', ['المعايرة', 'ضبط العدستين', 'إعادة التمركز', 'ترتيب النوافذ', 'دليل الإيماءات', 'لوحة المفاتيح', 'مسح الغرفة', 'البيئة', 'غرفة جديدة', 'تحديث التطبيق']],
         widgets: ['clock', 'الأدوات المصغّرة', null],
+        dc: ['play', 'DriveCast', null],
       };
+      const hubN = a.hub?.others().length || 0;
+      const dcItems = [W8('dcmedia', 'مكتبة DriveCast', 'تابع · المحفوظة · القوائم'), W8('dcdash', 'لوحة DriveCast', 'الصلاة · المباريات · مقترحات'), W8('remote', 'ريموت التلفاز', 'تحكم بـDriveCast'),
+        ['stack', 'أرسل النافذة', 'إلى السيارة أو التلفاز', () => { this.close(); const w = [...a.windows.windows].reverse().find(x => a.hub?.canSend(x)); if (w) a.hub.sendWindow(w); else a.toast('افتح فيديو أو صفحة أولاً', 2000); }],
+        ['globe', 'الأجهزة المتصلة', hubN ? hubN + ' متصل' : 'لا يوجد', () => { a.toast(a.hub?.others().map(d => d.name).join(' · ') || 'لا أجهزة متصلة', 3500); }]];
       const widgets = [W8('weather', 'الطقس', 'حسب موقعك'), W8('timer', 'المؤقت', 'مؤقت وساعة إيقاف'), W8('note', 'ملاحظة لاصقة', 'تُملى بصوتك'), W8('photos', 'إطار الصور', 'صور مكتبتك'), W8('nowplaying', 'يُعرض الآن', 'تحكم بكل ما يعمل'),
         W8('verse', 'آية اليوم', 'بصوت العفاسي'), W8('scenes', 'المشاهد', 'احفظ ترتيبك وارجع إليه'), W8('aihist', 'سجل المساعد', 'محادثاتك السابقة'), W8('usage', 'استخدامك', 'وقتك والحرارة')];
       if (this.folder === 'widgets') list = widgets;
+      else if (this.folder === 'dc') list = dcItems;
       else if (this.folder === 'tools') list = list.filter(x => FOLDERS.tools[2].includes(x[1]));
       else {
         list = list.filter(x => !FOLDERS.tools[2].includes(x[1]));
+        list.push([FOLDERS.dc[0], FOLDERS.dc[1], hubN ? '🟢 ' + hubN + ' جهاز متصل' : 'السيارة · التلفاز · الهاتف', () => { this.folder = 'dc'; this.page = 0; this.panel.redraw(); }]);
         list.push([FOLDERS.widgets[0], FOLDERS.widgets[1], widgets.length + ' أدوات', () => { this.folder = 'widgets'; this.page = 0; this.panel.redraw(); }], [FOLDERS.tools[0], FOLDERS.tools[1], 'مجلد', () => { this.folder = 'tools'; this.page = 0; this.panel.redraw(); }]);
         // your own order: «ترتيب الشاشة» then tap tiles - each one tapped jumps to the front
         const order = settings.appOrder || [];

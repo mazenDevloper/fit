@@ -9,6 +9,7 @@ import { settings, saveSettings, loadLayout, pairedDevices } from './config.js';
 import { registerKind, spatialize } from './windows.js';
 import { listItems, getItem, importFiles } from './db.js';
 import { ENVS, envKey, isImmersive } from './envs.js';
+import { HUB, fmtTime } from './hub.js';
 
 const W8 = 'https://studio.c-p.workers.dev';
 const p2 = n => String(n).padStart(2, '0');
@@ -29,8 +30,8 @@ const btn = (ctx, p, x, y, w, h, label, act, id, on = false) => {
 
 // ======================================================================== widgets in the room
 const SIZES = { xs: [0.2, 0.12], s: [0.3, 0.3], m: [0.48, 0.3], l: [0.62, 0.44] };
-const DEFAULT_SIZE = { weather: 's', timer: 's', note: 's', photos: 'm', nowplaying: 'm', verse: 'm', scenes: 'm', aihist: 'l', usage: 's', text: 'l' };
-const W_TITLE = { weather: 'الطقس', timer: 'المؤقت', note: 'ملاحظة', photos: 'إطار الصور', nowplaying: 'يُعرض الآن', verse: 'آية اليوم', scenes: 'المشاهد', aihist: 'سجل المساعد', usage: 'استخدامك', text: '' };
+const DEFAULT_SIZE = { dcmedia: 'l', dcdash: 'm', remote: 's', weather: 's', timer: 's', note: 's', photos: 'm', nowplaying: 'm', verse: 'm', scenes: 'm', aihist: 'l', usage: 's', text: 'l' };
+const W_TITLE = { dcmedia: 'مكتبة DriveCast', dcdash: 'لوحة DriveCast', remote: 'ريموت', weather: 'الطقس', timer: 'المؤقت', note: 'ملاحظة', photos: 'إطار الصور', nowplaying: 'يُعرض الآن', verse: 'آية اليوم', scenes: 'المشاهد', aihist: 'سجل المساعد', usage: 'استخدامك', text: '' };
 const WX = { 0: ['☀️', 'صافٍ'], 1: ['🌤', 'صافٍ غالباً'], 2: ['⛅', 'غائم جزئياً'], 3: ['☁️', 'غائم'], 45: ['🌫', 'ضباب'], 48: ['🌫', 'ضباب'], 51: ['🌦', 'رذاذ'], 53: ['🌦', 'رذاذ'], 55: ['🌦', 'رذاذ'], 61: ['🌧', 'مطر خفيف'], 63: ['🌧', 'مطر'], 65: ['🌧', 'مطر غزير'], 80: ['🌦', 'زخات'], 81: ['🌧', 'زخات'], 82: ['⛈', 'زخات قوية'], 95: ['⛈', 'عاصفة رعدية'], 96: ['⛈', 'عاصفة'], 99: ['⛈', 'عاصفة'] };
 let weather = null, weatherAt = 0, verse = null;
 
@@ -63,6 +64,17 @@ export class Widget {
     if (t === 'weather') this.loadWeather();
     if (t === 'verse') this.loadVerse();
     if (t === 'photos') this.loadPhotos();
+    if (t === 'dcmedia') this.loadLibrary();
+    if (t === 'dcdash') this.loadDash();
+    if (t === 'dcmedia' || t === 'dcdash' || t === 'remote') this.unhub = this.app.hub?.on(() => this.redraw());
+  }
+  async loadLibrary() { try { this.lib = await (await fetch(HUB + '/library')).json(); } catch { this.lib = { ok: false }; } this.thumbs ||= new Map(); this.redraw(); }
+  async loadDash() { try { const [a, b] = await Promise.all([fetch(HUB + '/islands?device=' + encodeURIComponent(this.app.hub?.me.id || '')).then(r => r.json()), fetch(HUB + '/suggest?place=room').then(r => r.json())]); this.dash = { islands: a.islands || [], suggest: b.items || [], today: b.today }; } catch { this.dash = { islands: [], suggest: [] }; } this.redraw(); }
+  thumb(url) {
+    if (!url) return null; this.thumbs ||= new Map();
+    let t = this.thumbs.get(url);
+    if (!t) { t = { img: null }; this.thumbs.set(url, t); const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => { t.img = im; clearTimeout(this.thT); this.thT = setTimeout(() => this.redraw(), 120); }; im.src = 'https://studio.c-p.workers.dev/img?u=' + encodeURIComponent(url); }
+    return t.img;
   }
   frame(ctx, W, H, title) {
     roundRect(ctx, 0, 0, W, H, Math.min(W, H) * 0.12); ctx.fillStyle = this.type === 'note' ? 'rgba(250,204,21,0.92)' : 'rgba(20,24,34,0.78)'; ctx.fill();
@@ -71,7 +83,7 @@ export class Widget {
   }
   draw(ctx, W, H, p) {
     const t = this.type, xs = this.size === 'xs', f = H / 100;
-    this.frame(ctx, W, H, t === 'text' ? this.data.title : W_TITLE[t]);
+    this.frame(ctx, W, H, t === 'text' ? this.data.title : t === 'dcmedia' ? '' : W_TITLE[t]);
     if (t === 'weather') {
       const w = weather;
       if (!w) { text(ctx, '…', W / 2, H / 2, f * 20); return; }
@@ -93,6 +105,54 @@ export class Widget {
       btn(ctx, p, 12, H * 0.8, (W - 34) / 3, bh, d.running ? 'إيقاف' : 'ابدأ', () => this.timerToggle(), 'go', d.running);
       btn(ctx, p, 17 + (W - 34) / 3, H * 0.8, (W - 34) / 3, bh, '↺', () => { Object.assign(d, { running: false, left: d.total || 300000, acc: 0 }); this.mgr.changed(); this.redraw(); }, 'rs');
       btn(ctx, p, 22 + (W - 34) * 2 / 3, H * 0.8, (W - 34) / 3, bh, d.mode === 'watch' ? 'مؤقت' : 'ساعة إيقاف', () => { d.mode = d.mode === 'watch' ? 'timer' : 'watch'; d.running = false; d.acc = 0; this.redraw(); }, 'md');
+    } else if (t === 'dcmedia') {
+      const tabs = [['cont', 'تابع'], ['saved', 'المحفوظة'], ['pl', 'القوائم']], tab = this.data.tab || 'cont';
+      text(ctx, 'مكتبة DriveCast', W - 22, H * 0.085, f * 5, { align: 'right', weight: 800, color: COLORS.dim });
+      tabs.forEach(([k, l], i) => btn(ctx, p, W * 0.12 + 18 + i * (W * 0.17 + 8), H * 0.04, W * 0.17, H * 0.09, l, () => { this.data.tab = k; this.data.pl = null; this.page = 0; this.redraw(); }, 't' + k, tab === k));
+      if (!this.lib) { text(ctx, '…', W / 2, H / 2, f * 10); return; }
+      const hubRes = Object.values(this.app.hub?.state.resume || {}).sort((a, b) => b.at - a.at).map(r => ({ ...r, from: r.from }));
+      let list = tab === 'cont' ? [...hubRes, ...(this.lib.continue || []).filter(c => !hubRes.some(r => r.id === c.id)).map(c => ({ ...c, kind: 'yt' }))]
+        : tab === 'saved' ? (this.lib.saved || []).map(v => ({ ...v, kind: 'yt' }))
+        : this.data.pl ? ((this.lib.playlists || []).find(x => x.id === this.data.pl)?.videos || []).map(v => ({ ...v, kind: 'yt' }))
+        : (this.lib.playlists || []).map(x => ({ id: x.id, title: x.name + ' (' + x.videos.length + ')', thumb: x.videos[0]?.thumb, isPl: true }));
+      if (!list.length) { text(ctx, this.lib.ok === false ? 'تعذّر الوصول إلى DriveCast' : 'لا شيء هنا بعد', W / 2, H / 2, f * 6, { color: COLORS.dim }); return; }
+      const cols = 3, rows = 2, per = cols * rows, pages = Math.ceil(list.length / per); this.page = Math.min(this.page || 0, pages - 1);
+      const cw = (W - 40) / cols, ch = (H * 0.78) / rows;
+      list.slice(this.page * per, this.page * per + per).forEach((it, i) => {
+        const c = i % cols, r = Math.floor(i / cols), x = W - 20 - (c + 1) * cw, y = H * 0.16 + r * ch, id = 'v' + i, hv = p.isHover(id);
+        roundRect(ctx, x + 6, y + 6, cw - 12, ch - 12, 18); ctx.fillStyle = hv ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.07)'; ctx.fill();
+        const im = this.thumb(it.thumb), tw = cw - 24, th = Math.min(ch * 0.58, tw * 9 / 16);
+        if (im) { ctx.save(); roundRect(ctx, x + 12, y + 12, tw, th, 12); ctx.clip(); const k = Math.max(tw / im.width, th / im.height); ctx.drawImage(im, x + 12 + (tw - im.width * k) / 2, y + 12 + (th - im.height * k) / 2, im.width * k, im.height * k); ctx.restore(); }
+        else { roundRect(ctx, x + 12, y + 12, tw, th, 12); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill(); text(ctx, it.isPl ? '📂' : '▶', x + cw / 2, y + 12 + th / 2, th * 0.3); }
+        if (it.t > 30 && it.dur) { ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(x + 12, y + 8 + th, tw, 5); ctx.fillStyle = '#e11d48'; ctx.fillRect(x + 12, y + 8 + th, tw * Math.min(1, it.t / it.dur), 5); }
+        text(ctx, it.title || it.id, x + cw - 16, y + 30 + th, f * 3.6, { align: 'right', weight: 700, maxWidth: tw, dir: 'auto' });
+        const sub = it.from?.name ? 'من ' + it.from.name + (it.t ? ' · ' + fmtTime(it.t) : '') : it.channel || (it.t ? 'من ' + fmtTime(it.t) : '');
+        if (sub) text(ctx, sub, x + cw - 16, y + 30 + th + f * 4.6, f * 3, { align: 'right', color: COLORS.dim, maxWidth: tw, dir: 'auto' });
+        p.region(x + 6, y + 6, cw - 12, ch - 12, () => { blip('tap', settings.sounds); if (it.isPl) { this.data.pl = it.id; this.page = 0; this.redraw(); } else this.app.hub?.open(it); }, id);
+        if (!it.isPl && this.app.hub?.others().length) { const bx = x + 14, by = y + ch - 12 - H * 0.075; btn(ctx, p, bx, by, cw * 0.3, H * 0.065, '📺 أرسل', () => this.app.hub.pick(d => { this.app.hub.op({ op: 'send', to: d.id, msg: { type: 'open', item: it, now: true } }); this.app.toast('📤 ' + d.name, 1500); }), 's' + i); }
+      });
+      if (pages > 1) btn(ctx, p, 16, H * 0.04, W * 0.12, H * 0.09, (this.page + 1) + '/' + pages, () => { this.page = (this.page + 1) % pages; this.redraw(); }, 'pg');
+    } else if (t === 'dcdash') {
+      const d = this.dash, hub = this.app.hub;
+      text(ctx, (hub?.online ? '🟢 ' : '⚪ ') + (hub?.others().map(x => x.name).join(' · ') || 'لا أجهزة متصلة'), W - 20, H * 0.2, f * 4.5, { align: 'right', color: COLORS.dim, maxWidth: W - 40, dir: 'auto' });
+      if (!d) { text(ctx, '…', W / 2, H / 2, f * 10); return; }
+      const items = [...d.islands, ...d.suggest.slice(0, 2).map(s => ({ id: 's' + s.id, icon: '✨', title: s.title, sub: 'مقترح لك الآن', action: { type: 'open', item: s } }))].slice(0, xs ? 2 : 5);
+      const rh = (H * 0.72) / Math.max(4, items.length);
+      items.forEach((it, i) => {
+        const y = H * 0.27 + i * rh, id = 'i' + i;
+        roundRect(ctx, 14, y + 3, W - 28, rh - 6, (rh - 6) / 2); ctx.fillStyle = p.isHover(id) ? 'rgba(255,255,255,0.25)' : it.tint ? it.tint + '55' : 'rgba(255,255,255,0.08)'; ctx.fill();
+        const left = it.at ? Math.max(0, Math.round((it.at - Date.now()) / 60000)) : null;
+        text(ctx, (it.icon || '•') + ' ' + it.title, W - 30, y + rh / 2, rh * 0.32, { align: 'right', weight: 800, maxWidth: W * 0.62, dir: 'auto' });
+        text(ctx, left != null ? (left >= 60 ? Math.floor(left / 60) + ' س ' + (left % 60) + ' د' : left + ' د') : (it.sub || ''), 30, y + rh / 2, rh * 0.28, { align: 'left', color: '#e6ecf8', maxWidth: W * 0.3, dir: 'auto' });
+        if (it.action?.item) p.region(14, y, W - 28, rh, () => { blip('tap', settings.sounds); this.app.hub?.open(it.action.item); }, id);
+      });
+      if (!items.length) text(ctx, 'لا جديد الآن', W / 2, H * 0.6, f * 7, { color: COLORS.dim });
+    } else if (t === 'remote') {
+      const hub = this.app.hub, tgt = hub?.remoteTarget();
+      text(ctx, tgt ? '→ ' + tgt.name : 'لا جهاز DriveCast متصل', W / 2, H * 0.24, f * 7, { weight: 700, color: tgt ? '#7cc4ff' : COLORS.dim, dir: 'auto', maxWidth: W - 20 });
+      const keys = [['⏮', 'prev'], ['⏯', 'toggle'], ['⏭', 'next'], ['−10', 'back'], ['🔉', 'vol-'], ['🔊', 'vol+']];
+      const bw = (W - 40) / 3, bh = H * 0.24;
+      keys.forEach(([l, a], i) => btn(ctx, p, 14 + (i % 3) * (bw + 6), H * 0.36 + Math.floor(i / 3) * (bh + 8), bw, bh, l, () => hub?.remote(a), 'k' + i));
     } else if (t === 'note') {
       const lines = wrapLines(ctx, this.data.text || 'اضغط 🎙 وتكلّم…', W - 40, `700 ${f * 9}px system-ui`);
       lines.slice(0, xs ? 2 : 8).forEach((l, i) => text(ctx, l, W - 20, H * (xs ? 0.35 : 0.24) + i * f * 11.5, f * 8.5, { align: 'right', weight: 700, color: '#2b2203', dir: 'auto' }));
@@ -155,7 +215,7 @@ export class Widget {
     }
   }
   // ---- timer
-  timerSet(m) { const d = this.data; d.mode = 'timer'; d.total = m * 60000; d.left = d.total; d.running = true; d.endAt = Date.now() + d.total; d.done = false; this.mgr.changed(); this.redraw(); }
+  timerSet(m) { const d = this.data; d.mode = 'timer'; d.total = m * 60000; d.left = d.total; d.running = true; d.endAt = Date.now() + d.total; d.done = false; this.mgr.changed(); this.redraw(); this.app.extras.syncIslands(); }
   timerToggle() {
     const d = this.data, now = Date.now();
     if (d.mode === 'watch') { if (d.running) { d.acc = (d.acc || 0) + now - d.startAt; d.running = false; } else { d.startAt = now; d.running = true; } }
@@ -198,18 +258,19 @@ export class Widget {
     this.redraw();
   }
   update(dt, now) {
-    const t = this.type, every = { timer: 250, nowplaying: 1000, usage: 30000, weather: 60000, photos: 10000 }[t];
+    const t = this.type, every = { timer: 250, nowplaying: 1000, usage: 30000, weather: 60000, photos: 10000, dcdash: 30000, dcmedia: 60000, remote: 5000 }[t];
     if (!every || now - (this.drawnAt || 0) < every) return;
     this.drawnAt = now;
     if (t === 'photos') { this.nextPhoto(); return; }
     if (t === 'weather') { this.loadWeather(); return; }
+    if (t === 'dcdash') { this.loadDash(); return; }
     if (t === 'timer') { const d = this.data; if (d.mode !== 'watch' && d.running && Date.now() >= d.endAt && !d.done) { d.done = true; d.running = false; d.left = 0; this.app.extras.timerDone(this); } }
     this.redraw();
   }
   scaleBy(f) { this.group.scale.setScalar(THREE.MathUtils.clamp(this.group.scale.x * f, 0.4, 4)); this.mgr.changed(); }
   onDragEnd() {}
-  serialize() { const g = this.group; return { kind: 'widget', ref: { type: this.type, size: this.size, data: this.type === 'photos' || this.type === 'nowplaying' ? {} : this.data }, p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), ek: this.envPin || undefined }; }
-  dispose() { this.panel.dispose(); this.btns.forEach(b => b.dispose()); this.bitmap?.close?.(); }
+  serialize() { const g = this.group; return { kind: 'widget', ref: { type: this.type, size: this.size, data: ['photos', 'nowplaying', 'dcdash', 'remote'].includes(this.type) ? {} : this.type === 'dcmedia' ? { tab: this.data.tab } : this.data }, p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), ek: this.envPin || undefined }; }
+  dispose() { this.panel.dispose(); this.btns.forEach(b => b.dispose()); this.bitmap?.close?.(); this.unhub?.(); }
 }
 
 // ======================================================================== the assistant orb (visionOS 27)
@@ -563,7 +624,7 @@ export class Extras {
     }
   }
   // ---------------------------------------------------------------- the assistant's history (visionOS 27 «Siri app»)
-  logAnswer(q, a) { const l = store.get('madar.ai.log', []); l.push({ q, a, t: Date.now() }); store.set('madar.ai.log', l.slice(-200)); this.app.windows.windows.forEach(w => w.type === 'aihist' && w.redraw()); }
+  logAnswer(q, a) { const l = store.get('madar.ai.log', []); l.push({ q, a, t: Date.now() }); store.set('madar.ai.log', l.slice(-200)); this.app.windows.windows.forEach(w => w.type === 'aihist' && w.redraw()); this.app.hub?.push('ai', { q, a }, 50); }
   // ---------------------------------------------------------------- visual intelligence: «ما هذا؟»
   async lookAndAsk(q) {
     const app = this.app, v = app.camVideo;
@@ -586,13 +647,16 @@ export class Extras {
       if (!r.ok) throw new Error(r.error || 'لا يوجد ملخص');
       const w = app.windows.open({ kind: 'widget', type: 'text', data: { title: '📝 ملخص: ' + (r.title || title || ''), lines: r.points } });
       speak(r.points.slice(0, 2).join('. '));
+      app.hub?.push('briefs', { id: url, title: r.title || title || '', lines: r.points, url }, 30);
       return w;
     } catch (e) { app.toast('تعذّر التلخيص: ' + (e.message || e), 3000); }
   }
   // ---------------------------------------------------------------- dictation into a note
   dictateInto(w) { this.dictTarget = w; this.app.listen('dictate'); }
-  takeDictation(t) { const m = this.noteTarget; this.noteTarget = null; if (m && this.app.windows.windows.includes(m)) { m.addNote(t); this.app.windows.changed(); return true; } const w = this.dictTarget; this.dictTarget = null; if (!w || !this.app.windows.windows.includes(w)) return false; w.data.text = ((w.data.text || '') + ' ' + t).trim(); w.redraw(); this.app.windows.changed(); return true; }
-  timerDone(w) { blip('open', settings.sounds); setTimeout(() => blip('open', settings.sounds), 400); speak('انتهى المؤقت'); this.app.notify({ icon: '⏰', title: 'انتهى المؤقت', body: '' }); }
+  takeDictation(t) { const m = this.noteTarget; this.noteTarget = null; if (m && this.app.windows.windows.includes(m)) { m.addNote(t); this.app.windows.changed(); return true; } const w = this.dictTarget; this.dictTarget = null; if (!w || !this.app.windows.windows.includes(w)) return false; w.data.text = ((w.data.text || '') + ' ' + t).trim(); w.redraw(); this.app.windows.changed(); this.syncNotes(); return true; }
+  // Madar's live things as islands in DriveCast (the car, the phone): running timers
+  syncIslands() { const now = Date.now(); this.app.hub?.set('islands', this.app.windows.windows.filter(w => w.type === 'timer' && w.data.running && w.data.mode !== 'watch' && w.data.endAt > now).map(w => ({ id: 'timer:' + w.id, kind: 'timer', icon: '⏰', title: 'مؤقت مدار', at: w.data.endAt, until: w.data.endAt + 60000, tint: '#7c3aed' }))); }
+  timerDone(w) { this.syncIslands(); blip('open', settings.sounds); setTimeout(() => blip('open', settings.sounds), 400); speak('انتهى المؤقت'); this.app.notify({ icon: '⏰', title: 'انتهى المؤقت', body: '' }); }
   playVerse(v) {
     const a = this.app.media.audioEl();
     if (this.versePlaying) { a.pause(); this.versePlaying = false; }
@@ -608,8 +672,10 @@ export class Extras {
   saveScene(name) {
     const sc = store.get('madar.scenes.v1', {}); name = name || 'مشهد ' + (Object.keys(sc).length + 1);
     sc[name] = { windows: this.app.windows.serialize(), env: settings.environment, at: Date.now() }; store.set('madar.scenes.v1', sc);
-    this.app.toast('💾 حُفظ «' + name + '»', 2000); return name;
+    this.app.toast('💾 حُفظ «' + name + '»', 2000); this.syncScenes(); return name;
   }
+  syncScenes() { const sc = store.get('madar.scenes.v1', {}); this.app.hub?.set('scenes', Object.entries(sc).map(([n, v]) => ({ name: n, count: v.windows.length, env: v.env, at: v.at, media: v.windows.filter(w => w.ref?.url).slice(0, 4).map(w => ({ url: w.ref.url, title: w.ref.title || '' })) }))); }
+  syncNotes() { this.app.hub?.set('notes', this.app.windows.windows.filter(w => w.type === 'note' && w.data.text).map(w => ({ id: w.id, text: w.data.text }))); }
   openScene(name) {
     const sc = store.get('madar.scenes.v1', {}), k = Object.keys(sc).find(n => n === name || n.includes(name) || name.includes(n));
     if (!k) { this.app.toast('لا يوجد مشهد بهذا الاسم', 2000); return; }
@@ -717,6 +783,10 @@ export class Extras {
     if (has('احفظ المشهد')) { this.saveScene(after('احفظ المشهد') || undefined); return true; }
     if (has('افتح المشهد', 'مشهد')) { const n = after('افتح المشهد', 'مشهد'); if (n) this.openScene(n); else this.widget('scenes'); return true; }
     if (has('لقطة للمشهد', 'صور المشهد', 'لقطة شاشة')) { this.shot(); return true; }
+    if (has('مكتبة درايف', 'مكتبة DriveCast', 'درايف كاست', 'درايفكاست')) { this.widget('dcmedia'); return true; }
+    if (has('لوحة السيارة', 'لوحة درايف')) { this.widget('dcdash'); return true; }
+    if (has('ريموت', 'التحكم بالتلفاز')) { this.widget('remote'); return true; }
+    if (has('أرسل إلى', 'ارسل الى', 'أرسل الى', 'ارسل إلى')) { const w = app.controls.pointedWindow() || [...app.windows.windows].reverse().find(x => app.hub?.canSend(x)); if (w) app.hub?.sendWindow(w); return true; }
     if (has('الطقس', 'الجو')) { this.widget('weather'); return true; }
     if (has('مؤقت', 'ساعة إيقاف')) { const n = parseInt(t.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))); const w = app.windows.open({ kind: 'widget', type: 'timer', data: { mode: has('ساعة إيقاف') ? 'watch' : 'timer' } }); if (isFinite(n) && w) w.timerSet(n); return true; }
     if (has('ملاحظة', 'ملاحظه')) {

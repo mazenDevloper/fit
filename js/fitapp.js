@@ -7,11 +7,12 @@ import * as THREE from 'three';
 import { settings, saveSettings } from './config.js';
 import { Figure, poseAt, exerciseById, EXERCISES, withGoal, GOALS, GROUPS, MUSCLE_AR, say, sayNumber, drawMuscleMap } from './coach.js';
 import { PoseCam, CAM } from './posecam.js';
+import { hubOp } from './hub.js';
 
 const arNum = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
 const W8 = 'https://studio.c-p.workers.dev';
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-const logWorkout = d => { try { const a = JSON.parse(localStorage.getItem('madar.workouts.v1') || '[]'); a.push({ ...d, at: Date.now() }); localStorage.setItem('madar.workouts.v1', JSON.stringify(a.slice(-400))); } catch {} };
+const logWorkout = d => { try { const a = JSON.parse(localStorage.getItem('madar.workouts.v1') || '[]'); a.push({ ...d, at: Date.now() }); localStorage.setItem('madar.workouts.v1', JSON.stringify(a.slice(-400))); } catch {} hubOp({ op: 'push', key: 'workouts', item: { ex: d.ex, reps: d.reps, minutes: d.minutes, kcal: d.kcal }, max: 100 }); };
 
 const CSS = `
 .fa{position:absolute;inset:0;display:flex;flex-direction:column;background:radial-gradient(120% 80% at 50% 0%,#1d2333,#0b0d12);color:#eef2fb;font-family:var(--font);overflow:hidden}
@@ -223,7 +224,7 @@ function status(k, v) {
   const x = R.find(([lim]) => v < lim); return x ? { t: x[1], c: x[2] } : null;
 }
 export const bodyHistory = () => { try { return JSON.parse(localStorage.getItem(BODY_KEY) || '[]'); } catch { return []; } };
-function saveBody(m) { const a = bodyHistory(); a.push({ ...m, at: Date.now() }); try { localStorage.setItem(BODY_KEY, JSON.stringify(a.slice(-200))); } catch {} if (m.weight) saveSettings({ weight: m.weight, weightAt: Date.now() }); }
+function saveBody(m) { const a = bodyHistory(); a.push({ ...m, at: Date.now() }); try { localStorage.setItem(BODY_KEY, JSON.stringify(a.slice(-200))); } catch {} if (m.weight) saveSettings({ weight: m.weight, weightAt: Date.now() }); hubOp({ op: 'set', key: 'body', value: { last: { ...m, at: Date.now() }, prev: a[a.length - 2] || null } }); }
 function spark(vals) {
   const v = vals.filter(x => x != null); if (v.length < 2) return '';
   const lo = Math.min(...v), hi = Math.max(...v), n = v.length;
@@ -315,7 +316,7 @@ export function mountHealth(host, { onTrain } = {}) {
     root.querySelector('.scan').onclick = () => file.click();
     root.querySelector('.man').onclick = () => render(last ? { ...last } : {});
     root.querySelector('.tr')?.addEventListener('click', onTrain);
-    root.querySelector('.go')?.addEventListener('click', () => { saveSettings({ coachGoal: p.goal }); onTrain?.(); });
+    root.querySelector('.go')?.addEventListener('click', () => { saveSettings({ coachGoal: p.goal }); hubOp({ op: 'set', key: 'plan', value: { goal: p.goal, today: 'برنامج ' + ({ bulk: 'التضخيم', cut: 'التنشيف', burn: 'الحرق' })[p.goal] + ' — تمرين اليوم في مدار', at: Date.now() } }); onTrain?.(); });
     if (last && !edit) {
       const cards = root.querySelector('.cards');
       for (const [k, l, u] of METRICS) {

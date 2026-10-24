@@ -19,6 +19,7 @@ import { FurnitureWindow } from './furniture.js';
 import { CoachWindow } from './coach.js';
 import { saveWebArticle } from './books.js';
 import { Extras } from './extras.js';
+import { HubClient } from './hub.js';
 import { Ambient } from './ambient.js';
 import { SURAHS } from './quran.js';
 import { Slam } from './slam.js';
@@ -37,7 +38,7 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '98';
+export const APP_VERSION = '99';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -123,6 +124,7 @@ class App {
     this.gaze = new GazeTracker(this);
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.extras = new Extras(this);
+    this.hub = new HubClient(this);   // «المركز»: Madar ⇄ DriveCast
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     if (IOS) setupNative(this);
     this.interaction.setTargets();
@@ -444,7 +446,7 @@ class App {
     this.notify({ icon: '✨', title: 'مساعد مدار', body: '«' + q + '» …' });
     let r;
     try {
-      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar' }) });
+      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar', context: this.hub?.context() || '' }) });
       r = await res.json();
     } catch (e) { this.toast('المساعد غير متاح الآن', 2500); return; }
     if (!r || !r.say) { this.toast('لم أفهم: «' + q + '»', 2500); return; }
@@ -664,7 +666,7 @@ class App {
   async readWeb(url) {
     if (!url) return;
     this.toast('📖 جاري تحضير المقال…', 2500);
-    try { const item = await saveWebArticle(url); this.openReader('doc', item.id); this.renderLibrary?.(); }
+    try { const item = await saveWebArticle(url); this.openReader('doc', item.id); this.renderLibrary?.(); this.hub?.push('articles', { id: url, kind: 'article', url, title: item.name }, 40); }
     catch (e) { this.toast('تعذّر: ' + (e.message || e), 3500); }
   }
   // «سورة الكهف» / «آية الكرسي» by voice
@@ -927,6 +929,7 @@ class App {
     this.head.recenter();
     this.restoreScene();
     this.extras.enter();
+    this.hub.enter();
     if (settings.ambient && settings.ambient !== 'off') setTimeout(() => this.ambient.set(settings.ambient), 1500);
     // Your teams from cplay2 (once a day), then matches for the live island.
     if (!settings.myTeamsAt || Date.now() - settings.myTeamsAt > 864e5) { saveSettings({ myTeamsAt: Date.now() }); setTimeout(() => this.sports.syncFavorites(), 4000); }

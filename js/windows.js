@@ -354,6 +354,7 @@ class SpatialWindow {
       ['على الجدار', this.wallLock ? 'مثبّتة · إلغاء' : (app.room?.tv() || app.room?.wallAhead?.()) ? 'ثبّت هنا' : 'ثبّت', () => this.toggleWall()],
       ['في هذه البيئة', this.envPin ? 'مثبّتة' : 'إيقاف', () => M.pinToEnv(this, !this.envPin)],
       ['بلا خلفية', ['إيقاف', 'شفافية', 'شاشة خضراء'][this.cut || 0], () => this.setCut(((this.cut || 0) + 1) % 3)],
+      ...(app.hub?.canSend(this) ? [['أرسل إلى', app.hub.targetName(), () => app.hub.sendWindow(this)]] : []),
     ];
   }
   // «وضع المباريات» (like Football AI on sports TVs): today's matches docked on the right, picture modes and
@@ -628,7 +629,7 @@ class PicturePanel {
 export class VideoWindow extends SpatialWindow {
   isMuted() { return !!this.video?.muted; }
   applyVolume() { const v = this.video; if (!v) return; v.muted = this.mute; setElementVolume(v, this.vol ?? 1); if (!this.mute && v.paused && !this.userPaused) v.play().catch(() => {}); }
-  constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null, fmt = null, proj = null, browser = false }) {
+  constructor(mgr, { itemId = null, url = null, name = '', stream = null, remote = null, fmt = null, proj = null, browser = false, start = 0 }) {
     super(mgr, 'video');
     this.browser = browser; this.pageUrl = browser ? (url || '') : ''; this.pageTitle = '';
     if (browser) this.canReshape = true;
@@ -636,7 +637,7 @@ export class VideoWindow extends SpatialWindow {
     this.stream = stream; this.remote = remote; this.control = false;
     if (remote) setTimeout(() => { try { remote.send({ type: 'quality', level: picture().quality }); } catch {} }, 1500);   // sharp text from the start
     if (stream || remote) { mgr.app.renderer.readCount = (mgr.app.renderer.readCount || 0) + 1; this.reading = true; }
-    this.itemId = itemId; this.url = url; this.name = name;
+    this.itemId = itemId; this.url = url; this.name = name; this.startAt = +start || 0;
     this.video = mgr.app.media.acquire();
     this.mat.uniforms.uVideo.value = 1;
     this.tex = null;
@@ -721,7 +722,7 @@ export class VideoWindow extends SpatialWindow {
     // anything the user didn't pause is resumed right away.
     v.onpause = () => { if (!this.userPaused && !this.disposed) setTimeout(() => this.resume(), 250); };
     this.watchFrames();
-    v.onloadedmetadata = () => { if (!this.guessed) { this.guessed = true; this.guessFormat(); } this.setAspect(this.dispAspect()); this.setupTexture(); };
+    v.onloadedmetadata = () => { if (!this.guessed) { this.guessed = true; this.guessFormat(); } this.setAspect(this.dispAspect()); this.setupTexture(); if (this.startAt > 5 && isFinite(v.duration)) { v.currentTime = Math.min(this.startAt, v.duration - 5); this.startAt = 0; } };
     this.mgr.app.log('فتح فيديو: ' + (this.name || this.url));
     try { await v.play(); } catch { v.muted = true; try { await v.play(); this.mgr.app.toast('الصوت مكتوم — اضغط زر الصوت'); } catch {} }
   }
@@ -1244,9 +1245,9 @@ export function youtubeId(url) {
 }
 
 export class WebWindow extends SpatialWindow {
-  constructor(mgr, { url, title = '', direct = false, aspect = 0 }) {
+  constructor(mgr, { url, title = '', direct = false, aspect = 0, start = 0 }) {
     super(mgr, 'web');
-    this.url = url; this.title = title;
+    this.url = url; this.title = title; this.start = +start || 0;
     mgr.app.log('فتح موقع: ' + url);
     this.canCurve = false;
     this.aspect = aspect > 0.5 && aspect < 3.3 ? aspect : 16 / 10; this.pageH = Math.round(1024 / this.aspect); this.canReshape = true;
@@ -1595,6 +1596,7 @@ export class WebWindow extends SpatialWindow {
     if (this.proxied) return BROWSE_ORIGIN + '/api/madar-browse?url=' + encodeURIComponent(this.url);
     if (this.yt) {
       const p = new URLSearchParams({ playsinline: '1', autoplay: '1', mute: '1', enablejsapi: '1', rel: '0', modestbranding: '1', origin: location.origin, controls: '1' });
+      if (this.start > 5) p.set('start', String(Math.floor(this.start)));   // «تابع المشاهدة» from another device
       return `https://www.youtube.com/embed/${this.yt}?${p}`;
     }
     return this.url;
@@ -1717,6 +1719,8 @@ export class WebWindow extends SpatialWindow {
     const eye = this.css.findIndex(c => c.f.contentWindow === e.source);
     if (eye < 0) return;
     if (typeof d.info.currentTime === 'number') this.ytState.times[eye] = d.info.currentTime;
+    if (typeof d.info.duration === 'number' && d.info.duration > 0) this.ytState.dur = d.info.duration;
+    if (eye === 0 && d.info.videoData?.title) this.ytTitle = d.info.videoData.title;
     if (eye === 0 && typeof d.info.muted === 'boolean') this.ytState.muted = d.info.muted;
     if (eye === 0 && typeof d.info.playerState === 'number') this.ytState.playing = d.info.playerState === 1 || d.info.playerState === 3;
   }
