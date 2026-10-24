@@ -55,6 +55,7 @@ targets:
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
     dependencies:
       - target: MadarBroadcast
+      - target: MadarShare
   # «مدار» in Control Center → Screen Recording: the iPhone's screen inside Madar on other devices
   MadarBroadcast:
     type: app-extension
@@ -79,6 +80,33 @@ targets:
     dependencies:
       - sdk: ReplayKit.framework
       - sdk: VideoToolbox.framework
+  # «زر المشاركة»: مدار in the share sheet → «أرسل إلى» (Madar, the car, the TV, later)
+  MadarShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Share
+    info:
+      path: Share/Info.plist
+      properties:
+        CFBundleDisplayName: مدار
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsImageWithMaxCount: 1
+              NSExtensionActivationSupportsMovieWithMaxCount: 1
+              NSExtensionActivationSupportsFileWithMaxCount: 1
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.madar.app.share
   MadarTests:
     type: bundle.unit-test
     platform: iOS
