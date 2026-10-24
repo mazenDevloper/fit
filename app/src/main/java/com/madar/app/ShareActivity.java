@@ -48,10 +48,11 @@ public class ShareActivity extends Activity {
         }
         Toast.makeText(this, "⬆️ رفع الملف…", Toast.LENGTH_SHORT).show();
         final Uri f = files.get(0);
+        final String sharedText = text, mime = type;
         new Thread(() -> {
             try {
                 String t = getContentResolver().getType(f);
-                if (t == null) t = type;
+                if (t == null) t = mime;
                 String name = nameOf(f);
                 ByteArrayOutputStream buf = new ByteArrayOutputStream();
                 try (InputStream is = getContentResolver().openInputStream(f)) {
@@ -67,7 +68,8 @@ public class ShareActivity extends Activity {
                 while ((k = rs.read(x)) > 0) rb.write(x, 0, k);
                 JSONObject r = new JSONObject(rb.toString("UTF-8"));
                 if (!r.has("url")) throw new Exception(r.optString("error", "upload"));
-                final String q = "file=" + enc(r.getString("url")) + "&name=" + enc(name) + "&type=" + enc(t) + (text != null ? "&text=" + enc(text) : "");
+                final String tt = t;
+                final String q = "file=" + enc(r.getString("url")) + "&name=" + enc(name) + "&type=" + enc(t) + (sharedText != null ? "&text=" + enc(sharedText) : "");
                 runOnUiThread(() -> open(q));
             } catch (Exception e) {
                 final String m = e.getMessage();
