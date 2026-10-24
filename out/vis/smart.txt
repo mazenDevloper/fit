@@ -1,0 +1,5 @@
+/summarize 9.5s {"ok":true,"title":"صلالة - ويكيبيديا","points":["تقع مدينة صلالة في ولاية صلالة التابعة لمحافظة ظفار في سلطنة عمان.","تتميز صلالة بمقومات سياحية طبيعية، وتشتهر بالبخور واللبان، وتكثر فيها أشجار النارجيل الاستوائية.","تعتبر مدينة صلالة ثالث أكبر مدينة في سلطنة عمان من ناحية لإضافة إلى مناطق، صلالة الشرقية وصلالة الغربية والحافة والبليد والدهاريز الجنوبية والشمالية والسعادة الجنوبية والشمالية والعوقدين الشمالية والجنوبية والحصيلة والقوف والحصن وغيرها من الأحياء والمناطق التي تتوسع وتزداد عام بعد آخر."]}
+
+/translate 1.4s {"ok":true,"text":"مرحبا بكم في أخبار المساء.في هذه اللحظة هو الطقس."}
+
+/vision/ask 2.4s {"ok":true,"say":"This is a body composition analysis, showing various measurements such as weight, muscle mass, body fat percentage, and more. The text in the picture is in English, and it appears to be a summary of the user's physical characteristics."}
