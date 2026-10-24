@@ -1,19 +1,13 @@
-# Depth Anything V2 small (Apache-2.0) as ONNX, for Madar's 2D → spatial photos (on-device depth)
-import json, urllib.request, os, time
-os.makedirs('out/depth', exist_ok=True)
-log = []
-def get(u, p=None):
-    t = time.time(); d = urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': 'MadarBot/1.0'}), timeout=600).read()
-    log.append(f'{u} {len(d)} {time.time()-t:.0f}s')
-    if p: open(p, 'wb').write(d)
-    return d
-for repo in ['onnx-community/depth-anything-v2-small', 'onnx-community/DepthPro-ONNX']:
-    try:
-        info = json.loads(get(f'https://huggingface.co/api/models/{repo}'))
-        log.append(repo + ': ' + ', '.join(f"{s['rfilename']}" for s in info.get('siblings', [])))
-    except Exception as e: log.append(repo + ' ERR ' + str(e))
-R = 'https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/'
-for f in ['onnx/model_quantized.onnx', 'onnx/model_q4f16.onnx', 'preprocessor_config.json', 'config.json']:
-    try: get(R + f, 'out/depth/' + f.split('/')[-1])
-    except Exception as e: log.append(f + ' ERR ' + str(e))
-open('out/depth/log.txt', 'w').write('\n'.join(log))
+# test the worker's new endpoints: /summarize, /translate, /vision/ask
+import json, urllib.request, base64, os, time
+os.makedirs('out/vis', exist_ok=True)
+def post(path, body):
+    t = time.time()
+    try: r = urllib.request.urlopen(urllib.request.Request('https://studio.c-p.workers.dev' + path, data=json.dumps(body).encode(), method='POST', headers={'content-type': 'application/json', 'User-Agent': 'MadarTest'}), timeout=120).read().decode()
+    except Exception as e: r = 'ERR ' + str(e)
+    return f'{path} {time.time()-t:.1f}s {r[:900]}'
+img = base64.b64encode(open('out/vis/synthetic.jpg', 'rb').read()).decode()
+out = [post('/summarize', {'url': 'https://ar.wikipedia.org/wiki/%D8%B5%D9%84%D8%A7%D9%84%D8%A9'}),
+       post('/translate', {'text': 'Welcome to the evening news. Our top story tonight is the weather.'}),
+       post('/vision/ask', {'image': 'data:image/jpeg;base64,' + img, 'q': 'ما هذا؟'})]
+open('out/vis/smart.txt', 'w').write('\n\n'.join(out))
