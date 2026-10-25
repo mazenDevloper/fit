@@ -21,12 +21,25 @@ export class Remote {
     this.app = app; this.learn = null;
     this.map = settings.remoteKeys || {};
     window.addEventListener('keydown', e => this.key(e), true);
+    // @ + C (mouse mode, with AssistiveTouch on iPhone): the stick moves the iPhone's cursor and a button "taps" where it
+    // is. In the headset, that tap is aimed through the lens at the cursor's place (not a tap at your gaze): press,
+    // drag and scroll work as with a pinch there.
+    const aim = (t, down) => {
+      const c = this.app.controls, p = this.app.orientation.toStage(t.clientX, t.clientY);
+      [c.padPtr.tx, c.padPtr.ty] = c.pointTan(p.x, p.y); c.padPtr.last = performance.now(); if (down != null) c.padPtr.down = down;
+    };
+    const mine = e => settings.remote && this.app.active && !this.app.controls.direct && e.touches.length < 2;
+    window.addEventListener('touchstart', e => { if (!mine(e)) return; e.preventDefault(); e.stopImmediatePropagation(); try { this.app.windows.windows.forEach(w => w.userGesture?.()); } catch {} aim(e.changedTouches[0], true); }, { capture: true, passive: false });
+    window.addEventListener('touchmove', e => { if (!mine(e)) return; e.preventDefault(); e.stopImmediatePropagation(); aim(e.changedTouches[0]); }, { capture: true, passive: false });
+    const up = e => { if (!settings.remote || !this.app.active || this.app.controls.direct) return; e.preventDefault(); e.stopImmediatePropagation(); this.app.controls.padPtr.down = false; this.app.controls.padPtr.last = performance.now(); };
+    window.addEventListener('touchend', up, { capture: true, passive: false });
+    window.addEventListener('touchcancel', up, { capture: true, passive: false });
     if (settings.remote) document.addEventListener('pointerdown', () => this.media(), { once: true });
   }
   get on() { return !!settings.remote; }
   toggle() {
     const on = !settings.remote; saveSettings({ remote: on });
-    if (on) { this.media(); this.app.toast('🎮 الريموت يعمل · @+D: العصا تمرير ودوران، الأزرار اختيار ورجوع وقائمة · أو «تعلّم الأزرار»', 6000); }
+    if (on) { this.media(); this.app.toast('🎮 الريموت يعمل · @+C: العصا تحرّك المؤشر والزر ينقر مكانه (فعّل AssistiveTouch) · @+D: أزرار · أو «تعلّم الأزرار»', 6000); }
     else { this.stopMedia(); this.app.toast('أُوقف الريموت', 2000); }
   }
   // music mode → Media Session
