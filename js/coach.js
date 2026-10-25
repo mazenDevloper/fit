@@ -273,7 +273,8 @@ export class Figure {
   async useAnatomy(on) {
     if (on && !this.anat) { try { this.anat = await buildAnatomy(this); } catch (e) { console.warn('anatomy', e); this.anatErr = e.message || String(e); } }
     if (this.anat) this.anat.group.visible = on;
-    this.model.traverse(o => { if (o.isSkinnedMesh && !(this.anat && this.anat.group.children.includes(o))) o.visible = !(on && this.anat); });
+    const inAnat = o => { for (let x = o; x; x = x.parent) if (this.anat && x === this.anat.group) return true; return false; };
+    this.model.traverse(o => { if (o.isSkinnedMesh && !inAnat(o)) o.visible = !(on && this.anat); });
     this.anatOn = !!(on && this.anat);
     this.anat?.setGlow(this.lastGlow?.[0], this.lastGlow?.[1], this.lastGlow?.[2]);
   }

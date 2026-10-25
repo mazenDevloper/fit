@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
-const URL_BODY = new URL('../assets/coach/body.glb', import.meta.url).href;
+const URL_BODY = new URL('../assets/coach/muscles.glb', import.meta.url).href;   // every muscle painted and named (grouped by Madar's names), arms in an A-pose
 // which bones may carry each body part ('*' = side-specific: Left / Right)
 const CARRY = {
   chest: ['Spine2', 'Spine1', '*Shoulder', '*Arm'], obliques: ['Spine', 'Spine1', 'Spine2', 'Hips'], abs: ['Hips', 'Spine', 'Spine1', 'Spine2'],
@@ -25,6 +25,8 @@ function floatGeo(g0) {
   const g = new THREE.BufferGeometry(), a = g0.attributes.position, n = a.count, f = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) { f[i * 3] = a.getX(i); f[i * 3 + 1] = a.getY(i); f[i * 3 + 2] = a.getZ(i); }
   g.setAttribute('position', new THREE.BufferAttribute(f, 3)); if (g0.index) g.setIndex(Array.from(g0.index.array));
+  const uv = g0.attributes.uv;
+  if (uv) { const u = new Float32Array(n * 2); for (let i = 0; i < n; i++) { u[i * 2] = uv.getX(i); u[i * 2 + 1] = uv.getY(i); } g.setAttribute('uv', new THREE.BufferAttribute(u, 2)); }
   return g;
 }
 function loadBody() {
@@ -33,8 +35,8 @@ function loadBody() {
 }
 
 // muscle look: deep red with fibres along the limbs, glowing orange (primary) / amber (secondary) when worked
-function muscleMaterial(uniforms) {
-  const m = new THREE.MeshStandardMaterial({ color: 0x9c2a26, roughness: 0.55, metalness: 0.0 });
+function muscleMaterial(uniforms, map = null) {
+  const m = new THREE.MeshStandardMaterial({ color: map ? 0xffffff : 0x9c2a26, map, roughness: map ? 0.7 : 0.55, metalness: 0.0 });
   m.userData.glow = { value: 0 };
   m.onBeforeCompile = sh => {
     sh.uniforms.uGlowM = m.userData.glow; sh.uniforms.uT = uniforms.uT;
@@ -42,7 +44,7 @@ function muscleMaterial(uniforms) {
     sh.fragmentShader = 'varying vec3 vAp;\nuniform float uGlowM;\nuniform float uT;\n' + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
   float fib = 0.5 + 0.5 * sin(dot(vAp, vec3(260.0, 40.0, 260.0)) + sin(vAp.y * 60.0) * 2.0);
-  diffuseColor.rgb *= mix(0.78, 1.12, fib);
+  diffuseColor.rgb *= mix(${map ? '0.95' : '0.78'}, ${map ? '1.05' : '1.12'}, fib);
   float gP = step(0.5, uGlowM);
   vec3 gC = mix(vec3(1.0, 0.6, 0.18), vec3(1.0, 0.38, 0.08), gP);`)
       .replace('#include <opaque_fragment>', `float gA = uGlowM < 0.01 ? 0.0 : (gP > 0.5 ? 0.85 : 0.6);
@@ -53,14 +55,79 @@ function muscleMaterial(uniforms) {
   return m;
 }
 
+// The painted muscle model carries its own skeleton and skin weights (every muscle separate, Mixamo bone names).
+// It follows the mannequin by retargeting: each bone turns by the mannequin bone's change from its rest pose,
+// after a one-time alignment of the two rest poses (A-pose arms → the mannequin's arms).
+function buildRigged(fig, g) {
+  const B = fig.bones, model = fig.model, body = new THREE.Group();
+  fig.resetPose(); model.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(model.matrixWorld).invert();
+  const P = n => B[n].getWorldPosition(new THREE.Vector3()).applyMatrix4(inv);
+  const root = g.scene; root.updateMatrixWorld(true);
+  const ours = {}; root.traverse(o => { if (o.isBone) ours[o.name.replace(/^mixamorig:?/, '')] = o; });
+  const meshes = []; root.traverse(o => { if (o.isSkinnedMesh) meshes.push(o); });
+  // size and place: same height, standing on the mannequin's toes
+  const box = new THREE.Box3(); meshes.forEach(m => box.expandByObject(m));
+  const H = P('HeadTop_End').y - P('LeftToe_End').y, k = H / (box.max.y - box.min.y);
+  root.scale.setScalar(k); root.position.set(P('Hips').x, P('LeftToe_End').y - box.min.y * k, 0);
+  body.add(root); model.add(body); body.updateMatrixWorld(true);
+  const wq = o => o.getWorldQuaternion(new THREE.Quaternion());
+  const wp = o => o.getWorldPosition(new THREE.Vector3());
+  const names = Object.keys(ours).filter(n => B[n]);
+  const rest = {};   // rest world rotations of both, and the alignment
+  const LIMB = /Shoulder|Arm|Hand|UpLeg|Leg|Foot/;
+  const CH = { Shoulder: 'Arm', Arm: 'ForeArm', ForeArm: 'Hand', UpLeg: 'Leg', Leg: 'Foot', Foot: 'ToeBase' };
+  for (const n of names) {
+    const base = n.replace(/^(Left|Right)/, ''), side = n.match(/^(Left|Right)/)?.[1] || '', c = CH[base] && side + CH[base];
+    let align = new THREE.Quaternion();
+    if (LIMB.test(n) && c && ours[c] && B[c]) {
+      const a = wp(ours[c]).sub(wp(ours[n])).normalize(), b = wp(B[c]).sub(wp(B[n])).normalize();
+      align.setFromUnitVectors(a, b);
+    }
+    rest[n] = { m0: wq(B[n]), o0: wq(ours[n]), align, hip: n === 'Hips' ? model.worldToLocal(wp(B[n])) : null, hipO: n === 'Hips' ? ours[n].position.clone() : null };
+  }
+  // parents first
+  const depth = o => { let d = 0; while (o.parent) { d++; o = o.parent; } return d; };
+  names.sort((a, b) => depth(ours[a]) - depth(ours[b]));
+  const q = new THREE.Quaternion(), pq = new THREE.Quaternion(), d = new THREE.Quaternion(), v = new THREE.Vector3();
+  const sync = () => {
+    model.updateMatrixWorld(true);
+    for (const n of names) {
+      const o = ours[n], r = rest[n];
+      d.copy(wq(B[n])).multiply(q.copy(r.m0).invert());                    // the mannequin bone's turn since rest
+      const want = d.clone().multiply(r.align).multiply(r.o0);
+      o.parent.getWorldQuaternion(pq); o.quaternion.copy(pq.invert().multiply(want));
+      if (r.hip) { v.copy(wp(B[n])).sub(model.localToWorld(r.hip.clone())).applyQuaternion(o.parent.getWorldQuaternion(pq).invert()).divideScalar(o.parent.getWorldScale(new THREE.Vector3()).x); o.position.copy(r.hipO).add(v); }
+      o.updateMatrixWorld(true);
+    }
+  };
+  const mats = {};
+  for (const m of meshes) {
+    const grp = m.userData.group || m.name, map = m.material.map;
+    const mat = grp === 'bone' || grp === 'other' ? (mats._plain ||= muscleMaterial(fig.uniforms, map)) : (mats[grp] ||= muscleMaterial(fig.uniforms, map));
+    m.material = mat; m.frustumCulled = false; m.name = grp;
+  }
+  meshes[0].onBeforeRender = sync;
+  sync();
+  return {
+    group: body,
+    setGlow(primary = [], secondary = [], k = 1) {
+      for (const [name, m] of Object.entries(mats)) if (name !== '_plain') m.userData.glow.value = primary.includes(name) ? Math.max(0.55, k) : secondary.includes(name) ? 0.35 * Math.min(1, k + 0.2) : 0;
+    },
+  };
+}
+
 export async function buildAnatomy(fig) {
   const g = await loadBody();
+  { let rigged = false; g.scene.traverse(o => { if (o.isSkinnedMesh) rigged = true; }); if (rigged) return buildRigged(fig, g); }
   const B = fig.bones, model = fig.model;
   const body = new THREE.Group();
   // ---- orientation and size: height axis = the longest; the front = where the chest is
   const parts = [];
   g.scene.updateMatrixWorld(true);
   g.scene.traverse(o => { if (o.isMesh) parts.push(o); });
+  const meta = g.scene.getObjectByName('body')?.userData || {}, painted = !!meta.armDir;   // the painted muscle model (A-pose, its own colours)
+  const tex = painted ? parts.find(p => p.material?.map)?.material.map : null;
   const box = new THREE.Box3(); parts.forEach(p => box.expandByObject(p));
   const size = box.getSize(new THREE.Vector3()), up = size.x > size.y && size.x > size.z ? 'x' : size.y > size.z ? 'y' : 'z';
   const toY = new THREE.Matrix4();
@@ -85,7 +152,8 @@ export async function buildAnatomy(fig) {
   const lowerArm = (side, s) => {
     const arm = B[side + 'Arm'], fore = B[side + 'ForeArm'];
     const a = arm.getWorldPosition(new THREE.Vector3()), f = fore.getWorldPosition(new THREE.Vector3());
-    const want = new THREE.Vector3(s * 0.18, -1, 0.02).normalize(), cur = f.clone().sub(a).normalize();
+    const ad = painted && meta.armDir[side];
+    const want = ad ? new THREE.Vector3(...ad).transformDirection(M).normalize() : new THREE.Vector3(s * 0.18, -1, 0.02).normalize(), cur = f.clone().sub(a).normalize();
     const q = new THREE.Quaternion().setFromUnitVectors(cur, want).multiply(arm.getWorldQuaternion(new THREE.Quaternion()));
     arm.quaternion.copy(arm.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q)); arm.updateMatrixWorld(true);
   };
@@ -116,7 +184,7 @@ export async function buildAnatomy(fig) {
     // bones and the small deep muscles: each separate piece belongs to one body region (from its centre) -
     // a bone moves rigidly with one bone of the rig, a deep muscle only with the bones of its region
     let comp = null, region = null;
-    if ((p.name === 'bone' || p.name === 'other') && geo.index) {
+    if (!painted && (p.name === 'bone' || p.name === 'other') && geo.index) {
       const par = new Int32Array(n).map((_, i) => i), find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
       const ix = geo.index.array; for (let t = 0; t < ix.length; t += 3) { const a = find(ix[t]), b = find(ix[t + 1]), c = find(ix[t + 2]); par[b] = a; par[find(c)] = a; }
       comp = new Int32Array(n); const cen = new Map();
@@ -139,8 +207,9 @@ export async function buildAnatomy(fig) {
       v.fromBufferAttribute(pos, i);
       const side = v.x >= P('Hips').x ? 'Left' : 'Right';
       // the trunk's own bones and deep muscles never follow the arms
-      const aboveHip = (p.name === 'bone' || p.name === 'other' || p.name === 'obliques' || p.name === 'lowerBack') && v.y > hipJ + 0.03;
-      const dx = Math.abs(v.x - P('Hips').x), deep = p.name === 'bone' || p.name === 'other' || p.name === 'obliques' || p.name === 'lowerBack';
+      const deepName = !painted && (p.name === 'bone' || p.name === 'other') || p.name === 'obliques' || p.name === 'lowerBack';
+      const aboveHip = deepName && v.y > hipJ + 0.03;
+      const dx = Math.abs(v.x - P('Hips').x), deep = deepName;
       const inTrunk = deep && ((dx < trunkHalf && v.y > hipJ + 0.03) || (dx < pelvisHalf && v.y > hipJ - 0.16));   // ribs, spine, pelvis: the trunk only
       const reg = region ? region.get(comp[i]) : null;
       if (reg && reg.rigid >= 0) { si[i * 4] = reg.rigid; sw[i * 4] = 1; continue; }
@@ -157,7 +226,8 @@ export async function buildAnatomy(fig) {
       si[i * 4] = best[0][1]; si[i * 4 + 1] = best[1][1]; sw[i * 4] = w0 / t; sw[i * 4 + 1] = w1 / t;
     }
     geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
-    const mat = p.name === 'bone' ? bone : p.name === 'other' ? other : (mats[p.name] = muscleMaterial(fig.uniforms));
+    const mat = painted ? (p.name === 'bone' || p.name === 'other' ? (mats._plain ||= muscleMaterial(fig.uniforms, tex)) : (mats[p.name] = muscleMaterial(fig.uniforms, tex)))
+      : p.name === 'bone' ? bone : p.name === 'other' ? other : (mats[p.name] = muscleMaterial(fig.uniforms));
     const sm = new THREE.SkinnedMesh(geo, mat); sm.name = p.name; sm.frustumCulled = false;
     meshes.push(sm);
   }
@@ -188,7 +258,7 @@ export async function buildAnatomy(fig) {
   return {
     group: body,
     setGlow(primary = [], secondary = [], k = 1) {
-      for (const [name, m] of Object.entries(mats)) m.userData.glow.value = primary.includes(name) ? Math.max(0.55, k) : secondary.includes(name) ? 0.35 * Math.min(1, k + 0.2) : 0;
+      for (const [name, m] of Object.entries(mats)) if (name !== '_plain') m.userData.glow.value = primary.includes(name) ? Math.max(0.55, k) : secondary.includes(name) ? 0.35 * Math.min(1, k + 0.2) : 0;
     },
   };
 }
