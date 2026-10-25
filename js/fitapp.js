@@ -83,6 +83,19 @@ export function mountCoach(host, { onHealth } = {}) {
   const floor = new THREE.Mesh(new THREE.CircleGeometry(1.4, 48), new THREE.MeshStandardMaterial({ color: 0x1b2130, roughness: 0.9 })); floor.rotation.x = -Math.PI / 2; sc.add(floor);
   const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
   const fig = new Figure(); sc.add(fig.root); fig.root.position.set(0, 0, 0); root.__fig = fig;
+  // turn and zoom the figure: drag = orbit around it, pinch / wheel = closer, double tap = back to the default view
+  const orb = { yaw: 0, pitch: 0, zoom: 1 }, ptrs = new Map(); let pinch0 = 0, zoom0 = 1, lastTap = 0;
+  cv.style.touchAction = 'none';
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); zoom0 = orb.zoom; }
+    const t = performance.now(); if (ptrs.size === 1 && t - lastTap < 300) { orb.yaw = orb.pitch = 0; orb.zoom = 1; } lastTap = t; });
+  cv.addEventListener('pointermove', e => { const p = ptrs.get(e.pointerId); if (!p) return;
+    if (ptrs.size === 1) { orb.yaw -= (e.clientX - p.x) * 0.01; orb.pitch = Math.max(-0.5, Math.min(1.2, orb.pitch + (e.clientY - p.y) * 0.006)); }
+    p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 2 && pinch0) { const [a, b] = [...ptrs.values()]; orb.zoom = Math.max(0.35, Math.min(1.8, zoom0 * pinch0 / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)))); } });
+  const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = 0; };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); orb.zoom = Math.max(0.35, Math.min(1.8, orb.zoom * (e.deltaY > 0 ? 1.08 : 1 / 1.08))); }, { passive: false });
   let loaded = false;
   fig.load().then(() => { loaded = true; choose(st.ex.id); }).catch(e => { tipEl.textContent = 'تعذّر تحميل المجسم: ' + (e.message || e); });
   // ---- state
@@ -197,7 +210,8 @@ export function mountCoach(host, { onHealth } = {}) {
     // frame the figure: standing → whole body; on the floor → from the side, wider
     const lying = !!(P.lie || P.lean || (P.hips && P.hips[1] < -0.7));
     const tz = lying ? 3.9 : 4.4, ty = lying ? 0.55 : 0.95;
-    cam.position.set(0.25, ty + 0.35, tz * (root.__zoom || 1)); cam.lookAt(0, ty, 0);
+    const R = Math.hypot(tz, 0.35) * (root.__zoom || 1) * orb.zoom, yw = 0.06 + orb.yaw, pt = 0.09 + orb.pitch;
+    cam.position.set(Math.sin(yw) * Math.cos(pt) * R, ty + Math.sin(pt) * R, Math.cos(yw) * Math.cos(pt) * R); cam.lookAt(0, ty, 0);
     r.render(sc, cam);
   }
   requestAnimationFrame(loop);

@@ -150,8 +150,42 @@ function buildRigged(fig, g) {
       x.sh.getWorldQuaternion(pq); x.arm.quaternion.copy(pq.invert().multiply(aw)); x.arm.updateMatrixWorld(true);
     }
   };
+  // arms never pass through the trunk: this body is broader than the mannequin it follows, so when the elbow,
+  // forearm or hand would sink into the waist/chest (hands on hips, arms by the sides) the arm opens out from the
+  // shoulder just enough to rest on the surface
+  const torsoN = ['Hips', 'Spine', 'Spine1', 'Spine2'].map(n => ours[n]).filter(Boolean);
+  const rq2 = new THREE.Quaternion(), lat = new THREE.Vector3(), fwd = new THREE.Vector3(), upv = new THREE.Vector3(), tmp = new THREE.Vector3();
+  const Hgt = (() => { const a = ours.HeadTop_End || ours.Head, b = ours.LeftToe_End || ours.LeftFoot; return a && b ? wp(a).distanceTo(wp(b)) : 1.8; })();
+  const inside = (p, c0, c1) => {
+    // nearest point on the spine line, then the trunk's ellipse there (wider at the chest, narrower at the waist)
+    const ab = tmp.copy(c1).sub(c0), t = THREE.MathUtils.clamp(p.clone().sub(c0).dot(ab) / ab.lengthSq(), -0.15, 1.05);
+    if (t <= -0.15 || t >= 1.05) return 0;
+    const c = c0.clone().addScaledVector(ab, t), d = p.clone().sub(c);
+    const hw = Hgt * (0.088 + 0.03 * Math.max(0, t - 0.4)), hd = Hgt * 0.07;
+    const v = (d.dot(lat) / hw) ** 2 + (d.dot(fwd) / hd) ** 2;
+    return v < 1 ? 1 - v : 0;
+  };
+  const keepOut = () => {
+    if (torsoN.length < 4 || !ours.LeftArm || !ours.RightArm) return;
+    lat.copy(wp(ours.LeftArm)).sub(wp(ours.RightArm)).normalize();
+    upv.copy(wp(ours.Spine2)).sub(wp(ours.Hips)).normalize(); fwd.crossVectors(lat, upv).normalize();
+    const c0 = wp(ours.Hips), c1 = wp(ours.Spine2);
+    for (const sd of ['Left', 'Right']) {
+      const arm = ours[sd + 'Arm'], pts = [ours[sd + 'ForeArm'], ours[sd + 'ForeArmTwist'], ours[sd + 'Hand'], ours[sd + 'HandMiddle1']].filter(Boolean);
+      if (!arm || !pts.length) continue;
+      const pen = () => pts.reduce((m, b) => Math.max(m, inside(wp(b), c0, c1)), 0);
+      let p0 = pen(); if (!p0) continue;
+      const sign = sd === 'Left' ? 1 : -1;
+      for (let i = 0; i < 14 && p0 > 0; i++) {
+        // open the arm outward around the body's forward axis (shoulder as pivot), small steps
+        const want = rq2.setFromAxisAngle(fwd, -sign * 0.045).multiply(wq(arm));
+        arm.parent.getWorldQuaternion(pq); arm.quaternion.copy(pq.invert().multiply(want)); arm.updateMatrixWorld(true);
+        p0 = pen();
+      }
+    }
+  };
   const after = () => {
-    scapula(); const g = fig.grip ?? 0.25;
+    scapula(); keepOut(); const g = fig.grip ?? 0.25;
     for (const e of extra) {
       if (e.twist) {
         // the hand's turn relative to the forearm, around the forearm's own axis → half of it on the twist bone
