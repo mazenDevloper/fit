@@ -10,13 +10,15 @@ M = ['temporalis', 'masseter', 'occipitofrontalis', 'frontalis', 'occipitalis', 
   'pectoralis major', 'deltoid', 'trapezius', 'latissimus dorsi', 'serratus anterior', 'external oblique', 'rectus abdominis', 'infraspinatus', 'supraspinatus', 'teres major', 'teres minor', 'rhomboid major', 'rhomboid minor', 'iliocostalis', 'longissimus', 'spinalis', 'erector spinae',
   'biceps brachii', 'brachialis', 'triceps brachii', 'coracobrachialis', 'brachioradialis', 'extensor carpi radialis longus', 'extensor carpi radialis brevis', 'extensor digitorum', 'extensor digiti minimi', 'extensor carpi ulnaris', 'flexor carpi radialis', 'palmaris longus', 'flexor carpi ulnaris', 'pronator teres', 'anconeus', 'abductor pollicis longus', 'extensor pollicis brevis', 'extensor pollicis longus', 'flexor digitorum superficialis', 'flexor pollicis longus',
   'gluteus maximus', 'gluteus medius', 'tensor fasciae latae', 'sartorius', 'rectus femoris', 'vastus lateralis', 'vastus medialis', 'adductor longus', 'adductor magnus', 'gracilis', 'pectineus', 'biceps femoris', 'semitendinosus', 'semimembranosus', 'iliotibial tract',
-  'gastrocnemius', 'soleus', 'tibialis anterior', 'fibularis longus', 'fibularis brevis', 'peroneus longus', 'peroneus brevis', 'extensor digitorum longus', 'extensor hallucis longus',
-  'abductor hallucis', 'abductor digiti minimi', 'first dorsal interosseous', 'thenar', 'hypothenar', 'opponens pollicis', 'abductor pollicis brevis', 'flexor pollicis brevis', 'adductor pollicis']
+  'gastrocnemius', 'triceps surae', 'soleus', 'tibialis anterior', 'fibularis longus', 'fibularis brevis', 'peroneus longus', 'peroneus brevis', 'extensor digitorum longus', 'extensor hallucis longus',
+  'abductor hallucis', 'muscle of anterior abdominal wall', 'abductor digiti minimi', 'first dorsal interosseous', 'thenar', 'hypothenar', 'opponens pollicis', 'abductor pollicis brevis', 'flexor pollicis brevis', 'adductor pollicis']
 BONE = r'(^| )(skull|cranium|frontal bone|parietal bone|occipital bone|temporal bone|zygomatic bone|maxilla|mandible|nasal bone|clavicle|patella|tibia|fibula|calcaneus|talus|metatarsal|metacarpal|phalanx|scaphoid|lunate|triquetral|pisiform|trapezium|trapezoid|capitate|hamate|navicular|cuboid|cuneiform|sternum|manubrium|xiphoid|scapula|ulna|radius|humerus|hip bone|sacrum|vertebra)'
 def target(n):
-    n = re.sub(r'^(left|right) ', '', n.lower()).replace(' muscle', '').strip()
+    n = re.sub(r'\b(left|right) ', '', n.lower()).replace(' muscle', '').strip()
+    if re.search(r'tendon|nerve|artery|vein|branch|ligament', n): return None
     for m in M:
         if n == m or n == m + 's' or re.fullmatch(m + r'( proper)?', n): return m
+        if n.endswith(' of ' + m) and re.match(r'^(\w+ ){0,3}(part|head|belly|portion) of ', n): return n
     if re.search(r'tendon|nerve|artery|vein|ligament|cartilage', n): return None
     if re.search(BONE, n): return 'bone'
     return None
