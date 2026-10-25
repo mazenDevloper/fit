@@ -40,7 +40,8 @@ function muscleMaterial(uniforms, map = null) {
   m.userData.glow = { value: 0 };
   m.onBeforeCompile = sh => {
     sh.uniforms.uGlowM = m.userData.glow; sh.uniforms.uT = uniforms.uT;
-    sh.vertexShader = 'varying vec3 vAp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vAp = position;');
+    const vs = sh.vertexShader;
+    sh.vertexShader = 'varying vec3 vAp;\n' + vs.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vAp = position;');
     sh.fragmentShader = 'varying vec3 vAp;\nuniform float uGlowM;\nuniform float uT;\n' + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
   float fib = 0.5 + 0.5 * sin(dot(vAp, vec3(260.0, 40.0, 260.0)) + sin(vAp.y * 60.0) * 2.0);
@@ -78,17 +79,27 @@ function buildRigged(fig, g) {
   const LIMB = /Shoulder|Arm|Hand|UpLeg|Leg|Foot/;
   const CH = { Shoulder: 'Arm', Arm: 'ForeArm', ForeArm: 'Hand', UpLeg: 'Leg', Leg: 'Foot', Foot: 'ToeBase' };
   for (const n of names) {
-    const base = n.replace(/^(Left|Right)/, ''), side = n.match(/^(Left|Right)/)?.[1] || '', c = CH[base] && side + CH[base];
-    let align = new THREE.Quaternion();
-    if (LIMB.test(n) && c && ours[c] && B[c]) {
+    const base = n.replace(/^(Left|Right)/, ''), side = n.match(/^(Left|Right)/)?.[1] || '', c = (CH[base] && side + CH[base]) || (/Hand(Thumb|Index|Middle|Ring|Pinky)\d$/.test(n) ? n.replace(/\d$/, x => +x + 1) : null);   // fingers: the next joint
+    let align = null;
+    const hk = n.match(/^(Left|Right)Hand$/) && ['HandMiddle1', 'HandIndex1', 'HandPinky1'].every(k => ours[side + k] && B[side + k]);
+    if (hk) {
+      // the hand: full frame (towards the middle knuckle + across the knuckles), so the palm faces the right way
+      const fr = (S, x) => { const dd = wp(S[side + 'HandMiddle1']).sub(wp(S[x])).normalize(), ac = wp(S[side + 'HandPinky1']).sub(wp(S[side + 'HandIndex1']));
+        const nn = new THREE.Vector3().crossVectors(dd, ac).normalize(), cc = new THREE.Vector3().crossVectors(nn, dd);
+        return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(dd, cc, nn)); };
+      align = fr(B, n).multiply(fr(ours, n).invert());
+    } else if (LIMB.test(n) && c && ours[c] && B[c]) {
+      align = new THREE.Quaternion();
       const a = wp(ours[c]).sub(wp(ours[n])).normalize(), b = wp(B[c]).sub(wp(B[n])).normalize();
       align.setFromUnitVectors(a, b);
     }
+    // align null: inherits the parent's below (fingers follow the hand's)
     rest[n] = { m0: wq(B[n]), o0: wq(ours[n]), align, hip: n === 'Hips' ? model.worldToLocal(wp(B[n])) : null, hipO: n === 'Hips' ? ours[n].position.clone() : null };
   }
   // parents first
   const depth = o => { let d = 0; while (o.parent) { d++; o = o.parent; } return d; };
   names.sort((a, b) => depth(ours[a]) - depth(ours[b]));
+  for (const n of names) if (!rest[n].align) { const pn = ours[n].parent?.name.replace(/^mixamorig:?/, ''); rest[n].align = rest[pn]?.align?.clone() || new THREE.Quaternion(); }
   const q = new THREE.Quaternion(), pq = new THREE.Quaternion(), d = new THREE.Quaternion(), v = new THREE.Vector3();
   const sync = () => {
     model.updateMatrixWorld(true);
@@ -117,12 +128,30 @@ function buildRigged(fig, g) {
       const bs = [1, 2, 3].map(i => ours[sd + 'Hand' + f + i]); if (bs.some(b => !b)) continue;
       const dir = wp(ours[sd + 'Hand' + f + '4']).sub(wp(bs[0])).normalize();
       const axis = new THREE.Vector3().crossVectors(dir, palm).normalize();   // turns the finger toward the palm
-      extra.push({ hd, h0, bs, axis, ang: f === 'Thumb' ? [0.35, 0.45, 0.5] : [1.15, 1.35, 0.85] });
+      extra.push({ hd, h0, bs, axis, ang: f === 'Thumb' ? [0.3, 0.35, 0.4] : [0.85, 0.95, 0.55] });
     }
   }
   const tq = new THREE.Quaternion(), hq = new THREE.Quaternion(), ax = new THREE.Vector3(), cum = new THREE.Quaternion(), rq = new THREE.Quaternion();
+  // shoulder blade rhythm: raising the arm high also turns the shoulder (scapula + clavicle) about a third of the way
+  // above ~30° - the shoulder rises with the arm, as in a real body, instead of the arm pivoting alone in the armpit
+  const sc = ['Left', 'Right'].map(sd => ({ sh: ours[sd + 'Shoulder'], arm: ours[sd + 'Arm'], fa: ours[sd + 'ForeArm'] })).filter(x => x.sh && x.arm && x.fa);
+  const up = new THREE.Vector3(), aDir = new THREE.Vector3(), rAx = new THREE.Vector3(), aw = new THREE.Quaternion();
+  const scapula = () => {
+    if (!ours.Spine2 || !ours.Neck) return;
+    up.copy(wp(ours.Neck)).sub(wp(ours.Spine2)).normalize();
+    for (const x of sc) {
+      aDir.copy(wp(x.fa)).sub(wp(x.arm)).normalize();
+      const elev = Math.acos(THREE.MathUtils.clamp(-up.dot(aDir), -1, 1));
+      const extra = Math.max(0, elev - 0.52) * 0.33; if (extra < 1e-3) continue;
+      rAx.crossVectors(up.clone().negate(), aDir); if (rAx.lengthSq() < 1e-6) continue; rAx.normalize();
+      aw.copy(wq(x.arm));
+      const want = new THREE.Quaternion().setFromAxisAngle(rAx, extra).multiply(wq(x.sh));
+      x.sh.parent.getWorldQuaternion(pq); x.sh.quaternion.copy(pq.invert().multiply(want)); x.sh.updateMatrixWorld(true);
+      x.sh.getWorldQuaternion(pq); x.arm.quaternion.copy(pq.invert().multiply(aw)); x.arm.updateMatrixWorld(true);
+    }
+  };
   const after = () => {
-    const g = fig.grip ?? 0.25;
+    scapula(); const g = fig.grip ?? 0.25;
     for (const e of extra) {
       if (e.twist) {
         // the hand's turn relative to the forearm, around the forearm's own axis → half of it on the twist bone
@@ -142,13 +171,20 @@ function buildRigged(fig, g) {
       });
     }
   };
-  const mats = {};
+  const mats = {}, plain = [];
+  let lastFrame = -1;
   for (const m of meshes) {
     const grp = m.userData.group || m.name, map = m.material.map;
-    const mat = grp === 'bone' || grp === 'other' ? (mats._plain ||= muscleMaterial(fig.uniforms, map)) : (mats[grp] ||= muscleMaterial(fig.uniforms, map));
+    const mat = muscleMaterial(fig.uniforms, map);
+    if (grp === 'bone' || grp === 'other') plain.push(mat); else mats[grp] = mat;
     m.material = mat; m.frustumCulled = false; m.name = grp;
+    // whichever part draws first this frame moves the skeleton (then every part uses this frame's pose)
+    m.onBeforeRender = r => {
+      const f = r.info.render.frame;
+      if (f !== lastFrame) { lastFrame = f; sync(); after(); }
+      m.skeleton.update();
+    };
   }
-  meshes[0].onBeforeRender = () => { sync(); after(); };
   sync(); after();
   return {
     group: body,
