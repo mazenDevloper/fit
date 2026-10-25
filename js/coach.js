@@ -289,6 +289,7 @@ export class Figure {
   // pose = the interpolated keyframe (see EXERCISES)
   apply(P) {
     const B = this.bones; if (!B.Hips) return;
+    this.grip = P.grip ?? 0.25;
     this.resetPose();
     this.root.updateMatrixWorld(true);
     // floor exercises: the whole body leans forward around the toes (push-ups), lies on its back (pivot at the heels)
@@ -375,6 +376,7 @@ export function poseAt(ex, t) {
     } else if (typeof (x ?? y) === 'string') out[key] = x ?? y;
     else out[key] = (x ?? 0) + ((y ?? 0) - (x ?? 0)) * f;
   }
+  out.grip = ex.kind === 'band' ? 1 : 0.25;   // hands closed on the band's handles, else relaxed
   return out;
 }
 

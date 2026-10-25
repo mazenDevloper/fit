@@ -101,14 +101,55 @@ function buildRigged(fig, g) {
       o.updateMatrixWorld(true);
     }
   };
+  // forearm twist (half of the wrist's turn, spread along the forearm) and fingers that close in a grip
+  const extra = [];
+  for (const sd of ['Left', 'Right']) {
+    const fa = ours[sd + 'ForeArm'], tb = ours[sd + 'ForeArmTwist'], hd = ours[sd + 'Hand'];
+    if (fa && tb && hd) extra.push({ twist: true, fa, tb, hd, axis: tb.position.clone().normalize() });
+    if (!hd || !ours[sd + 'HandIndex1']) continue;
+    // palm side: the thumb tip sits in front of the fingers' plane
+    const pw = n => wp(ours[sd + 'Hand' + n]);
+    const k1 = pw('Middle1'), dirF = pw('Middle4').sub(k1).normalize(), across = pw('Pinky1').sub(pw('Index1')).normalize();
+    let palm = new THREE.Vector3().crossVectors(across, dirF).normalize();
+    if (pw('Thumb4').sub(k1).dot(palm) < 0) palm.negate();
+    const h0 = wq(hd);
+    for (const f of ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']) {
+      const bs = [1, 2, 3].map(i => ours[sd + 'Hand' + f + i]); if (bs.some(b => !b)) continue;
+      const dir = wp(ours[sd + 'Hand' + f + '4']).sub(wp(bs[0])).normalize();
+      const axis = new THREE.Vector3().crossVectors(dir, palm).normalize();   // turns the finger toward the palm
+      extra.push({ hd, h0, bs, axis, ang: f === 'Thumb' ? [0.35, 0.45, 0.5] : [1.15, 1.35, 0.85] });
+    }
+  }
+  const tq = new THREE.Quaternion(), hq = new THREE.Quaternion(), ax = new THREE.Vector3(), cum = new THREE.Quaternion(), rq = new THREE.Quaternion();
+  const after = () => {
+    const g = fig.grip ?? 0.25;
+    for (const e of extra) {
+      if (e.twist) {
+        // the hand's turn relative to the forearm, around the forearm's own axis → half of it on the twist bone
+        e.fa.getWorldQuaternion(tq).invert().multiply(wq(e.hd));
+        ax.copy(e.axis).multiplyScalar(ax.copy(e.axis).dot(new THREE.Vector3(tq.x, tq.y, tq.z)));
+        const t = new THREE.Quaternion(ax.x, ax.y, ax.z, tq.w).normalize();
+        e.tb.quaternion.identity().slerp(t, 0.5); e.tb.updateMatrixWorld(true);
+        continue;
+      }
+      // the axis turns with the hand; each joint adds its bend to the ones before it
+      hq.copy(wq(e.hd)).multiply(rq.copy(e.h0).invert());
+      ax.copy(e.axis).applyQuaternion(hq); cum.identity();
+      e.bs.forEach((b, i) => {
+        cum.premultiply(rq.setFromAxisAngle(ax, e.ang[i] * g));
+        const want = cum.clone().multiply(wq(b));
+        b.parent.getWorldQuaternion(pq); b.quaternion.copy(pq.invert().multiply(want)); b.updateMatrixWorld(true);
+      });
+    }
+  };
   const mats = {};
   for (const m of meshes) {
     const grp = m.userData.group || m.name, map = m.material.map;
     const mat = grp === 'bone' || grp === 'other' ? (mats._plain ||= muscleMaterial(fig.uniforms, map)) : (mats[grp] ||= muscleMaterial(fig.uniforms, map));
     m.material = mat; m.frustumCulled = false; m.name = grp;
   }
-  meshes[0].onBeforeRender = sync;
-  sync();
+  meshes[0].onBeforeRender = () => { sync(); after(); };
+  sync(); after();
   return {
     group: body,
     setGlow(primary = [], secondary = [], k = 1) {
