@@ -4,7 +4,8 @@ import urllib.request, zipfile, io, os, re, sys, json, collections, traceback, t
 os.makedirs('out/musc', exist_ok=True)
 log = []
 def save(): open('out/musc/log.txt', 'w').write('\n'.join(log))
-subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'numpy'], capture_output=True)
+r0 = subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', '--break-system-packages', 'numpy'], capture_output=True, text=True); log.append('pip ' + str(r0.returncode) + r0.stderr[-300:]); save()
+import site, importlib; site.addsitedir(site.getusersitepackages()); importlib.invalidate_caches()
 import numpy as np
 M = ['temporalis', 'masseter', 'occipitofrontalis', 'frontalis', 'occipitalis', 'orbicularis oculi', 'orbicularis oris', 'sternocleidomastoid', 'splenius capitis', 'levator scapulae', 'platysma',
   'pectoralis major', 'deltoid', 'trapezius', 'latissimus dorsi', 'serratus anterior', 'external oblique', 'rectus abdominis', 'infraspinatus', 'supraspinatus', 'teres major', 'teres minor', 'rhomboid major', 'rhomboid minor', 'iliocostalis', 'longissimus', 'spinalis', 'erector spinae',
