@@ -133,6 +133,8 @@ export class Launcher {
         ['target', 'إعادة التمركز', 'اجعل الأمام هنا', () => { a.recenter(); this.close(); }],
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['target', 'ضبط العدستين', 'تحريك وتكبير الصورتين', () => { this.close(); a.lensAdjust.open(); }],
+        ['play', 'ريموت VR Park', settings.remote ? 'يعمل · اضغط لإيقافه' : 'وضع الموسيقى @+A', () => { this.close(); a.remote?.toggle(); }],
+        ['play', 'تعلّم أزرار الريموت', 'اضغط كل زر عندما يُطلب', () => { this.close(); a.remote?.startLearn(); }],
       ];
       const ex = a.extras, W8 = (t, n, d) => [t === 'weather' ? 'sun' : t === 'timer' ? 'clock' : t === 'note' ? 'stack' : t === 'photos' ? 'image' : t === 'nowplaying' || t === 'dcmedia' ? 'play' : t === 'verse' ? 'book' : t === 'scenes' ? 'grid' : t === 'aihist' ? 'mic' : t === 'dcdash' ? 'ball' : t === 'remote' ? 'target' : 'sliders', n, d, () => { this.close(); ex?.widget(t); }];
       if (ex) list.push(

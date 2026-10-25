@@ -94,7 +94,7 @@ export class HandTracker {
       const make = delegate => vision.HandLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetBuffer: model, delegate },
         runningMode: 'VIDEO', numHands: 2,
-        minHandDetectionConfidence: 0.7, minHandPresenceConfidence: 0.65, minTrackingConfidence: 0.55,
+        minHandDetectionConfidence: 0.55, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
       });
       try { this.landmarker = await make('GPU'); this.delegate = 'GPU'; }
       catch (e) { console.warn('GPU delegate failed, using CPU', e); this.landmarker = await make('CPU'); this.delegate = 'CPU'; }
@@ -125,7 +125,7 @@ export class HandTracker {
     for (let h = 0; h < res.landmarks.length; h++) {
       const lm = res.landmarks[h], wl = res.worldLandmarks?.[h];
       const score = res.handedness?.[h]?.[0]?.score ?? res.handednesses?.[h]?.[0]?.score ?? 1;
-      if (!lm || !wl || score < 0.7) continue;
+      if (!lm || !wl || score < 0.5) continue;
       const pts = lm.map(p => mapper(p.x, p.y));                 // head-local tan coords [tx, ty]
       // Depth from bone lengths: metric length in the image plane / angular length.
       let metric = 0, angular = 0;
@@ -145,27 +145,7 @@ export class HandTracker {
   //  2) shape: the fingers' length against the palm and the spread of the knuckles are a hand's (a foot's toes are short)
   //  3) looking down at the floor: nothing in the lower third of the picture counts (that's where your feet are)
   //  4) a new hand must be seen in 3 frames in a row at about the same place before it acts
-  ownHands(found, now) {
-    const pitch = window.madar?.headForward ? Math.asin(Math.max(-1, Math.min(1, window.madar.headForward.y))) : 0;
-    const ok = found.filter(f => {
-      if (f.depth > 0.75) return false;
-      const P = f.img; if (!P) return true;
-      const d = (a, b) => Math.hypot(P[a][0] - P[b][0], P[a][1] - P[b][1]);
-      const palm = Math.max(1e-4, d(0, 9)), knuckles = d(5, 17);
-      const finger = Math.max(d(5, 8), d(9, 12), d(13, 16));
-      if (finger / palm < 0.55 || knuckles / palm < 0.35 || knuckles / palm > 1.3) return false;
-      if (settings.feetGuard !== false && !this.native && pitch < -0.45 && (P[0][1] + P[9][1]) / 2 > 0.66) return false;
-      return true;
-    });
-    this.cand = (this.cand || []).filter(c => now - c.t < 300);
-    return ok.filter(f => {
-      if (this.slots.some(s => s.active && Math.hypot(s.tx - f.px, s.ty - f.py) < 0.35)) return true;   // already tracked
-      let c = this.cand.find(c => Math.hypot(c.x - f.px, c.y - f.py) < 0.12);
-      if (!c) { c = { x: f.px, y: f.py, n: 0, t: now }; this.cand.push(c); }
-      c.n++; c.x = f.px; c.y = f.py; c.t = now;
-      return c.n >= 3;
-    });
-  }
+  ownHands(found) { return found; }   // the extra checks (distance, shape, feet, 3 frames) made hands hard to catch: removed
   // Give each detection a slot by proximity so each hand keeps its identity.
   assign(found, now) {
     for (const s of this.slots) if (s.active && now - s.seen > 260) { s.active = false; s.pinch = false; s.fx.reset(); s.fy.reset(); s.fd.reset(); }

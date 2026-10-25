@@ -35,10 +35,11 @@ import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.j
 import { listItems, importFiles, deleteItem, formatSize, importPhotoBook, importEnvironment, getItem } from './db.js';
 import { depthMap, cachedDepth, saveDepth, forgetDepth } from './depth.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
+import { Remote } from './remote.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '101';
+export const APP_VERSION = '102';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -124,6 +125,7 @@ class App {
     this.gaze = new GazeTracker(this);
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.extras = new Extras(this);
+    this.remote = new Remote(this);   // VR Park and other Bluetooth remotes
     this.hub = new HubClient(this);   // «المركز»: Madar ⇄ DriveCast
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     if (IOS) setupNative(this);
