@@ -29,10 +29,31 @@ export class Remote {
       [c.padPtr.tx, c.padPtr.ty] = c.pointTan(p.x, p.y); c.padPtr.last = performance.now(); if (down != null) c.padPtr.down = down;
     };
     const mine = e => settings.remote && this.app.active && !this.app.controls.direct && e.touches.length < 2;
-    window.addEventListener('touchstart', e => { if (!mine(e)) return; e.preventDefault(); e.stopImmediatePropagation(); try { this.app.windows.windows.forEach(w => w.userGesture?.()); } catch {} aim(e.changedTouches[0], true); }, { capture: true, passive: false });
-    window.addEventListener('touchmove', e => { if (!mine(e)) return; e.preventDefault(); e.stopImmediatePropagation(); aim(e.changedTouches[0]); }, { capture: true, passive: false });
-    const up = e => { if (!settings.remote || !this.app.active || this.app.controls.direct) return; e.preventDefault(); e.stopImmediatePropagation(); this.app.controls.padPtr.down = false; this.app.controls.padPtr.last = performance.now(); };
+    // A swipe (the remote sometimes sends the stick as a drag) only MOVES the pointer: it never scrolls or drags.
+    // A short tap with little movement clicks where the pointer is.
+    let t0 = 0, sx = 0, sy = 0, moved = 0;
+    window.addEventListener('touchstart', e => {
+      if (!mine(e)) return; e.preventDefault(); e.stopImmediatePropagation();
+      try { this.app.windows.windows.forEach(w => w.userGesture?.()); } catch {}
+      const t = e.changedTouches[0]; t0 = performance.now(); sx = t.clientX; sy = t.clientY; moved = 0; aim(t, false);
+    }, { capture: true, passive: false });
+    window.addEventListener('touchmove', e => {
+      if (!mine(e)) return; e.preventDefault(); e.stopImmediatePropagation();
+      const t = e.changedTouches[0]; moved = Math.max(moved, Math.hypot(t.clientX - sx, t.clientY - sy)); aim(t, false);
+    }, { capture: true, passive: false });
+    const up = e => {
+      if (!settings.remote || !this.app.active || this.app.controls.direct) return; e.preventDefault(); e.stopImmediatePropagation();
+      const c = this.app.controls; c.padPtr.last = performance.now();
+      if (moved < 14 && performance.now() - t0 < 600) { c.padPtr.down = true; setTimeout(() => { c.padPtr.down = false; c.padPtr.last = performance.now(); }, 120); }
+      else c.padPtr.down = false;
+    };
     window.addEventListener('touchend', up, { capture: true, passive: false });
+    // the stick sent as scroll-wheel steps: move the pointer instead of scrolling
+    window.addEventListener('wheel', e => {
+      if (!settings.remote || !this.app.active || this.app.controls.direct) return; e.preventDefault(); e.stopImmediatePropagation();
+      const p = this.app.controls.padPtr, k = 0.0012;
+      p.tx = Math.max(-1.4, Math.min(1.4, p.tx + e.deltaX * k)); p.ty = Math.max(-1.2, Math.min(1.2, p.ty - e.deltaY * k)); p.last = performance.now();
+    }, { capture: true, passive: false });
     window.addEventListener('touchcancel', up, { capture: true, passive: false });
     if (settings.remote) document.addEventListener('pointerdown', () => this.media(), { once: true });
   }
