@@ -11,6 +11,11 @@ const ACTIONS = [
   ['down', 'تمرير لأسفل'], ['up', 'تمرير لأعلى'], ['left', 'دوران يسار'], ['right', 'دوران يمين'],
 ];
 
+// iCade letters: press → action (defaults), release letters only end a held joystick
+const ICADE_DOWN = { w: 'up', x: 'down', a: 'left', d: 'right', y: 'select', h: 'back', u: 'launcher', j: 'recenter', i: 'select', k: 'back', o: 'select', l: 'launcher' };
+const ICADE_UP = { e: 'w', z: 'x', q: 'a', c: 'd', t: 'y', r: 'h', f: 'u', n: 'j', m: 'i', p: 'k', g: 'o', v: 'l' };
+const ICADE_PAIR = { w: 'e', x: 'z', a: 'q', d: 'c', y: 't', h: 'r', u: 'f', j: 'n', i: 'm', k: 'p', o: 'g', l: 'v' };
+
 export class Remote {
   constructor(app) {
     this.app = app; this.learn = null;
@@ -21,7 +26,7 @@ export class Remote {
   get on() { return !!settings.remote; }
   toggle() {
     const on = !settings.remote; saveSettings({ remote: on });
-    if (on) { this.media(); this.app.toast('🎮 الريموت يعمل · وضع الموسيقى: ▶ اختيار · ⏭ تمرير · ⏮ رجوع · أو «تعلّم الأزرار»', 6000); }
+    if (on) { this.media(); this.app.toast('🎮 الريموت يعمل · @+D: العصا تمرير ودوران، الأزرار اختيار ورجوع وقائمة · أو «تعلّم الأزرار»', 6000); }
     else { this.stopMedia(); this.app.toast('أُوقف الريموت', 2000); }
   }
   // music mode → Media Session
@@ -47,20 +52,34 @@ export class Remote {
     try { this.audio?.pause(); const ms = navigator.mediaSession; for (const a of ['play', 'pause', 'nexttrack', 'previoustrack', 'seekforward', 'seekbackward']) ms?.setActionHandler(a, null); } catch {}
   }
   // key mode
+  // @ + D (iCade mode): every button sends one letter when pressed and another when released
+  icade(e) {
+    const k = (e.key || '').toLowerCase(), r = ICADE_UP[k], p = ICADE_DOWN[k];
+    if (!r && !p) return false;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (r) { if (this.held === k) { clearInterval(this.rep); this.held = null; } return true; }
+    if (this.learn) { this.learnKey('icade:' + k); return true; }
+    const act = this.map['icade:' + k] || p;
+    this.act(act);
+    if (act === 'up' || act === 'down') { clearInterval(this.rep); this.held = ICADE_PAIR[k]; this.rep = setInterval(() => this.act(act), 140); }
+    return true;
+  }
+  learnKey(code) {
+    const [id] = ACTIONS[this.learn.i]; this.map[code] = id; this.learn.i++;
+    if (this.learn.i >= ACTIONS.length) { this.learn = null; saveSettings({ remoteKeys: this.map, remote: true }); this.app.toast('✓ حُفظت أزرار الريموت', 3000); }
+    else this.ask();
+  }
   key(e) {
     if (!this.app.active) return;
+    if (settings.remote && !e.metaKey && !e.ctrlKey && this.icade(e)) return;
     const code = e.code || e.key;
     if (this.learn) {
-      e.preventDefault(); e.stopImmediatePropagation();
-      const [id] = ACTIONS[this.learn.i]; this.map[code] = id; this.learn.i++;
-      if (this.learn.i >= ACTIONS.length) { this.learn = null; saveSettings({ remoteKeys: this.map, remote: true }); this.app.toast('✓ حُفظت أزرار الريموت', 3000); }
-      else this.ask();
-      return;
+      e.preventDefault(); e.stopImmediatePropagation(); this.learnKey(code); return;
     }
     const act = this.map[code]; if (!act) return;
     e.preventDefault(); e.stopImmediatePropagation(); this.act(act);
   }
-  startLearn() { this.map = {}; this.learn = { i: 0 }; this.ask(); }
+  startLearn() { saveSettings({ remote: true }); this.map = {}; this.learn = { i: 0 }; this.ask(); }
   ask() { const [, ar] = ACTIONS[this.learn.i]; this.app.toast(`🎮 ${this.learn.i + 1}/${ACTIONS.length} · اضغط الزر الذي تريده لـ «${ar}»`, 15000); }
   act(a) {
     const app = this.app, c = app.controls;
