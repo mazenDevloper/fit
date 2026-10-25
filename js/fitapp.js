@@ -323,10 +323,11 @@ export function mountHealth(host, { onTrain } = {}) {
       ${busy ? `<div class="busy">${busy}</div>` : ''}
       ${edit ? '<h3>راجع الأرقام ثم احفظ</h3><form></form><div class="acts" style="margin-top:8px"><button type="button" class="pri save">حفظ القياس</button><button type="button" class="cancel">إلغاء</button></div>' : ''}
       ${last && !edit ? `<h3>آخر قياس · ${new Date(last.at).toLocaleDateString('ar-OM', { day: 'numeric', month: 'long' })}${last.bodyType ? ' · ' + last.bodyType : ''}</h3><div class="cards"></div>` : ''}
-      ${!last && !edit ? '<div class="busy">لا قياسات بعد — صوّر شاشة تطبيق الميزان (Eufy وغيره) وارفعها، أو أدخل الأرقام.</div>' : ''}
+      ${!last && !edit ? '<div class="busy">لا قياسات بعد — صوّر شاشة تطبيق الميزان (Eufy وغيره) ثم اضغط «📷 اقرأ صورة الميزان» واخترها (أو الصقها هنا)، أو أدخل الأرقام.</div>' : ''}
       ${p && !edit ? `<h3>ما تقوله أرقامك</h3><div class="plan">${p.html}<div class="acts" style="margin-top:8px"><button type="button" class="pri go">ابدأ برنامج ${({ bulk: 'التضخيم', cut: 'التنشيف', burn: 'الحرق' })[p.goal]}</button></div></div>` : ''}
       <h3>تمارينك في أسبوعين (دقائق)</h3><div class="wk">${days.map(x => `<div style="height:${Math.round(x.m / maxM * 100)}%"><span>${arNum(x.d.getDate())}</span></div>`).join('')}</div>
       <div class="note">النطاقات العامة للبالغين للتوجيه فقط وليست تشخيصاً · تُحفظ القياسات على جهازك.</div>`;
+    root.appendChild(file);   // innerHTML above removed it: iPhone's Safari won't open the picker of a detached input
     root.querySelector('.scan').onclick = () => file.click();
     root.querySelector('.man').onclick = () => render(last ? { ...last } : {});
     root.querySelector('.tr')?.addEventListener('click', onTrain);
@@ -352,6 +353,12 @@ export function mountHealth(host, { onTrain } = {}) {
     try { const m = await readScreenshot(f, msg => render(null, msg)); render(m, '✓ قرأت ' + arNum(Object.keys(m).length) + ' قيمة — راجعها قبل الحفظ'); }
     catch (e) { render({}, 'تعذّرت القراءة: ' + (e.message || e) + ' — أدخل الأرقام يدوياً'); }
   };
+  // a screenshot can also be pasted (⌘V / long-press → Paste) or dropped on the page
+  const take = f => { if (!f || !/^image\//.test(f.type)) return false; const dt = new DataTransfer(); dt.items.add(f); file.files = dt.files; file.onchange(); return true; };
+  const onPaste = e => { for (const it of e.clipboardData?.items || []) if (it.kind === 'file' && take(it.getAsFile())) { e.preventDefault(); return; } };
+  document.addEventListener('paste', onPaste);
+  root.addEventListener('dragover', e => e.preventDefault());
+  root.addEventListener('drop', e => { e.preventDefault(); take(e.dataTransfer?.files?.[0]); });
   render();
-  return { destroy() { root.remove(); } };
+  return { destroy() { document.removeEventListener('paste', onPaste); root.remove(); } };
 }
