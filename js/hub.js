@@ -57,6 +57,9 @@ export class HubClient {
     } else if (m.type === 'control') this.control(m.action, m.value);
     else if (m.type === 'island' && m.item) app.notify({ icon: m.item.icon || '🔔', title: m.item.title, body: m.item.sub || '' });
     else if (m.type === 'scene' && m.name) app.extras?.openScene(m.name);
+    else if (m.type === 'ping') { try { const a = new AudioContext(), o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); o.stop(a.currentTime + 0.6); } catch {} app.toast?.('🔔 ' + who + ' يبحث عن مدار', 3000); }
+    else if (m.type === 'say' && m.text) { try { const u = new SpeechSynthesisUtterance(String(m.text)); u.lang = 'ar-SA'; speechSynthesis.speak(u); } catch {} app.toast?.('💬 ' + String(m.text).slice(0, 80), 4000); }
+    else if (m.type === 'sleep' && m.minutes > 0) { clearTimeout(this._sleep); this._sleep = setTimeout(() => document.querySelectorAll('video,audio').forEach(v => v.pause()), m.minutes * 60000); app.toast?.('😴 يتوقف بعد ' + m.minutes + ' دقيقة', 3000); }
     else if (m.type === 'toast') app.toast?.(String(m.text || '').slice(0, 80), 3000);
   }
   // open anything that came from a device / the library
