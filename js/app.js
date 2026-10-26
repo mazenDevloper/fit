@@ -28,7 +28,7 @@ import { GazeTracker } from './gaze.js';
 import { LensAdjust } from './lens.js';
 import { DeviceHub } from './devices.js';
 import { Sports } from './sports.js';
-import { ScreenHost, ScreenViewer, WebHost, qrSvg, AGENT_DOWNLOAD, lib } from './mirror.js';
+import { ScreenHost, ScreenViewer, WebHost, qrSvg, AGENT_DOWNLOAD, lib, captureDevices } from './mirror.js';
 import { Room } from './room.js';
 import { IOS, NativeHead, NativeSlam, setupNative, toggleDeskHole } from './native.js';
 import { ENVS, ENV_ORDER, envKey, isImmersive, makeEnvironments } from './envs.js';
@@ -39,7 +39,7 @@ import { Remote } from './remote.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '111';
+export const APP_VERSION = '112';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -253,6 +253,8 @@ class App {
           if (c.control && !was) this.toast('يمكنك التحكم بالجهاز: انقر واسحب للتمرير · ○ رجوع', 3500);
           else if (!c.control && c.why) this.log('التحكم: ' + c.why);
         },
+        // the delay meter: a small badge on the window (green < 200 ms, amber < 500, red above)
+        onDelay: d => { if (this.viewer?.caps?.hdmi || settings.delayMeter) this.mirrorWin?.setBadge?.(`${d.ms < 200 ? '🟢' : d.ms < 500 ? '🟡' : '🔴'} ${d.ms} ms · ${d.fps} fps${d.relay ? ' · عبر خادم' : ' · مباشر'}`, d.ms < 200 ? '#22c55e' : d.ms < 500 ? '#eab308' : '#ef4444'); },
       });
       if (!this.active) { this.viewer.close(); return; }
       if (this.mirrorWin && this.windows.windows.includes(this.mirrorWin)) {
@@ -496,16 +498,19 @@ class App {
     const app = !!window.MadarAndroid;
     if (app && $('#androidApp')) $('#androidApp').hidden = true;
     const canShare = app || typeof navigator.mediaDevices?.getDisplayMedia === 'function';
-    if (!canShare) {
+    const canCam = typeof navigator.mediaDevices?.getUserMedia === 'function' && !/iPhone|iPad/i.test(navigator.userAgent);
+    if (!canShare && !canCam) {
       const android = /Android/i.test(navigator.userAgent);
       $('#mirHost').innerHTML = '<p class="hint" style="margin-top:0">متصفح هذا الجهاز لا يسمح بمشاركة شاشته (هذا قيد في متصفحات الهواتف والأجهزة اللوحية). يمكنه استقبال شاشة جهاز آخر بإدخال رمزه في الأسفل.</p>'
         + (android ? '<p class="hint">على أندرويد (مثل Galaxy Tab) ثبّت <b>تطبيق مدار</b> ليشارك شاشة هذا الجهاز فعلياً: <a href="' + ANDROID_APK + '" style="color:#7cc4ff">تنزيل Madar.apk</a></p>' : '');
       return;
     }
     if (app) { const b = $('#mirStart'); if (b) b.textContent = 'شارك شاشة هذا الجهاز'; }
+    if (!canShare) { const b = $('#mirStart'); if (b) b.style.display = 'none'; }   // phone/tablet browser: HDMI card only
+    if (!canCam) { const b = $('#mirHdmiBox'); if (b) b.hidden = true; }
     this.host = new ScreenHost(s => {
       if (s.synced) { this.renderLinks(); return; }
-      $('#mirLive').hidden = !s.live; $('#mirStart').hidden = !!s.live;
+      $('#mirLive').hidden = !s.live; $('#mirStart').hidden = !!s.live; if ($('#mirHdmiBox')) $('#mirHdmiBox').hidden = !!s.live || !canCam;
       if (!s.live) return;
       $('#mirCode').textContent = s.code; $('#mirLink').textContent = s.link;
       $('#mirQr').innerHTML = qrSvg(s.link);
@@ -526,6 +531,23 @@ class App {
       catch (e) { $('#mirStatus').textContent = ''; alertBox(e.message || 'لم تبدأ المشاركة'); }
     });
     $('#mirStop').addEventListener('click', () => this.host.stop());
+    // HDMI card: pick it (the card is chosen by itself when its name says so; a list appears when there are several)
+    const hdmiSel = $('#mirHdmiDev');
+    $('#mirHdmi')?.addEventListener('click', async () => {
+      try {
+        const cams = await captureDevices();
+        if (hdmiSel && cams.length > 1 && hdmiSel.hidden) {
+          hdmiSel.innerHTML = cams.map(c => `<option value="${c.id}"${c.id === settings.hdmiDev ? ' selected' : ''}>${c.card ? '🎮 ' : '📷 '}${c.label}</option>`).join('');
+          if (!settings.hdmiDev || !cams.some(c => c.id === settings.hdmiDev)) hdmiSel.value = cams[0].id;
+          hdmiSel.hidden = false;
+          if (!cams[0].card) { $('#mirStatus').textContent = 'اختر قطعة HDMI من القائمة ثم اضغط الزر مرة أخرى'; return; }
+        }
+        const id = hdmiSel && !hdmiSel.hidden ? hdmiSel.value : cams[0]?.id;
+        saveSettings({ hdmiDev: id });
+        await this.host.start({ hdmi: true, deviceId: id });
+        this.log('بث HDMI: ' + (this.host.stream?.label || '') + ' · ' + this.host.code);
+      } catch (e) { alertBox(e.message || 'لم يبدأ بث HDMI'); }
+    });
     $('#mirCopy').addEventListener('click', () => { navigator.clipboard?.writeText(this.host.link).then(() => { $('#mirCopy').textContent = 'تم النسخ'; }).catch(() => {}); });
     const alertBox = m => { this.showError(m); };
   }

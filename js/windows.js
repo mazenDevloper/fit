@@ -279,6 +279,23 @@ class SpatialWindow {
     if (this.modeSide) this.modeSide.mesh.position.set(-w / 2 - 0.05 - 0.17, 0, 0.004);
   }
   setAspect(a) { if (a && isFinite(a) && Math.abs(a - this.aspect) > 0.001) { this.aspect = a; this.layout(); } }
+  // a small status pill above the top-right corner (e.g. the HDMI stream's delay)
+  setBadge(textV, color = '#22c55e') {
+    if (!textV) { if (this.badge) this.badge.mesh.visible = false; return; }
+    if (!this.badge) {
+      this.badgeTxt = ''; this.badgeCol = color;
+      this.badge = new CanvasPanel(0.42, 0.055, (ctx, W, H) => {
+        glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
+        ctx.fillStyle = this.badgeCol; ctx.beginPath(); ctx.arc(H * 0.55, H / 2, H * 0.16, 0, 7); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(H * 0.46)}px ${FONT}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+        ctx.fillText(this.badgeTxt.replace(/^\S+\s/, ''), W - H * 0.4, H / 2 + 1);
+      }, { pxPerM: 1400 });
+      this.group.add(this.badge.mesh);
+    }
+    if (textV === this.badgeTxt && color === this.badgeCol) return;
+    this.badgeTxt = textV; this.badgeCol = color; this.badge.mesh.visible = true;
+    this.badge.mesh.position.set(0.5 - 0.21, this.h / 2 + 0.045, 0.004); this.badge.redraw();
+  }
   // «بلا خلفية»: the picture's own transparency (PNG, video with alpha) or a green screen keyed out - no frame, no glass
   setCut(mode) {
     this.cut = mode || 0;

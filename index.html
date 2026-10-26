@@ -236,6 +236,11 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
     <div id="mirHost">
       <p class="hint" style="margin-top:0">على الكمبيوتر أو تطبيق مدار للأندرويد: اضغط «شارك شاشة هذا الجهاز». يُستخدم رقم الجهاز الثابت دائماً، فلا تحتاج رمزاً جديداً كل مرة. أبقِ مدار مفتوحاً أثناء المشاركة.</p>
       <button id="mirStart" class="add" type="button">شارك شاشة هذا الجهاز</button>
+      <div id="mirHdmiBox" style="margin-top:10px">
+        <button id="mirHdmi" class="add" type="button">🎮 بث جهاز HDMI (بلايستيشن · تي في بوكس · رسيفر)</button>
+        <select id="mirHdmiDev" class="ghost" style="margin-top:6px;width:100%" hidden></select>
+        <p class="hint" style="margin:6px 0 0">وصّل قطعة HDMI بمنفذ USB 3.0. تُقرأ القطعة مباشرة كأنها كاميرا (أقل تأخير وصورة أنظف من مشاركة الشاشة). أبقِ الآيفون والجهاز على نفس الواي فاي (5GHz) ليكون الاتصال مباشراً.</p>
+      </div>
       <div id="mirLive" hidden>
         <div class="mircode"><span id="mirCode"></span><div id="mirQr"></div></div>
         <p class="hint" dir="ltr" id="mirLink" style="word-break:break-all"></p>

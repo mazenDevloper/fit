@@ -202,9 +202,15 @@ export class ScreenHost {
     this.agent.send({ ...m, fw: t.width || 0, fh: t.height || 0 });
   }
   get link() { return location.origin + location.pathname + '#m' + this.code; }
-  async start() {
-    if (window.MadarAndroid) { this.stream = await androidStream(() => this.stop()); clearInterval(this.capT); this.capT = setInterval(() => { const k = JSON.stringify(this.caps()); if (k !== this.lastCaps) { this.lastCaps = k; this.sendCaps(); this.status(); } }, 2000); }
+  async start(opts = {}) {
+    if (opts.hdmi) {
+      this.hdmi = true; this.quality = 'hdmi';
+      this.stream = await hdmiStream(opts.deviceId);
+      this.stream.getVideoTracks()[0].addEventListener('ended', () => this.stop());
+    }
+    else if (window.MadarAndroid) { this.hdmi = false; this.stream = await androidStream(() => this.stop()); clearInterval(this.capT); this.capT = setInterval(() => { const k = JSON.stringify(this.caps()); if (k !== this.lastCaps) { this.lastCaps = k; this.sendCaps(); this.status(); } }, 2000); }
     else {
+    this.hdmi = false;
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('هذا المتصفح لا يدعم مشاركة الشاشة — استخدم Chrome أو Edge على الكمبيوتر');
     try { this.stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true }); }
     catch (e) { throw new Error(e.name === 'NotAllowedError' ? 'أُلغيت المشاركة أو لم يُسمح بها' : 'هذا الجهاز لا يسمح بمشاركة الشاشة من المتصفح'); }
@@ -220,7 +226,7 @@ export class ScreenHost {
       catch (e) { if (e.type !== 'unavailable-id') throw e; await new Promise(r => setTimeout(r, 2500)); }
     }
     this.peer.on('connection', conn => this.accept(conn));
-    if (!window.MadarAndroid) this.agent.start();
+    if (!window.MadarAndroid && !this.hdmi) this.agent.start();
     else {
       let last = 0;
       window.__madarTick = () => {
@@ -242,8 +248,8 @@ export class ScreenHost {
     conn.on('open', () => {
       this.viewers.add(conn); this.status();
       conn.send({ type: 'links', links: loadLinks() });
-      conn.send({ type: 'caps', ...this.caps() });
-      const call = this.peer.call(conn.peer, this.stream);
+      conn.send({ type: 'caps', ...this.caps(), hdmi: !!this.hdmi });
+      const call = this.peer.call(conn.peer, this.stream, this.hdmi ? { sdpTransform: preferH264 } : undefined);
       this.tune(call);
       conn.on('close', () => { this.viewers.delete(conn); call?.close(); this.status(); });
     });
@@ -259,6 +265,7 @@ export class ScreenHost {
     // game: smooth 30 fps first (smaller picture, motion-tuned encoder).
     const Q = { game: [1280, 74, 6000000, 30], low: [960, 62, 1200000, 24], medium: [1280, 72, 2500000, 30], high: [1600, 80, 5000000, 30], max: [1920, 88, 8000000, 30] }[level];
     if (!Q) return;
+    if (this.hdmi) return;              // the HDMI card keeps its own low-delay settings
     this.quality = level;
     try { window.MadarAndroid?.setQuality?.(Q[0], Q[1]); window.MadarAndroid?.setFps?.(Q[3]); } catch {}
     this.stream?.getVideoTracks().forEach(t => { try { t.contentHint = level === 'game' ? 'motion' : 'detail'; } catch {} });
@@ -269,13 +276,14 @@ export class ScreenHost {
   tune(call) {
     const pc = call && call.peerConnection; if (!pc) return;
     (this.calls || (this.calls = new Set())).add(call);
-    const rate = { game: 6000000, low: 1200000, medium: 2500000, high: 5000000, max: 8000000 }[this.quality || 'high'];
+    const rate = { hdmi: 10000000, game: 6000000, low: 1200000, medium: 2500000, high: 5000000, max: 8000000 }[this.quality || 'high'];
     const apply = () => pc.getSenders().forEach(snd => {
       if (!snd.track || snd.track.kind !== 'video') return;
       try {
         const p = snd.getParameters(); p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
-        p.encodings[0].maxBitrate = rate; p.encodings[0].maxFramerate = 30;
-        p.degradationPreference = this.quality === 'game' || this.quality === 'low' ? 'maintain-framerate' : 'balanced';
+        p.encodings[0].maxBitrate = rate; p.encodings[0].maxFramerate = this.hdmi ? 60 : 30;
+        if (this.hdmi) { p.encodings[0].priority = 'high'; p.encodings[0].networkPriority = 'high'; }
+        p.degradationPreference = this.hdmi || this.quality === 'game' || this.quality === 'low' ? 'maintain-framerate' : 'balanced';
         snd.setParameters(p).catch(() => {});
       } catch {}
     });
@@ -378,13 +386,84 @@ export class WebHost {
   }
 }
 
+// ---------- HDMI capture card (USB "video capture" sticks: PlayStation, TV box, receiver…) ----------
+// Read straight from the card like a webcam - no screen capture in between, so less delay and a clean picture.
+const CARD_RX = /usb video|capture|hdmi|cam ?link|uvc|macrosilicon|ms21\d\d|elgato|avermedia|ezcap|video grabber|usb3\.0/i;
+const BUILTIN_RX = /facetime|integrated|built.?in|front|back|rear|ir camera|truedepth|hd webcam|user facing|environment/i;
+export async function captureDevices() {
+  if (!navigator.mediaDevices?.enumerateDevices) return [];
+  let list = await navigator.mediaDevices.enumerateDevices();
+  if (!list.some(d => d.kind === 'videoinput' && d.label)) {
+    // labels appear only after one permission: ask once, close it at once
+    try { const t = await navigator.mediaDevices.getUserMedia({ video: true }); t.getTracks().forEach(x => x.stop()); } catch {}
+    list = await navigator.mediaDevices.enumerateDevices();
+  }
+  const cams = list.filter(d => d.kind === 'videoinput');
+  const score = d => (CARD_RX.test(d.label) ? 2 : 0) + (BUILTIN_RX.test(d.label) ? -2 : 0);
+  return cams.map(d => ({ id: d.deviceId, label: d.label || 'كاميرا', group: d.groupId, card: score(d) > 0, score: score(d) })).sort((a, b) => b.score - a.score);
+}
+export async function hdmiStream(deviceId) {
+  const cams = await captureDevices();
+  const cam = cams.find(c => c.id === deviceId) || cams[0];
+  if (!cam) throw new Error('لم أجد قطعة HDMI — وصّلها بمنفذ USB 3.0 ثم أعد المحاولة');
+  const video = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.id }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } }, audio: false });
+  // the card's own sound (same USB device), raw: no echo cancelling / noise filters that add delay
+  try {
+    const mics = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+    const mic = mics.find(m => m.groupId && m.groupId === cam.group) || mics.find(m => CARD_RX.test(m.label));
+    if (mic) {
+      const a = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: mic.deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false, latency: 0, channelCount: 2 } });
+      a.getAudioTracks().forEach(t => video.addTrack(t));
+    }
+  } catch {}
+  video.getVideoTracks().forEach(t => { try { t.contentHint = 'motion'; } catch {} });
+  video.label = cam.label;
+  return video;
+}
+// H.264 first: the iPhone decodes it in hardware (faster, cooler) - VP8 is decoded by the processor
+export function preferH264(sdp) {
+  return sdp.replace(/(m=video \d+ [A-Z/]+ )([\d ]+)/, (all, head, pts) => {
+    const h264 = [...sdp.matchAll(/a=rtpmap:(\d+) H264\/90000/g)].map(m => m[1]);
+    if (!h264.length) return all;
+    const rest = pts.split(' ').filter(p => !h264.includes(p));
+    return head + [...h264, ...rest].join(' ');
+  });
+}
+
 // ---------- Phone side ----------
 export class ScreenViewer {
   // prefix: 'madar-scr-' (shared screens) or 'madar-web-' (a device's built-in browser).
   constructor(prefix = PREFIX) { this.peer = null; this.gen = 0; this.prefix = prefix; }
   // Resolves with the remote MediaStream; onEnd is called when the laptop stops sharing.
   send(m) { try { if (this.conn && this.conn.open) this.conn.send(m); } catch {} }
-  async connect(code, { onEnd, onLinks, onCaps, onPage } = {}) {
+  // HDMI (games, live TV): show every frame as soon as it arrives - no smoothing buffer
+  lowDelay() {
+    try { this.pc?.getReceivers().forEach(r => { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 0; if ('playoutDelayHint' in r) r.playoutDelayHint = 0; }); } catch {}
+  }
+  // How late the picture is, in ms: network (half the round trip) + waiting in the buffer + decoding + ~1 frame
+  // to capture and encode on the other side. Measured every second from the connection's own statistics.
+  meter(cb) {
+    clearInterval(this.meterT); if (!cb) return;
+    let last = null;
+    this.meterT = setInterval(async () => {
+      const pc = this.pc; if (!pc) return;
+      try {
+        const st = await pc.getStats(); let rtt = 0, jb = 0, jn = 0, dec = 0, fd = 0, fps = 0, relay = false, lost = 0;
+        st.forEach(r => {
+          if (r.type === 'candidate-pair' && (r.nominated || r.selected) && r.state === 'succeeded') { rtt = r.currentRoundTripTime || rtt; const lc = st.get(r.localCandidateId), rc = st.get(r.remoteCandidateId); relay = lc?.candidateType === 'relay' || rc?.candidateType === 'relay'; }
+          if (r.type === 'inbound-rtp' && r.kind === 'video') { jb = r.jitterBufferDelay || 0; jn = r.jitterBufferEmittedCount || 0; dec = r.totalDecodeTime || 0; fd = r.framesDecoded || 0; fps = r.framesPerSecond || 0; lost = r.packetsLost || 0; }
+        });
+        const cur = { jb, jn, dec, fd };
+        if (last && jn > last.jn && fd > last.fd) {
+          const buf = (jb - last.jb) / (jn - last.jn), d = (dec - last.dec) / (fd - last.fd);
+          const ms = Math.round((rtt / 2 + buf + d + 1 / Math.max(24, fps || 30)) * 1000 + 15);
+          cb({ ms, fps: Math.round(fps), relay, lost });
+        }
+        last = cur;
+      } catch {}
+    }, 1000);
+  }
+  async connect(code, { onEnd, onLinks, onCaps, onPage, onDelay } = {}) {
     await lib();
     this.close();
     const gen = this.gen;
@@ -401,7 +480,7 @@ export class ScreenViewer {
       conn.on('data', d => {
         if (!d || gen !== this.gen) return;
         if (d.type === 'links') onLinks?.(mergeLinks(d.links));
-        else if (d.type === 'caps') { this.caps = d; onCaps?.(d); }
+        else if (d.type === 'caps') { this.caps = d; onCaps?.(d); if (d.hdmi) this.lowDelay(); }
         else if (d.type === 'page') { this.page = d; onPage?.(d); }
       });
       conn.on('close', () => end('closed'));
@@ -411,6 +490,8 @@ export class ScreenViewer {
           clearTimeout(timer);
           // A small steady buffer evens out Wi-Fi hiccups (smoother picture, ~0.1 s later).
           try { call.peerConnection.getReceivers().forEach(r => { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 100; }); } catch {}
+          if (this.caps?.hdmi) this.lowDelay();
+          this.meter(onDelay);
           res(s);
         });
         call.on('close', () => end('closed'));
@@ -429,5 +510,5 @@ export class ScreenViewer {
     });
   }
   healthy() { const st = this.pc && this.pc.iceConnectionState; return st === 'connected' || st === 'completed'; }
-  close() { this.gen++; this.pc = null; this.conn = null; this.caps = null; try { this.peer?.destroy(); } catch {} this.peer = null; }
+  close() { clearInterval(this.meterT); this.gen++; this.pc = null; this.conn = null; this.caps = null; try { this.peer?.destroy(); } catch {} this.peer = null; }
 }
