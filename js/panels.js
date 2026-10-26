@@ -1,6 +1,7 @@
 // System panels: the Launcher (home), in-headset calibration, and head-locked toasts.
 import * as THREE from 'three';
 import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip, canvasTexture } from './ui.js';
+import { slotNow } from './plus.js';
 import { settings, saveSettings, VIEWER_PRESETS, applyPreset, pairedDevices, KIND_LABEL } from './config.js';
 import { listItems, formatSize } from './db.js';
 
@@ -133,6 +134,8 @@ export class Launcher {
         ['target', 'إعادة التمركز', 'اجعل الأمام هنا', () => { a.recenter(); this.close(); }],
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['target', 'ضبط العدستين', 'تحريك وتكبير الصورتين', () => { this.close(); a.lensAdjust.open(); }],
+        ['eye', 'نظاراتي', settings.headset ? '🥽 ' + settings.headset : 'ملف لكل نظارة', () => { this.close(); const h = Object.keys(a.plus?.headsets() || {}); if (!h.length) { a.plus?.headsetWizard(); return; } const i = (h.indexOf(settings.headset) + 1) % h.length; a.plus.useHeadset(h[i]); }],
+        ['sliders', 'نظارة جديدة', 'معالج من ٣ خطوات', () => { this.close(); a.plus?.headsetWizard(); }],
         ['play', 'ريموت VR Park', settings.remote ? 'يعمل · اضغط لإيقافه' : '@+C مؤشر · @+D أزرار', () => { this.close(); a.remote?.toggle(); }],
         ['play', 'تعلّم أزرار الريموت', 'اضغط كل زر عندما يُطلب', () => { this.close(); a.remote?.startLearn(); }],
       ];
@@ -141,6 +144,10 @@ export class Launcher {
         ['mic', 'كرة المساعد', settings.orb ? 'ظاهرة · انظر إليها لتتكلم' : 'انظر إليها لتتكلم', () => { this.close(); const on = !settings.orb; saveSettings({ orb: on }); ex.orb.show(on); }],
         ['eye', 'ما هذا؟', 'اسأل عمّا تراه أمامك', () => { this.close(); ex.lookAndAsk('ما هذا الذي أمامي؟'); }],
         ['sound', 'الترجمة النصية', ex.captions.on ? 'تعمل' : 'عربي · إنجليزي ← عربي', () => { this.close(); ex.captions.toggle(); }],
+        ['ball', 'وضع المباراة', a.plus?.matchOn ? 'يعمل · اضغط للعودة' : 'المباراة + النتائج + يومك', () => { this.close(); a.plus?.matchMode(); }],
+        ['clock', 'مساحة ' + slotNow().name, a.plus?.spaces()[slotNow().id] ? 'افتحها · تُفتح وحدها في وقتها' : 'رتّب نوافذك ثم احفظها', () => { this.close(); if (a.plus?.spaces()[slotNow().id]) a.plus.openSpace(); else a.plus?.saveSpace(); }],
+        ['stack', 'احفظ كمساحة ' + slotNow().name, 'الصباح · العمل · السهرة', () => { this.close(); a.plus?.saveSpace(); }],
+        ['sun', 'وضع الاستلقاء', a.plus?.lying ? 'يعمل · اضغط للعودة' : 'النوافذ فوقك', () => { this.close(); a.plus?.toggleLying(); }],
         ['video', 'عرض متعدد', 'شبكة ٢×٢ والصوت يتبع نظرك', () => { this.close(); ex.toggleMultiview(); }],
         ['hand', 'الرسم في الهواء', ex.sketch.on ? 'يعمل' : 'اقرص وارسم بيدك', () => { this.close(); ex.sketch.toggle(); }],
         ['walk', 'وضع السفر', settings.travel ? 'يعمل' : 'سيارة · حافلة · طائرة', () => { this.close(); ex.toggleTravel(); }],
@@ -151,15 +158,15 @@ export class Launcher {
       );
       // folders (visionOS 26 Home View): setup tools and widgets each in one tile
       const FOLDERS = {
-        tools: ['grid', 'أدوات الإعداد', ['المعايرة', 'ضبط العدستين', 'إعادة التمركز', 'ترتيب النوافذ', 'دليل الإيماءات', 'لوحة المفاتيح', 'مسح الغرفة', 'البيئة', 'غرفة جديدة', 'تحديث التطبيق']],
+        tools: ['grid', 'أدوات الإعداد', ['المعايرة', 'ضبط العدستين', 'إعادة التمركز', 'ترتيب النوافذ', 'دليل الإيماءات', 'لوحة المفاتيح', 'مسح الغرفة', 'البيئة', 'غرفة جديدة', 'تحديث التطبيق', 'نظاراتي', 'نظارة جديدة', 'ريموت VR Park', 'تعلّم أزرار الريموت']],
         widgets: ['clock', 'الأدوات المصغّرة', null],
         dc: ['play', 'DriveCast', null],
       };
       const hubN = a.hub?.others().length || 0;
-      const dcItems = [W8('dcmedia', 'مكتبة DriveCast', 'تابع · المحفوظة · القوائم'), W8('dcdash', 'لوحة DriveCast', 'الصلاة · المباريات · مقترحات'), W8('remote', 'ريموت التلفاز', 'تحكم بـDriveCast'),
+      const dcItems = [W8('dcmedia', 'مكتبتي', 'تابع · المحفوظة · القوائم · هنا · لاحقاً'), W8('dcdash', 'لوحة DriveCast', 'الصلاة · المباريات · مقترحات'), W8('remote', 'ريموت التلفاز', 'تحكم بـDriveCast'),
         ['stack', 'أرسل النافذة', 'إلى السيارة أو التلفاز', () => { this.close(); const w = [...a.windows.windows].reverse().find(x => a.hub?.canSend(x)); if (w) a.hub.sendWindow(w); else a.toast('افتح فيديو أو صفحة أولاً', 2000); }],
         ['globe', 'الأجهزة المتصلة', hubN ? hubN + ' متصل' : 'لا يوجد', () => { a.toast(a.hub?.others().map(d => d.name).join(' · ') || 'لا أجهزة متصلة', 3500); }]];
-      const widgets = [W8('weather', 'الطقس', 'حسب موقعك'), W8('timer', 'المؤقت', 'مؤقت وساعة إيقاف'), W8('note', 'ملاحظة لاصقة', 'تُملى بصوتك'), W8('photos', 'إطار الصور', 'صور مكتبتك'), W8('nowplaying', 'يُعرض الآن', 'تحكم بكل ما يعمل'),
+      const widgets = [W8('today', 'يومك', 'المباريات · الصلاة · التذكيرات'), W8('weather', 'الطقس', 'حسب موقعك'), W8('timer', 'المؤقت', 'مؤقت وساعة إيقاف'), W8('note', 'ملاحظة لاصقة', 'تُملى بصوتك'), W8('photos', 'إطار الصور', 'صور مكتبتك'), W8('nowplaying', 'يُعرض الآن', 'تحكم بكل ما يعمل'),
         W8('verse', 'آية اليوم', 'بصوت العفاسي'), W8('scenes', 'المشاهد', 'احفظ ترتيبك وارجع إليه'), W8('aihist', 'سجل المساعد', 'محادثاتك السابقة'), W8('usage', 'استخدامك', 'وقتك والحرارة')];
       if (this.folder === 'widgets') list = widgets;
       else if (this.folder === 'dc') list = dcItems;

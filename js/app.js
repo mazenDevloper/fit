@@ -36,10 +36,11 @@ import { listItems, importFiles, deleteItem, formatSize, importPhotoBook, import
 import { depthMap, cachedDepth, saveDepth, forgetDepth } from './depth.js';
 import { audioContext, blip, setMaxAniso } from './ui.js';
 import { Remote } from './remote.js';
+import { Plus } from './plus.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '112';
+export const APP_VERSION = '113';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -125,7 +126,8 @@ class App {
     this.gaze = new GazeTracker(this);
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.extras = new Extras(this);
-    this.remote = new Remote(this);   // VR Park and other Bluetooth remotes
+    this.remote = new Remote(this);
+    this.plus = new Plus(this);       // match mode, spaces of the day, lying down, quiet notifications, headsets   // VR Park and other Bluetooth remotes
     this.hub = new HubClient(this);   // «المركز»: Madar ⇄ DriveCast
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     if (IOS) setupNative(this);
@@ -952,7 +954,7 @@ class App {
     if (settings.walk && !IOS) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
-    this.extras.enter();
+    this.extras.enter(); this.plus?.enter();
     this.hub.enter();
     if (settings.ambient && settings.ambient !== 'off') setTimeout(() => this.ambient.set(settings.ambient), 1500);
     // Your teams from cplay2 (once a day), then matches for the live island.
@@ -1300,7 +1302,7 @@ class App {
     this.controls.update(dt);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
-    this.extras.update(dt, now);
+    this.extras.update(dt, now); this.plus?.update(now);
     this.toastUI.update(now, this.renderQ);
     this.sports?.update(now, this.renderQ);
     if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }

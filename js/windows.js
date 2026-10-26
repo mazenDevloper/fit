@@ -980,7 +980,9 @@ export class VideoWindow extends SpatialWindow {
     }
     if (this.sphere) this.sphere.position.copy(this.mgr.headLocal());
     this.mat.uniforms.uHas.value = v.readyState >= 2 && this.tex ? 1 : 0;
-    if (this.tex && v.readyState >= 2 && v.currentTime !== this.lastFrameTime && (now - (this.texAt || 0) >= (settings.coolMax ? 39 : settings.cool ? 32 : 0)) && this.inView(now)) {
+    // smart heat: only the video you look at gets every frame; the others refresh at 15 fps (cooler phone)
+    const ex = this.mgr.app.extras, side = settings.smartHeat !== false && ex?.lookedWin && ex.lookedWin !== this && ex.lookedWin.kind === 'video' && performance.now() - (ex.lookedAt || 0) < 8000;
+    if (this.tex && v.readyState >= 2 && v.currentTime !== this.lastFrameTime && (now - (this.texAt || 0) >= (side ? 66 : settings.coolMax ? 39 : settings.cool ? 32 : 0)) && this.inView(now)) {
       this.lastFrameTime = v.currentTime; this.texAt = now;
       if (this.canvas) { try { this.cctx.drawImage(v, 0, 0, this.canvas.width, this.canvas.height); this.tex.needsUpdate = true; } catch {} }
       else this.tex.needsUpdate = true;

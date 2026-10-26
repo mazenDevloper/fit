@@ -30,8 +30,8 @@ const btn = (ctx, p, x, y, w, h, label, act, id, on = false) => {
 
 // ======================================================================== widgets in the room
 const SIZES = { xs: [0.2, 0.12], s: [0.3, 0.3], m: [0.48, 0.3], l: [0.62, 0.44] };
-const DEFAULT_SIZE = { dcmedia: 'l', dcdash: 'm', remote: 's', weather: 's', timer: 's', note: 's', photos: 'm', nowplaying: 'm', verse: 'm', scenes: 'm', aihist: 'l', usage: 's', text: 'l' };
-const W_TITLE = { dcmedia: 'مكتبة DriveCast', dcdash: 'لوحة DriveCast', remote: 'ريموت', weather: 'الطقس', timer: 'المؤقت', note: 'ملاحظة', photos: 'إطار الصور', nowplaying: 'يُعرض الآن', verse: 'آية اليوم', scenes: 'المشاهد', aihist: 'سجل المساعد', usage: 'استخدامك', text: '' };
+const DEFAULT_SIZE = { dcmedia: 'l', dcdash: 'm', remote: 's', weather: 's', timer: 's', note: 's', photos: 'm', nowplaying: 'm', verse: 'm', scenes: 'm', aihist: 'l', usage: 's', text: 'l', today: 'm' };
+const W_TITLE = { dcmedia: 'مكتبتي', today: 'يومك', dcdash: 'لوحة DriveCast', remote: 'ريموت', weather: 'الطقس', timer: 'المؤقت', note: 'ملاحظة', photos: 'إطار الصور', nowplaying: 'يُعرض الآن', verse: 'آية اليوم', scenes: 'المشاهد', aihist: 'سجل المساعد', usage: 'استخدامك', text: '' };
 const WX = { 0: ['☀️', 'صافٍ'], 1: ['🌤', 'صافٍ غالباً'], 2: ['⛅', 'غائم جزئياً'], 3: ['☁️', 'غائم'], 45: ['🌫', 'ضباب'], 48: ['🌫', 'ضباب'], 51: ['🌦', 'رذاذ'], 53: ['🌦', 'رذاذ'], 55: ['🌦', 'رذاذ'], 61: ['🌧', 'مطر خفيف'], 63: ['🌧', 'مطر'], 65: ['🌧', 'مطر غزير'], 80: ['🌦', 'زخات'], 81: ['🌧', 'زخات'], 82: ['⛈', 'زخات قوية'], 95: ['⛈', 'عاصفة رعدية'], 96: ['⛈', 'عاصفة'], 99: ['⛈', 'عاصفة'] };
 let weather = null, weatherAt = 0, verse = null;
 
@@ -66,9 +66,16 @@ export class Widget {
     if (t === 'photos') this.loadPhotos();
     if (t === 'dcmedia') this.loadLibrary();
     if (t === 'dcdash') this.loadDash();
+    if (t === 'today') { this.loadToday(); this.todayT = setInterval(() => this.loadToday(), 60000); }
     if (t === 'dcmedia' || t === 'dcdash' || t === 'remote') this.unhub = this.app.hub?.on(() => this.redraw());
   }
-  async loadLibrary() { try { this.lib = await (await fetch(HUB + '/library')).json(); } catch { this.lib = { ok: false }; } this.thumbs ||= new Map(); this.redraw(); }
+  async loadLibrary() {
+    try { this.lib = await (await fetch(HUB + '/library')).json(); } catch { this.lib = { ok: false }; }
+    // this device's own files (videos, photos, models, recordings) beside DriveCast's
+    try { this.local = (await listItems()).slice(0, 60).map(x => ({ id: x.id, title: x.name, local: x, thumb: null, kind: x.type })); } catch { this.local = []; }
+    this.thumbs ||= new Map(); this.redraw();
+  }
+  async loadToday() { try { this.today = (await (await fetch(HUB + '/today')).json()).items || []; } catch { this.today = this.today || []; } this.redraw(); }
   async loadDash() { try { const [a, b] = await Promise.all([fetch(HUB + '/islands?device=' + encodeURIComponent(this.app.hub?.me.id || '')).then(r => r.json()), fetch(HUB + '/suggest?place=room').then(r => r.json())]); this.dash = { islands: a.islands || [], suggest: b.items || [], today: b.today }; } catch { this.dash = { islands: [], suggest: [] }; } this.redraw(); }
   thumb(url) {
     if (!url) return null; this.thumbs ||= new Map();
@@ -106,12 +113,15 @@ export class Widget {
       btn(ctx, p, 17 + (W - 34) / 3, H * 0.8, (W - 34) / 3, bh, '↺', () => { Object.assign(d, { running: false, left: d.total || 300000, acc: 0 }); this.mgr.changed(); this.redraw(); }, 'rs');
       btn(ctx, p, 22 + (W - 34) * 2 / 3, H * 0.8, (W - 34) / 3, bh, d.mode === 'watch' ? 'مؤقت' : 'ساعة إيقاف', () => { d.mode = d.mode === 'watch' ? 'timer' : 'watch'; d.running = false; d.acc = 0; this.redraw(); }, 'md');
     } else if (t === 'dcmedia') {
-      const tabs = [['cont', 'تابع'], ['saved', 'المحفوظة'], ['pl', 'القوائم']], tab = this.data.tab || 'cont';
-      text(ctx, 'مكتبة DriveCast', W - 22, H * 0.085, f * 5, { align: 'right', weight: 800, color: COLORS.dim });
-      tabs.forEach(([k, l], i) => btn(ctx, p, W * 0.12 + 18 + i * (W * 0.17 + 8), H * 0.04, W * 0.17, H * 0.09, l, () => { this.data.tab = k; this.data.pl = null; this.page = 0; this.redraw(); }, 't' + k, tab === k));
+      // one shelf for everything: continue (any device), saved, playlists, this device's files, «later» inbox
+      const tabs = [['cont', 'تابع'], ['saved', 'المحفوظة'], ['pl', 'القوائم'], ['local', 'هنا'], ['inbox', 'لاحقاً']], tab = this.data.tab || 'cont';
+      text(ctx, 'مكتبتي', W - 22, H * 0.085, f * 5, { align: 'right', weight: 800, color: COLORS.dim });
+      tabs.forEach(([k, l], i) => btn(ctx, p, 16 + i * (W * 0.135 + 6), H * 0.04, W * 0.135, H * 0.09, l, () => { this.data.tab = k; this.data.pl = null; this.page = 0; this.redraw(); }, 't' + k, tab === k));
       if (!this.lib) { text(ctx, '…', W / 2, H / 2, f * 10); return; }
       const hubRes = Object.values(this.app.hub?.state.resume || {}).sort((a, b) => b.at - a.at).map(r => ({ ...r, from: r.from }));
       let list = tab === 'cont' ? [...hubRes, ...(this.lib.continue || []).filter(c => !hubRes.some(r => r.id === c.id)).map(c => ({ ...c, kind: 'yt' }))]
+        : tab === 'local' ? (this.local || [])
+        : tab === 'inbox' ? (this.app.hub?.state.inbox || []).map(x => ({ ...x, title: x.title || x.url || x.text }))
         : tab === 'saved' ? (this.lib.saved || []).map(v => ({ ...v, kind: 'yt' }))
         : this.data.pl ? ((this.lib.playlists || []).find(x => x.id === this.data.pl)?.videos || []).map(v => ({ ...v, kind: 'yt' }))
         : (this.lib.playlists || []).map(x => ({ id: x.id, title: x.name + ' (' + x.videos.length + ')', thumb: x.videos[0]?.thumb, isPl: true }));
@@ -128,10 +138,23 @@ export class Widget {
         text(ctx, it.title || it.id, x + cw - 16, y + 30 + th, f * 3.6, { align: 'right', weight: 700, maxWidth: tw, dir: 'auto' });
         const sub = it.from?.name ? 'من ' + it.from.name + (it.t ? ' · ' + fmtTime(it.t) : '') : it.channel || (it.t ? 'من ' + fmtTime(it.t) : '');
         if (sub) text(ctx, sub, x + cw - 16, y + 30 + th + f * 4.6, f * 3, { align: 'right', color: COLORS.dim, maxWidth: tw, dir: 'auto' });
-        p.region(x + 6, y + 6, cw - 12, ch - 12, () => { blip('tap', settings.sounds); if (it.isPl) { this.data.pl = it.id; this.page = 0; this.redraw(); } else this.app.hub?.open(it); }, id);
+        p.region(x + 6, y + 6, cw - 12, ch - 12, () => { blip('tap', settings.sounds); if (it.isPl) { this.data.pl = it.id; this.page = 0; this.redraw(); } else if (it.local) { this.app.windows.open({ kind: it.local.type, itemId: it.local.id, name: it.local.name }); } else this.app.hub?.open(it); }, id);
         if (!it.isPl && this.app.hub?.others().length) { const bx = x + 14, by = y + ch - 12 - H * 0.075; btn(ctx, p, bx, by, cw * 0.3, H * 0.065, '📺 أرسل', () => this.app.hub.pick(d => { this.app.hub.op({ op: 'send', to: d.id, msg: { type: 'open', item: it, now: true } }); this.app.toast('📤 ' + d.name, 1500); }), 's' + i); }
       });
-      if (pages > 1) btn(ctx, p, 16, H * 0.04, W * 0.12, H * 0.09, (this.page + 1) + '/' + pages, () => { this.page = (this.page + 1) % pages; this.redraw(); }, 'pg');
+      if (pages > 1) btn(ctx, p, 16, H * 0.9, W * 0.12, H * 0.08, (this.page + 1) + '/' + pages, () => { this.page = (this.page + 1) % pages; this.redraw(); }, 'pg');
+    } else if (t === 'today') {
+      // «يومك»: the same list as DriveCast's hub - matches, prayers, reminders, Madar's plan
+      const L = (this.today || []).slice(0, xs ? 2 : this.size === 's' ? 4 : 7);
+      if (!this.today) { text(ctx, '…', W / 2, H / 2, f * 10); return; }
+      if (!L.length) { text(ctx, 'يوم هادئ', W / 2, H * 0.55, f * 8, { color: COLORS.dim }); return; }
+      const rh = (H * 0.78) / Math.max(4, L.length), IC = { match: '⚽', azan: '🕌', iqamah: '🕋', reminder: '⏰', plan: '💪', timer: '⏱' };
+      L.forEach((x, i) => {
+        const y = H * 0.18 + i * rh;
+        roundRect(ctx, 12, y + 2, W - 24, rh - 4, (rh - 4) / 2); ctx.fillStyle = x.live ? 'rgba(225,29,72,0.45)' : 'rgba(255,255,255,0.07)'; ctx.fill();
+        text(ctx, (IC[x.kind] || '•') + ' ' + x.title, W - 26, y + rh / 2, rh * 0.34, { align: 'right', weight: 800, maxWidth: W * 0.62, dir: 'auto' });
+        const tm = x.live ? (x.sub || 'مباشر') : new Date(x.at).toLocaleTimeString('ar-OM', { hour: 'numeric', minute: '2-digit' });
+        text(ctx, tm, 26, y + rh / 2, rh * 0.3, { align: 'left', color: x.live ? '#fff' : '#cfd6e6', maxWidth: W * 0.3, dir: 'auto' });
+      });
     } else if (t === 'dcdash') {
       const d = this.dash, hub = this.app.hub;
       text(ctx, (hub?.online ? '🟢 ' : '⚪ ') + (hub?.others().map(x => x.name).join(' · ') || 'لا أجهزة متصلة'), W - 20, H * 0.2, f * 4.5, { align: 'right', color: COLORS.dim, maxWidth: W - 40, dir: 'auto' });
@@ -270,7 +293,7 @@ export class Widget {
   scaleBy(f) { this.group.scale.setScalar(THREE.MathUtils.clamp(this.group.scale.x * f, 0.4, 4)); this.mgr.changed(); }
   onDragEnd() {}
   serialize() { const g = this.group; return { kind: 'widget', ref: { type: this.type, size: this.size, data: ['photos', 'nowplaying', 'dcdash', 'remote'].includes(this.type) ? {} : this.type === 'dcmedia' ? { tab: this.data.tab } : this.data }, p: g.position.toArray().map(v => +v.toFixed(3)), q: g.quaternion.toArray().map(v => +v.toFixed(4)), s: +g.scale.x.toFixed(3), ek: this.envPin || undefined }; }
-  dispose() { this.panel.dispose(); this.btns.forEach(b => b.dispose()); this.bitmap?.close?.(); this.unhub?.(); }
+  dispose() { this.panel.dispose(); this.btns.forEach(b => b.dispose()); this.bitmap?.close?.(); this.unhub?.(); clearInterval(this.todayT); }
 }
 
 // ======================================================================== the assistant orb (visionOS 27)
@@ -609,9 +632,10 @@ export class Extras {
   // ---------------------------------------------------------------- focus: everything except what you look at fades
   toggleFocus() { this.focus = !this.focus; if (!this.focus) this.applyFocus(null); this.app.toast(this.focus ? '🎯 وضع التركيز' : 'انتهى التركيز', 1500); }
   focusTick() {
-    if (!this.focus) return;
     const I = this.app.interaction, looked = [I.pointers[2], I.pointers[0], I.pointers[1]].find(p => p.active && p.hoverObj)?.hoverObj;
     let w = null; for (let o = looked; o && !w; o = o.parent) w = o.userData.window || null;
+    if (w) { this.lookedWin = w; this.lookedAt = performance.now(); }
+    if (!this.focus) return;
     if (w) this.focusWin = w;
     this.applyFocus(this.focusWin);
   }
@@ -770,6 +794,14 @@ export class Extras {
     if (has('لخص', 'لخّص', 'ملخص')) { const w = [app.controls.pointedWindow(), ...[...app.windows.windows].reverse()].find(x => x?.kind === 'web'); if (w) this.summarize(w.url, w.title); else app.toast('افتح صفحة أولاً', 2000); return true; }
     if (has('ترجمة فورية', 'الترجمة الفورية', 'ترجمة نصية', 'الترجمة النصية', 'الترجمة')) { this.captions.toggle(has('انجليزي', 'إنجليزي', 'الانجليزية', 'الإنجليزية') ? 'en-US' : has('عربي') ? 'ar-SA' : null); return true; }
     if (has('عرض متعدد', 'شاشات متعددة', 'ملتي فيو')) { this.toggleMultiview(); return true; }
+    if (has('وضع المباراة', 'المباراة')) { app.plus?.matchMode(); return true; }
+    if (has('استلقاء', 'مستلقي', 'فوقي')) { app.plus?.toggleLying(); return true; }
+    if (has('احفظ المساحة', 'احفظ كمساحة')) { app.plus?.saveSpace(); return true; }
+    if (has('المساحة التالية', 'غير المساحة', 'غيّر المساحة')) { app.plus?.nextSpace(); return true; }
+    if (has('مساحة الصباح')) { app.plus?.openSpace({ id: 'morning', name: 'الصباح' }); return true; }
+    if (has('مساحة العمل')) { app.plus?.openSpace({ id: 'work', name: 'العمل' }); return true; }
+    if (has('مساحة السهرة')) { app.plus?.openSpace({ id: 'evening', name: 'السهرة' }); return true; }
+    if (has('يومي', 'جدولي', 'يومك')) { this.widget('today'); return true; }
     if (has('وضع السفر', 'السيارة', 'الطائرة')) { this.toggleTravel(); return true; }
     if (has('وضع التركيز', 'ركز')) { this.toggleFocus(); return true; }
     if (has('امسح الرسم')) { this.sketch.clear(); return true; }
