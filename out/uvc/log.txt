@@ -1,0 +1,22 @@
+meta: <?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>com.herohan</groupId>
+  <artifactId>UVCAndroid</artifactId>
+  <versioning>
+    <latest>1.0.13</latest>
+    <release>1.0.13</release>
+    <versions>
+      <version>1.0.0</version>
+      <version>1.0.1</version>
+      <version>1.0.2</version>
+      <version>1.0.3</version>
+      <version>1.0.4</version>
+      <version>1.0.5</version>
+      <version>1.0.6</version>
+      <version>1.0.7</version>
+      <version>1.0.8</version>
+      <version>1.0.9</version>
+      <version>1.0.10</version>
+      <version>1.0.11</version>
+      <version>1.
+files: META-INF/ META-INF/MANIFEST.MF com/ com/herohan/ com/herohan/uvcapp/ com/herohan/uvcapp/CameraConnectionService.java com/herohan/uvcapp/CameraException.java com/herohan/uvcapp/CameraHelper.java com/herohan/uvcapp/CameraInternal.java com/herohan/uvcapp/CameraPreviewConfig.java com/herohan/uvcapp/CameraRendererHolder.java com/herohan/uvcapp/ICameraConnection.java com/herohan/uvcapp/ICameraHelper.java com/herohan/uvcapp/ICameraInternal.java com/herohan/uvcapp/ICameraRendererHolder.java com/herohan/uvcapp/IImageCapture.java com/herohan/uvcapp/ImageCapture.java com/herohan/uvcapp/ImageCapture2.java com/herohan/uvcapp/ImageCaptureConfig.java com/herohan/uvcapp/ImageRawData.java com/herohan/uvcapp/ImageSaver.java com/herohan/uvcapp/ImageSaver2.java com/herohan/uvcapp/VideoCapture.java com/herohan/uvcapp/VideoCaptureConfig.java com/herohan/uvcapp/utils/ com/herohan/uvcapp/utils/VideoUtil.java com/herohan/uvcapp/utils/Watchdog.java com/herohan/uvcapp/utils/WatchdogDiagnostics.java com/serenegiant/ com/serenegiant/encoder/ com/serenegiant/encoder/IAudioEncoder.java com/serenegiant/encoder/IVideoEncoder.java com/serenegiant/encoder/MediaAudioEncoder.java com/serenegiant/encoder/MediaEncoder.java com/serenegiant/encoder/MediaMuxerWrapper.java com/serenegiant/encoder/MediaSurfaceEncoder.java com/serenegiant/encoder/MediaVideoBufferEncoder.java com/serenegiant/encoder/MediaVideoEncoder.java com/serenegiant/encoder/helper/ com/serenegiant/encoder/helper/MediaSurfaceEncoderHelper.java com/serenegiant/encoder/helper/MediaVideoBufferEncoderHelper.java com/serenegiant/opengl/ com/serenegiant/opengl/EGLBase.java com/serenegiant/opengl/EGLBase10.java com/serenegiant/opengl/EGLBase14.java com/serenegiant/opengl/EGLTask.java com/serenegiant/opengl/GLDrawer2D.java com/serenegiant/opengl/GLHelper.java com/serenegiant/opengl/GLTexture.java com/serenegiant/opengl/IDrawer2D.java com/serenegiant/opengl/ITexture.java com/serenegiant/opengl/ShaderConst.java com/serenegiant/opengl/TextureOffscreen.java com/serenegiant/opengl/renderer/ com/serenegiant/opengl/renderer/IRendererHolder.java com/serenegiant/opengl/renderer/MirrorMode.java com/serenegiant/opengl/renderer/RendererHolder.java com/serenegiant/opengl/renderer/RendererHolderCallback.java com/serenegiant/opengl/renderer/RendererSurface.java com/serenegiant/opengl/utils/ com/serenegiant/opengl/utils/RenderHandler.java com/serenegiant/usb/ com/serenegiant/usb/CameraDialog.java com/serenegiant/usb/DeviceFilter.java com/serenegiant/usb/Format.java com/serenegiant/usb/IButtonCallback.java com/serenegiant/usb/IFrameCallback.java com/serenegiant/usb/IStatusCallback.java com/serenegiant/usb/Size.java com/serenegiant/usb/USBMonitor.java com/serenegiant/usb/USBVendorId.java com/serenegiant/usb/UVCCamera.java com/serenegiant/usb/UVCControl.java com/serenegiant/usb/UVCParam.java com/serenegiant/utils/ com/serenegiant/utils/AssetsHelper.java com/serenegiant/utils/FileUtils.java com/serenegiant/utils/FpsCounter.java com/serenegiant/utils/HandlerThreadHandler.java com/serenegiant/utils/Time.java com/serenegiant/utils/UVCUtils.java com/serenegiant/utils/UriHelper.java com/serenegiant/utils/ViewAnimationHelper.java com/serenegiant/widget/ com/serenegiant/widget/AspectRatioSurfaceView.java com/serenegiant/widget/AspectRatioTextureView.java com/serenegiant/widget/CameraViewInterface.java com/serenegiant/widget/IAspectRatioView.java com/serenegiant/widget/UVCCameraTextureView.java com/serenegiant/uvccamera/ com/serenegiant/uvccamera/BuildConfig.java
