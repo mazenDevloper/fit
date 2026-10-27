@@ -203,6 +203,9 @@ export class ScreenHost {
   }
   get link() { return location.origin + location.pathname + '#m' + this.code; }
   async start(opts = {}) {
+    // switching source while sharing (screen ⇄ HDMI): the old picture stops, the viewers get the new one
+    const old = this.stream, live = !!this.peer;
+    if (old && live) { try { if (window.MadarAndroid) window.MadarAndroid.stopCapture(); } catch {} old.getTracks().forEach(t => t.stop()); this.stream = null; await new Promise(r => setTimeout(r, 400)); }
     if (opts.controlOnly) {
       // «remote only»: no picture, just the control link (a TV box you watch through HDMI, a tablet across the room)
       this.hdmi = false; this.stream = null; this.controlOnly = true;
@@ -224,6 +227,10 @@ export class ScreenHost {
     this.stream.getVideoTracks()[0].addEventListener('ended', () => this.stop());
     }
     await lib();
+    if (live && this.peer && !this.peer.destroyed) {
+      for (const c of this.viewers) { try { const call = this.peer.call(c.peer, this.stream); this.tune(call); c.send({ type: 'caps', ...this.caps(), hdmi: !!this.hdmi }); } catch {} }
+      this.status(); return;
+    }
     // Always this device's permanent number (so its QR code never changes). If the number is still held by a
     // session that just closed, wait for it to be released; only as a last resort use a temporary one.
     const fixed = deviceIdentity().code;
@@ -256,7 +263,7 @@ export class ScreenHost {
       this.viewers.add(conn); this.status();
       conn.send({ type: 'links', links: loadLinks() });
       conn.send({ type: 'caps', ...this.caps(), hdmi: !!this.hdmi });
-      const call = this.stream ? this.peer.call(conn.peer, this.stream, this.hdmi ? { sdpTransform: preferH264 } : undefined) : null;
+      const call = this.stream ? this.peer.call(conn.peer, this.stream) : null;
       if (call) this.tune(call);
       conn.on('close', () => { this.viewers.delete(conn); call?.close(); this.status(); });
     });
@@ -288,7 +295,7 @@ export class ScreenHost {
       if (!snd.track || snd.track.kind !== 'video') return;
       try {
         const p = snd.getParameters(); p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
-        p.encodings[0].maxBitrate = rate; p.encodings[0].maxFramerate = this.hdmi ? 60 : 30;
+        p.encodings[0].maxBitrate = rate; p.encodings[0].maxFramerate = this.hdmi ? Math.min(60, this.stream?.getVideoTracks()[0]?.getSettings?.().frameRate || 30) : 30;
         if (this.hdmi) { p.encodings[0].priority = 'high'; p.encodings[0].networkPriority = 'high'; }
         p.degradationPreference = this.hdmi || this.quality === 'game' || this.quality === 'low' ? 'maintain-framerate' : 'balanced';
         snd.setParameters(p).catch(() => {});
@@ -414,7 +421,7 @@ export async function hdmiStream(deviceId) {
   const cams = await captureDevices();
   const cam = cams.find(c => c.id === deviceId) || cams[0];
   if (!cam) throw new Error('لم أجد قطعة HDMI — وصّلها بمنفذ USB 3.0 ثم أعد المحاولة');
-  const video = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.id }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } }, audio: false });
+  const video = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.id }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
   // the card's own sound (same USB device), raw: no echo cancelling / noise filters that add delay
   try {
     const mics = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
@@ -446,7 +453,7 @@ export class ScreenViewer {
   send(m) { try { if (this.conn && this.conn.open) this.conn.send(m); } catch {} }
   // HDMI (games, live TV): show every frame as soon as it arrives - no smoothing buffer
   lowDelay() {
-    try { this.pc?.getReceivers().forEach(r => { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 0; if ('playoutDelayHint' in r) r.playoutDelayHint = 0; }); } catch {}
+    try { this.pc?.getReceivers().forEach(r => { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 40; }); } catch {}
   }
   // How late the picture is, in ms: network (half the round trip) + waiting in the buffer + decoding + ~1 frame
   // to capture and encode on the other side. Measured every second from the connection's own statistics.
@@ -471,14 +478,14 @@ export class ScreenViewer {
       } catch {}
     }, 1000);
   }
-  async connect(code, { onEnd, onLinks, onCaps, onPage, onDelay } = {}) {
+  async connect(code, { onEnd, onLinks, onCaps, onPage, onDelay, onStream } = {}) {
     await lib();
     this.close();
     const gen = this.gen;
     let ended = false;
     // Called once per connection, and never for a connection we replaced ourselves.
     const end = why => { if (ended || gen !== this.gen) return; ended = true; onEnd?.(why); };
-    const peer = this.peer = new window.peerjs.Peer(undefined, rtc);
+    const peer = this.peer = new window.peerjs.Peer(undefined, rtc); this.got = false;
     await new Promise((res, rej) => { peer.once('open', res); peer.once('error', rej); });
     return new Promise((res, rej) => {
       const timer = setTimeout(() => rej(new Error('لم يتم العثور على الجهاز — تأكد من الرقم وأن المشاركة تعمل عليه')), 15000);
@@ -500,7 +507,7 @@ export class ScreenViewer {
           try { call.peerConnection.getReceivers().forEach(r => { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 100; }); } catch {}
           if (this.caps?.hdmi) this.lowDelay();
           this.meter(onDelay);
-          res(s);
+          if (this.got) onStream?.(s); else { this.got = true; res(s); }   // a later picture (source switched) replaces the first
         });
         call.on('close', () => end('closed'));
         // Network trouble: 'disconnected' often heals by itself within seconds; 'failed' never does.

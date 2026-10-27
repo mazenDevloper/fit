@@ -40,7 +40,7 @@ import { Plus } from './plus.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '115';
+export const APP_VERSION = '116';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -248,6 +248,7 @@ class App {
     try {
       const stream = await this.viewer.connect(code, {
         onEnd: why => this.mirrorLost(code, why),
+        onStream: s => { this.mirrorWin?.setStream(s); this.toast('تبدّل المصدر', 1500); },
         onLinks: n => { if (n) { this.toast('أُضيفت ' + n + ' روابط من ' + this.devName(code)); this.renderLinks(); } },
         onCaps: c => {
           const was = this.mirrorWin?.control;

@@ -71,7 +71,7 @@
   async function watch(code, tries = 0) {
     toast('جاري الاتصال بـ ' + code + '…');
     try {
-      const stream = await viewer.connect(code, { onEnd: () => { toast('انقطع البث — إعادة الاتصال…'); setTimeout(() => watch(code), 1500); } });
+      const stream = await viewer.connect(code, { onStream: s => { const v = document.querySelector('video'); if (v) { v.srcObject = s; v.play?.().catch(() => {}); } }, onEnd: () => { toast('انقطع البث — إعادة الاتصال…'); setTimeout(() => watch(code), 1500); } });
       const v = document.createElement('video'); v.autoplay = true; v.playsInline = true; v.srcObject = stream; show(v);
       v.play().catch(() => { v.muted = true; v.play(); toast('اضغط OK لتشغيل الصوت'); v.onclick = () => { v.muted = false; }; });
       v.onpause = () => setTimeout(() => v.play().catch(() => {}), 300);
