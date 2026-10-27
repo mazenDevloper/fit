@@ -749,8 +749,10 @@ export class VideoWindow extends SpatialWindow {
     this.tex?.dispose();
     const w = v.videoWidth, h = v.videoHeight;
     const cap = this.stream && /iPhone|iPad/.test(navigator.userAgent) ? 1280 : 1920;   // live pictures on iPhone: lighter (no memory crash)
-    if (Math.max(w, h) > cap) {
-      const k = cap / Math.max(w, h);
+    // live pictures always go through a canvas (drawImage works for every WebRTC stream; a raw video texture
+    // stayed black on some decoders)
+    if (Math.max(w, h) > cap || (this.stream && w > 0)) {
+      const k = Math.min(1, cap / Math.max(w, h));
       const c = document.createElement('canvas');
       c.width = Math.round(w * k); c.height = Math.round(h * k);
       this.canvas = c; this.cctx = c.getContext('2d');
@@ -987,7 +989,7 @@ export class VideoWindow extends SpatialWindow {
     const ex = this.mgr.app.extras, side = settings.smartHeat !== false && ex?.lookedWin && ex.lookedWin !== this && ex.lookedWin.kind === 'video' && performance.now() - (ex.lookedAt || 0) < 8000;
     if (this.stream && this.tex && v.readyState >= 2 && v.videoWidth && now - (this.texChk || 0) > 1000) {
       this.texChk = now;
-      if (!this.texW || this.texW !== v.videoWidth) { this.texW = v.videoWidth; this.setupTexture(); }
+      if (!this.texW || this.texW !== v.videoWidth || this.texH !== v.videoHeight) { this.texW = v.videoWidth; this.texH = v.videoHeight; this.setAspect(v.videoWidth / v.videoHeight); this.setupTexture(); }
     }
     if (this.tex && v.readyState >= 2 && (this.stream ? now - (this.texAt || 0) >= 30 : v.currentTime !== this.lastFrameTime) && (now - (this.texAt || 0) >= (side ? 66 : settings.coolMax ? 39 : settings.cool ? 32 : 0)) && this.inView(now)) {
       this.lastFrameTime = v.currentTime; this.texAt = now;
