@@ -499,8 +499,10 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     private class Bridge {
         @JavascriptInterface public void startCapture() { runOnUiThread(MainActivity.this::startCapture); }
         @JavascriptInterface public void startUvc() { runOnUiThread(() -> {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_PERMS);
             if (uvc == null) uvc = new UvcSource(MainActivity.this, new UvcSource.Sink() {
                 @Override public void onJpeg(byte[] j, long ts) { onFrame(j, ts); }
+                @Override public void onPcm(byte[] p, int n) { onAudio(p, n); }
                 @Override public void onUvcState(String st) { main.post(() -> {
                     if ("nocard".equals(st)) { Toast.makeText(MainActivity.this, "وصّل قطعة HDMI بمنفذ USB-C (OTG)", Toast.LENGTH_LONG).show(); return; }
                     js("window.__madarCapture&&__madarCapture('" + ("started".equals(st) ? "started" : "denied".equals(st) || "error".equals(st) ? "denied" : "stopped") + "')"); updatePip(); }); }

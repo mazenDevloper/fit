@@ -20,7 +20,7 @@ import java.util.List;
  * The card sends MJPEG: each frame already is a JPEG - passed on as it is, no re-encoding (fast, cool).
  */
 final class UvcSource {
-    interface Sink { void onJpeg(byte[] jpeg, long ts); void onUvcState(String s); }
+    interface Sink { void onJpeg(byte[] jpeg, long ts); void onUvcState(String s); void onPcm(byte[] pcm, int len); }
     private final Context ctx; private final Sink sink;
     private ICameraHelper helper;
     volatile boolean running;
@@ -55,6 +55,7 @@ final class UvcSource {
                 helper.setFrameCallback(frameCb, UVCCamera.PIXEL_FORMAT_RAW);
                 helper.startPreview();
                 running = true; sink.onUvcState("started");
+                startAudio();
             }
             @Override public void onCameraClose(UsbDevice d) { running = false; }
             @Override public void onDeviceClose(UsbDevice d) { }
@@ -83,8 +84,38 @@ final class UvcSource {
         }
     };
 
+    // ---- the card's sound: it is also a USB microphone; recorded from that device only, raw (no voice filters),
+    // 48 kHz stereo 16-bit in 40 ms pieces - the same sound path as a shared screen
+    private android.media.AudioRecord rec; private Thread recT;
+    @android.annotation.SuppressLint("MissingPermission")
+    private void startAudio() {
+        try {
+            android.media.AudioManager am = (android.media.AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+            android.media.AudioDeviceInfo usb = null;
+            for (android.media.AudioDeviceInfo d : am.getDevices(android.media.AudioManager.GET_DEVICES_INPUTS))
+                if (d.getType() == android.media.AudioDeviceInfo.TYPE_USB_DEVICE || d.getType() == android.media.AudioDeviceInfo.TYPE_USB_HEADSET) { usb = d; break; }
+            if (usb == null) return;
+            int rate = 48000, ch = android.media.AudioFormat.CHANNEL_IN_STEREO, fmt = android.media.AudioFormat.ENCODING_PCM_16BIT;
+            int min = android.media.AudioRecord.getMinBufferSize(rate, ch, fmt);
+            rec = new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.UNPROCESSED, rate, ch, fmt, Math.max(min, 7680 * 4));
+            if (rec.getState() != android.media.AudioRecord.STATE_INITIALIZED) { rec.release(); rec = new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC, rate, ch, fmt, Math.max(min, 7680 * 4)); }
+            rec.setPreferredDevice(usb);
+            rec.startRecording();
+            final android.media.AudioRecord r = rec;
+            recT = new Thread(() -> {
+                byte[] buf = new byte[7680];   // 40 ms
+                while (running && r.getRecordingState() == android.media.AudioRecord.RECORDSTATE_RECORDING) {
+                    int n = r.read(buf, 0, buf.length);
+                    if (n > 0) sink.onPcm(buf, n);
+                }
+            }, "uvc-audio");
+            recT.start();
+        } catch (Exception ignored) { }
+    }
+
     void stop() {
         running = false;
+        try { if (rec != null) { rec.stop(); rec.release(); } } catch (Exception ignored) { } rec = null;
         ICameraHelper h = helper; helper = null;
         if (h != null) { try { h.stopPreview(); } catch (Exception ignored) { } try { h.closeCamera(); } catch (Exception ignored) { } try { h.release(); } catch (Exception ignored) { } }
         sink.onUvcState("stopped");
