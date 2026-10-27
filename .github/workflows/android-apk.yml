@@ -28,8 +28,13 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Build release APK
-        run: gradle --no-daemon :app:assembleRelease 2>&1 | tee build.log; s=${PIPESTATUS[0]}; grep -E "error:|e: |What went wrong|Could not|AAPT|Manifest merger" -A3 build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done; exit $s
         shell: bash
+        run: |
+          set +e
+          gradle --no-daemon :app:assembleRelease > build.log 2>&1; s=$?
+          tail -60 build.log
+          grep -E "error:|e: |What went wrong|Could not|AAPT|Manifest merger|> " -A2 build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+          exit $s
 
       - name: Collect APK
         run: |
