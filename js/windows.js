@@ -284,7 +284,7 @@ class SpatialWindow {
     if (!textV) { if (this.badge) this.badge.mesh.visible = false; return; }
     if (!this.badge) {
       this.badgeTxt = ''; this.badgeCol = color;
-      this.badge = new CanvasPanel(0.42, 0.055, (ctx, W, H) => {
+      this.badge = new CanvasPanel(0.62, 0.055, (ctx, W, H) => {
         glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
         ctx.fillStyle = this.badgeCol; ctx.beginPath(); ctx.arc(H * 0.55, H / 2, H * 0.16, 0, 7); ctx.fill();
         ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(H * 0.46)}px ${FONT}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
@@ -294,7 +294,7 @@ class SpatialWindow {
     }
     if (textV === this.badgeTxt && color === this.badgeCol) return;
     this.badgeTxt = textV; this.badgeCol = color; this.badge.mesh.visible = true;
-    this.badge.mesh.position.set(0.5 - 0.21, this.h / 2 + 0.045, 0.004); this.badge.redraw();
+    this.badge.mesh.position.set(0.5 - 0.31, this.h / 2 + 0.045, 0.004); this.badge.redraw();
   }
   // «بلا خلفية»: the picture's own transparency (PNG, video with alpha) or a green screen keyed out - no frame, no glass
   setCut(mode) {
