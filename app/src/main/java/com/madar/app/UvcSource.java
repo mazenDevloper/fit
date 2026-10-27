@@ -26,7 +26,7 @@ final class UvcSource {
     volatile boolean running;
     private long t0, last;
     private final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(512 * 1024);
-    volatile long minFrameMs = 16;
+    volatile long minFrameMs = 33;   // 30 fps: enough, lighter for the tablet and the viewer
 
     UvcSource(Context c, Sink s) { ctx = c.getApplicationContext(); sink = s; }
 
