@@ -296,7 +296,7 @@ export class ScreenHost {
       try {
         const p = snd.getParameters(); p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
         p.encodings[0].maxBitrate = rate; p.encodings[0].maxFramerate = this.hdmi ? Math.min(60, this.stream?.getVideoTracks()[0]?.getSettings?.().frameRate || 30) : 30;
-        if (this.hdmi) { p.encodings[0].priority = 'high'; p.encodings[0].networkPriority = 'high'; }
+        if (this.hdmi) { p.encodings[0].priority = 'high'; p.encodings[0].networkPriority = 'high'; const w = this.stream?.getVideoTracks()[0]?.getSettings?.().width || 0; if (w > 1280) p.encodings[0].scaleResolutionDownBy = w / 1280; p.encodings[0].maxBitrate = 6000000; }
         p.degradationPreference = this.hdmi || this.quality === 'game' || this.quality === 'low' ? 'maintain-framerate' : 'balanced';
         snd.setParameters(p).catch(() => {});
       } catch {}

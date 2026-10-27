@@ -748,8 +748,9 @@ export class VideoWindow extends SpatialWindow {
     const v = this.video;
     this.tex?.dispose();
     const w = v.videoWidth, h = v.videoHeight;
-    if (Math.max(w, h) > 1920) {
-      const k = 1920 / Math.max(w, h);
+    const cap = this.stream && /iPhone|iPad/.test(navigator.userAgent) ? 1280 : 1920;   // live pictures on iPhone: lighter (no memory crash)
+    if (Math.max(w, h) > cap) {
+      const k = cap / Math.max(w, h);
       const c = document.createElement('canvas');
       c.width = Math.round(w * k); c.height = Math.round(h * k);
       this.canvas = c; this.cctx = c.getContext('2d');
