@@ -25,6 +25,7 @@ final class UvcSource {
     private ICameraHelper helper;
     volatile boolean running;
     private long t0, last;
+    private final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(512 * 1024);
     volatile long minFrameMs = 16;
 
     UvcSource(Context c, Sink s) { ctx = c.getApplicationContext(); sink = s; }
@@ -44,6 +45,9 @@ final class UvcSource {
                         if (s.type != UVCCamera.UVC_VS_FRAME_MJPEG || s.height > 1080) continue;
                         if (best == null || s.width * s.height > best.width * best.height || (s.width == best.width && s.fps > best.fps)) best = s;
                     }
+                } catch (Exception ignored) { }
+                if (best == null) try {
+                    for (Size s : helper.getSupportedSizeList()) if (s.height <= 720 && (best == null || s.width * s.height > best.width * best.height)) best = s;
                 } catch (Exception ignored) { }
                 try { if (best != null) helper.openCamera(best); else helper.openCamera(); } catch (Exception e) { sink.onUvcState("error"); }
             }
@@ -67,8 +71,15 @@ final class UvcSource {
             if (now - last < minFrameMs) return; last = now;
             int n = frame.remaining(); if (n < 100) return;
             byte[] b = new byte[n]; frame.get(b);
-            if ((b[0] & 0xff) != 0xFF || (b[1] & 0xff) != 0xD8) return;   // not a JPEG (YUYV mode): skip
-            sink.onJpeg(b, now - t0);
+            if ((b[0] & 0xff) == 0xFF && (b[1] & 0xff) == 0xD8) { sink.onJpeg(b, now - t0); return; }
+            // the card sends raw YUYV (no MJPEG): compress it here
+            try {
+                Size sz = helper != null ? helper.getPreviewSize() : null; if (sz == null) return;
+                if (n < sz.width * sz.height * 2) return;
+                android.graphics.YuvImage yi = new android.graphics.YuvImage(b, android.graphics.ImageFormat.YUY2, sz.width, sz.height, null);
+                out.reset(); yi.compressToJpeg(new android.graphics.Rect(0, 0, sz.width, sz.height), 72, out);
+                sink.onJpeg(out.toByteArray(), now - t0);
+            } catch (Exception ignored) { }
         }
     };
 
