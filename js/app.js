@@ -40,7 +40,7 @@ import { Plus } from './plus.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '114';
+export const APP_VERSION = '115';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -343,7 +343,7 @@ class App {
       all.forEach(d => {
         const li = document.createElement('li');
         const isNear = near.some(n => n.code === d.code);
-        li.innerHTML = `<b></b>${d.kind === 'tv' ? '<button data-a="watch">اعرض عليه شاشة</button>' : '<button data-a="screen">شاشته</button>'}<button data-a="file">إرسال ملف</button><button data-a="link">إرسال رابط</button>${d.paired ? '<button data-a="del">حذف</button>' : '<button data-a="pair">إضافة</button>'}`;
+        li.innerHTML = `<b></b><button data-a="hdmi" title="اعرض شاشته / HDMI الآن">${isNear ? '🟢' : '⚪'} HDMI</button>${d.kind === 'tv' ? '<button data-a="watch">اعرض عليه شاشة</button>' : '<button data-a="screen">شاشته</button>'}<button data-a="file">إرسال ملف</button><button data-a="link">إرسال رابط</button>${d.paired ? '<button data-a="del">حذف</button>' : '<button data-a="pair">إضافة</button>'}`;
         li.querySelector('b').innerHTML = '';
         li.querySelector('b').append(d.name || d.code);
         const sm = document.createElement('small'); sm.textContent = (KIND_LABEL[d.kind] || '') + ' · ' + d.code + (isNear ? ' · في شبكتك' : ''); if (isNear) sm.className = 'on';
@@ -351,6 +351,8 @@ class App {
         li.addEventListener('click', async e => {
           const act = e.target.dataset?.a; if (!act) return;
           try {
+            // straight to that device's picture (its shared screen or HDMI card), now
+            if (act === 'hdmi') { saveSettings({ mirrorCode: d.code }); if (this.active) this.connectMirror(d.code); else { $('#devMsg').textContent = 'ادخل مدار — تظهر شاشة ' + (d.name || d.code) + ' أمامك'; } return; }
             if (act === 'screen') { saveSettings({ mirrorCode: d.code }); $('#mirInput') && ($('#mirInput').value = d.code); $('#devMsg').textContent = 'ستظهر شاشة ' + (d.name || d.code) + ' عند الدخول'; }
             else if (act === 'pair') { await hub.pair(d.code); }
             else if (act === 'watch') {
