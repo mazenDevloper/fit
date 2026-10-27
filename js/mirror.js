@@ -425,7 +425,8 @@ export async function hdmiStream(deviceId) {
   // the card's own sound (same USB device), raw: no echo cancelling / noise filters that add delay
   try {
     const mics = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
-    const mic = mics.find(m => m.groupId && m.groupId === cam.group) || mics.find(m => CARD_RX.test(m.label));
+    const key = (cam.label.match(/usb ?\d(\.\d)? ?video|[a-z0-9]{4}:[a-z0-9]{4}/i) || [''])[0].toLowerCase();
+    const mic = mics.find(m => m.groupId && m.groupId === cam.group) || mics.find(m => key && m.label.toLowerCase().includes(key)) || mics.find(m => CARD_RX.test(m.label) || /digital audio interface|usb audio/i.test(m.label));
     if (mic) {
       const a = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: mic.deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false, latency: 0, channelCount: 2 } });
       a.getAudioTracks().forEach(t => video.addTrack(t));
