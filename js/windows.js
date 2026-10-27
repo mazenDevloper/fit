@@ -918,7 +918,9 @@ export class VideoWindow extends SpatialWindow {
   setStream(stream) {
     this.stream = stream; this.userPaused = false;
     const v = this.video; v.srcObject = stream; this.lastFrameAt = performance.now();
+    this.lastFrameTime = -1; this.texSeen = 0;
     v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    setTimeout(() => this.setupTexture(), 600);   // the new picture's size, a fresh texture
   }
   // Remember when the last real frame arrived (for live screens).
   watchFrames() {
@@ -982,7 +984,11 @@ export class VideoWindow extends SpatialWindow {
     this.mat.uniforms.uHas.value = v.readyState >= 2 && this.tex ? 1 : 0;
     // smart heat: only the video you look at gets every frame; the others refresh at 15 fps (cooler phone)
     const ex = this.mgr.app.extras, side = settings.smartHeat !== false && ex?.lookedWin && ex.lookedWin !== this && ex.lookedWin.kind === 'video' && performance.now() - (ex.lookedAt || 0) < 8000;
-    if (this.tex && v.readyState >= 2 && v.currentTime !== this.lastFrameTime && (now - (this.texAt || 0) >= (side ? 66 : settings.coolMax ? 39 : settings.cool ? 32 : 0)) && this.inView(now)) {
+    if (this.stream && this.tex && v.readyState >= 2 && v.videoWidth && now - (this.texChk || 0) > 1000) {
+      this.texChk = now;
+      if (!this.texW || this.texW !== v.videoWidth) { this.texW = v.videoWidth; this.setupTexture(); }
+    }
+    if (this.tex && v.readyState >= 2 && (this.stream ? now - (this.texAt || 0) >= 30 : v.currentTime !== this.lastFrameTime) && (now - (this.texAt || 0) >= (side ? 66 : settings.coolMax ? 39 : settings.cool ? 32 : 0)) && this.inView(now)) {
       this.lastFrameTime = v.currentTime; this.texAt = now;
       if (this.canvas) { try { this.cctx.drawImage(v, 0, 0, this.canvas.width, this.canvas.height); this.tex.needsUpdate = true; } catch {} }
       else this.tex.needsUpdate = true;
