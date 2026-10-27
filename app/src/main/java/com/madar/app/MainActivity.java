@@ -122,7 +122,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         immersive();
     }
 
-    private boolean sharing() { return CaptureService.running || (browser != null && browser.running); }
+    private boolean sharing() { return CaptureService.running || (browser != null && browser.running) || (uvc != null && uvc.running); }
 
     // Leaving the app while sharing: Madar shrinks into a small floating window instead of going to the
     // background. A page in the background is slowed down by Android after a few minutes (the stream
@@ -144,6 +144,9 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         }
     }
     private boolean askedDot;
+    // HDMI capture card over USB, and the phone as a Bluetooth remote
+    private UvcSource uvc;
+    private HidRemote hidRemote;
     private boolean canDot() { return android.provider.Settings.canDrawOverlays(this); }
 
     // ---- The dot: while sharing in the background the page lives in a tiny floating circle. It stays
@@ -153,7 +156,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     private void showDot() {
         if (dot != null || !canDot() || !sharing()) return;
         final android.view.WindowManager wm = getWindowManager();
-        int px = Math.round(34 * getResources().getDisplayMetrics().density);
+        int px = Math.round(14 * getResources().getDisplayMetrics().density);   // a small point, not a bubble
         dot = new FrameLayout(this);
         ViewGroup parent = (ViewGroup) web.getParent();
         webLp = web.getLayoutParams();
@@ -161,7 +164,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         dot.addView(web, new FrameLayout.LayoutParams(px, px));
         View face = new View(this);
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
-        g.setShape(android.graphics.drawable.GradientDrawable.OVAL); g.setColor(0xFF2BB673); g.setStroke(Math.max(2, px / 10), 0xFFFFFFFF);
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL); g.setColor(0xFF2BB673); g.setStroke(Math.max(1, px / 8), 0xCCFFFFFF);
         face.setBackground(g);
         dot.addView(face, new FrameLayout.LayoutParams(px, px));
         dot.setClipToOutline(true);
@@ -170,7 +173,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
                 android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 android.graphics.PixelFormat.TRANSLUCENT);
         lp.gravity = android.view.Gravity.TOP | android.view.Gravity.START;
-        lp.x = getResources().getDisplayMetrics().widthPixels - px - 12; lp.y = getResources().getDisplayMetrics().heightPixels / 3;
+        lp.x = getResources().getDisplayMetrics().widthPixels - px - 6; lp.y = getResources().getDisplayMetrics().heightPixels / 3;
         face.setOnTouchListener(new View.OnTouchListener() {
             float sx, sy; int ox, oy; boolean moved;
             @Override public boolean onTouch(View v, android.view.MotionEvent e) {
@@ -178,7 +181,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
                     case android.view.MotionEvent.ACTION_DOWN: sx = e.getRawX(); sy = e.getRawY(); ox = lp.x; oy = lp.y; moved = false; return true;
                     case android.view.MotionEvent.ACTION_MOVE:
                         float dx = e.getRawX() - sx, dy = e.getRawY() - sy;
-                        if (Math.abs(dx) + Math.abs(dy) > 12) moved = true;
+                        if (Math.abs(dx) + Math.abs(dy) > 8) moved = true;
                         lp.x = ox + Math.round(dx); lp.y = oy + Math.round(dy);
                         try { wm.updateViewLayout(dot, lp); } catch (Exception ignored) { }
                         return true;
@@ -495,7 +498,24 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     // ---------- window.MadarAndroid ----------
     private class Bridge {
         @JavascriptInterface public void startCapture() { runOnUiThread(MainActivity.this::startCapture); }
+        @JavascriptInterface public void startUvc() { runOnUiThread(() -> {
+            if (uvc == null) uvc = new UvcSource(MainActivity.this, new UvcSource.Sink() {
+                @Override public void onJpeg(byte[] j, long ts) { onFrame(j, ts); }
+                @Override public void onUvcState(String st) { main.post(() -> {
+                    if ("nocard".equals(st)) { Toast.makeText(MainActivity.this, "وصّل قطعة HDMI بمنفذ USB-C (OTG)", Toast.LENGTH_LONG).show(); return; }
+                    js("window.__madarCapture&&__madarCapture('" + ("started".equals(st) ? "started" : "denied".equals(st) || "error".equals(st) ? "denied" : "stopped") + "')"); updatePip(); }); }
+            });
+            uvc.start(); }); }
+        @JavascriptInterface public void stopUvc() { runOnUiThread(() -> { if (uvc != null) { uvc.stop(); uvc = null; } }); }
+        @JavascriptInterface public void setRemoteOnly(boolean on) { ControlService.remoteOnly = on; }
+        @JavascriptInterface public void hidStart() { runOnUiThread(() -> { if (!HidRemote.supported()) return; if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission("android.permission.BLUETOOTH_CONNECT") != PackageManager.PERMISSION_GRANTED) { requestPermissions(new String[]{"android.permission.BLUETOOTH_CONNECT", "android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_ADVERTISE"}, REQ_PERMS); return; } if (hidRemote == null) hidRemote = new HidRemote(MainActivity.this); hidRemote.start(); }); }
+        @JavascriptInterface public String hidDevices() { return hidRemote == null ? "[]" : hidRemote.devices(); }
+        @JavascriptInterface public void hidConnect(String addr) { if (hidRemote != null) hidRemote.connect(addr); }
+        @JavascriptInterface public void hidKey(String k) { if (hidRemote != null) hidRemote.key(k); }
+        @JavascriptInterface public void hidText(String t) { if (hidRemote != null) new Thread(() -> hidRemote.text(t)).start(); }
+        @JavascriptInterface public String hidState() { return hidRemote == null ? "اضغط «اتصل»" : hidRemote.state; }
         @JavascriptInterface public void stopCapture() {
+            if (uvc != null) { runOnUiThread(() -> { if (uvc != null) { uvc.stop(); uvc = null; } }); }
             runOnUiThread(() -> { if (CaptureService.running) stopService(new Intent(MainActivity.this, CaptureService.class)); });
         }
         @JavascriptInterface public boolean isCapturing() { return CaptureService.running; }

@@ -29,11 +29,13 @@ public class ControlService extends AccessibilityService {
     @Override public void onDestroy() { instance = null; super.onDestroy(); }
 
     static boolean on() { return instance != null; }
+    /** «remote only»: the page hosts a control link without sharing the screen (e.g. a TV box seen through HDMI). */
+    static volatile boolean remoteOnly = false;
 
     /** Messages from the page: {a:'tap'|'scroll'|'key'|'text', x, y (0..1), dx, dy (fractions of the screen), key, value}. */
     static void handle(String json) {
         ControlService s = instance;
-        if (s == null || !CaptureService.running) return;
+        if (s == null || !(CaptureService.running || remoteOnly)) return;
         try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
     }
 
@@ -74,6 +76,8 @@ public class ControlService extends AccessibilityService {
                 break;
             }
             case "key": key(m.optString("key")); break;
+            case "nav": nav(m.optString("dir")); break;
+            case "media": media(m.optString("key")); break;
             case "text": type(m.optString("value")); break;
             default: break;
         }
@@ -111,6 +115,53 @@ public class ControlService extends AccessibilityService {
             }
             default: break;
         }
+    }
+
+    // ---- the remote's arrows / OK on any screen (TV boxes, tablets): move the focus like a D-pad and click it
+    private static final java.util.Map<String, Integer> DIR = new java.util.HashMap<>();
+    static { DIR.put("up", android.view.View.FOCUS_UP); DIR.put("down", android.view.View.FOCUS_DOWN); DIR.put("left", android.view.View.FOCUS_LEFT); DIR.put("right", android.view.View.FOCUS_RIGHT); }
+    private void nav(String d) {
+        AccessibilityNodeInfo root = getRootInActiveWindow(); if (root == null) return;
+        AccessibilityNodeInfo f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if (f == null) f = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
+        if ("ok".equals(d)) {
+            if (f == null) return;
+            AccessibilityNodeInfo c = f; int up = 0;
+            while (c != null && !c.isClickable() && up++ < 6) c = c.getParent();
+            if (c != null) c.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            else { Rect r = new Rect(); f.getBoundsInScreen(r); gesture(r.exactCenterX(), r.exactCenterY(), r.exactCenterX(), r.exactCenterY(), 60); }
+            return;
+        }
+        Integer dir = DIR.get(d); if (dir == null) return;
+        if (f == null) {   // nothing focused yet: the first focusable thing on screen
+            AccessibilityNodeInfo n = firstFocusable(root, 0);
+            if (n != null) { n.performAction(AccessibilityNodeInfo.ACTION_FOCUS); n.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS); }
+            return;
+        }
+        AccessibilityNodeInfo n = f.focusSearch(dir);
+        if (n != null) { n.performAction(AccessibilityNodeInfo.ACTION_FOCUS); n.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS); }
+        else {   // no focus next to it (touch apps): scroll that way instead
+            int[] sz = size(); float W = sz[0], H = sz[1];
+            float dx = "left".equals(d) ? -0.3f : "right".equals(d) ? 0.3f : 0, dy = "up".equals(d) ? -0.3f : "down".equals(d) ? 0.3f : 0;
+            gesture(W / 2, H / 2, W / 2 - dx * W, H / 2 - dy * H, 250);
+        }
+    }
+    private AccessibilityNodeInfo firstFocusable(AccessibilityNodeInfo n, int depth) {
+        if (n == null || depth > 30) return null;
+        if (n.isFocusable() && n.isVisibleToUser()) return n;
+        for (int i = 0; i < n.getChildCount(); i++) { AccessibilityNodeInfo c = firstFocusable(n.getChild(i), depth + 1); if (c != null) return c; }
+        return null;
+    }
+    // ---- play / pause / next / volume: real media keys for whatever plays on this device
+    private void media(String k) {
+        android.media.AudioManager am = (android.media.AudioManager) getSystemService(Context.AUDIO_SERVICE); if (am == null) return;
+        if ("vol+".equals(k)) { am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_RAISE, android.media.AudioManager.FLAG_SHOW_UI); return; }
+        if ("vol-".equals(k)) { am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER, android.media.AudioManager.FLAG_SHOW_UI); return; }
+        if ("mute".equals(k)) { am.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_TOGGLE_MUTE, android.media.AudioManager.FLAG_SHOW_UI); return; }
+        int code = "next".equals(k) ? android.view.KeyEvent.KEYCODE_MEDIA_NEXT : "prev".equals(k) ? android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS
+                : "ff".equals(k) ? android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD : "rw".equals(k) ? android.view.KeyEvent.KEYCODE_MEDIA_REWIND : android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE;
+        am.dispatchMediaKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, code));
+        am.dispatchMediaKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, code));
     }
 
     private AccessibilityNodeInfo focused() {
