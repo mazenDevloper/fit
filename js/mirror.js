@@ -104,7 +104,7 @@ if (typeof window !== 'undefined' && !window.__madarBin) {
   });
 }
 
-function androidStream(onEnded) {
+function androidStream(onEnded, method = 'startCapture') {
   const A = window.MadarAndroid;
   return new Promise((res, rej) => {
     let ft = null, started = false;
@@ -135,7 +135,7 @@ function androidStream(onEnded) {
       } else if (state === 'denied') { rej(new Error('أُلغيت المشاركة أو لم يُسمح بها')); }
       else if (state === 'stopped') { started = false; try { ac?.close(); } catch {} onEnded?.(); }
     };
-    try { A.startCapture(); } catch (e) { rej(new Error('تعذّر بدء التقاط الشاشة')); }
+    try { A[method](); } catch (e) { rej(new Error(method === 'startUvc' ? 'تعذّر تشغيل قطعة HDMI' : 'تعذّر بدء التقاط الشاشة')); }
   });
 }
 
@@ -203,9 +203,16 @@ export class ScreenHost {
   }
   get link() { return location.origin + location.pathname + '#m' + this.code; }
   async start(opts = {}) {
-    if (opts.hdmi) {
+    if (opts.controlOnly) {
+      // «remote only»: no picture, just the control link (a TV box you watch through HDMI, a tablet across the room)
+      this.hdmi = false; this.stream = null; this.controlOnly = true;
+      try { window.MadarAndroid?.setRemoteOnly?.(true); } catch {}
+    }
+    else if (opts.hdmi) {
       this.hdmi = true; this.quality = 'hdmi';
-      this.stream = await hdmiStream(opts.deviceId);
+      // Madar's Android app reads USB capture cards itself (Android hides them from the browser's camera list)
+      if (window.MadarAndroid?.startUvc) this.stream = await androidStream(() => this.stop(), 'startUvc');
+      else this.stream = await hdmiStream(opts.deviceId);
       this.stream.getVideoTracks()[0].addEventListener('ended', () => this.stop());
     }
     else if (window.MadarAndroid) { this.hdmi = false; this.stream = await androidStream(() => this.stop()); clearInterval(this.capT); this.capT = setInterval(() => { const k = JSON.stringify(this.caps()); if (k !== this.lastCaps) { this.lastCaps = k; this.sendCaps(); this.status(); } }, 2000); }
@@ -249,8 +256,8 @@ export class ScreenHost {
       this.viewers.add(conn); this.status();
       conn.send({ type: 'links', links: loadLinks() });
       conn.send({ type: 'caps', ...this.caps(), hdmi: !!this.hdmi });
-      const call = this.peer.call(conn.peer, this.stream, this.hdmi ? { sdpTransform: preferH264 } : undefined);
-      this.tune(call);
+      const call = this.stream ? this.peer.call(conn.peer, this.stream, this.hdmi ? { sdpTransform: preferH264 } : undefined) : null;
+      if (call) this.tune(call);
       conn.on('close', () => { this.viewers.delete(conn); call?.close(); this.status(); });
     });
     conn.on('data', d => {
@@ -290,9 +297,10 @@ export class ScreenHost {
     pc.addEventListener('connectionstatechange', () => { if (pc.connectionState === 'connected') apply(); if (pc.connectionState === 'closed') this.calls?.delete(call); });
     if (pc.connectionState === 'connected') apply();
   }
-  status() { this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live: !!this.stream, caps: this.stream ? this.caps() : null }); }
+  status() { const live = !!this.stream || !!this.controlOnly; this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live, controlOnly: !!this.controlOnly, caps: live ? this.caps() : null }); }
   stop() {
     if (!this.stream && !this.peer) return;
+    if (this.controlOnly) { this.controlOnly = false; try { window.MadarAndroid?.setRemoteOnly?.(false); } catch {} }
     this.agent.stop(); clearInterval(this.capT);
     this.stream?.getTracks().forEach(t => t.stop()); this.stream = null;
     if (window.MadarAndroid) try { window.MadarAndroid.stopCapture(); } catch {}

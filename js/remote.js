@@ -91,9 +91,10 @@ export class Remote {
     const k = (e.key || '').toLowerCase(), r = ICADE_UP[k], p = ICADE_DOWN[k];
     if (!r && !p) return false;
     e.preventDefault(); e.stopImmediatePropagation();
-    if (r) { if (this.held === k) { clearInterval(this.rep); this.held = null; } return true; }
+    if (r) { if (this.held === k) { clearInterval(this.rep); this.held = null; } if (this.selHeld?.rel === k) this.holdEnd(); return true; }
     if (this.learn) { this.learnKey('icade:' + k); return true; }
     const act = this.map['icade:' + k] || p;
+    if (act === 'select') { this.holdStart('icade:' + k, ICADE_PAIR[k]); return true; }
     this.act(act);
     if (act === 'up' || act === 'down') { clearInterval(this.rep); this.held = ICADE_PAIR[k]; this.rep = setInterval(() => this.act(act), 140); }
     return true;
@@ -111,7 +112,74 @@ export class Remote {
       e.preventDefault(); e.stopImmediatePropagation(); this.learnKey(code); return;
     }
     const act = this.map[code]; if (!act) return;
-    e.preventDefault(); e.stopImmediatePropagation(); this.act(act);
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (act === 'select') { if (!e.repeat) this.holdStart(code); return; }
+    this.act(act);
+  }
+  // ---- a long press on the remote's select button opens the quick menu (short press = click)
+  holdStart(id, rel) {
+    clearTimeout(this.selT); this.selHeld = { id, rel, at: performance.now() };
+    this.selT = setTimeout(() => { if (this.selHeld?.id === id) { this.selHeld = null; this.quickMenu(); } }, 600);
+  }
+  holdEnd() { if (!this.selHeld) return; clearTimeout(this.selT); this.selHeld = null; this.act('select'); }
+  quickMenu() {
+    const a = this.app, p = a.plus;
+    a.notify({ icon: '🎮', title: 'أوامر سريعة', body: 'اختر بالنظر ثم انقر', important: true, actions: [
+      ['⏯', () => { const w = a.extras?.mediaWindows?.()[0]; if (w) a.extras.togglePlay(w); }], ['⚽ المباراة', () => p?.matchMode()],
+      ['🎯 تمركز', () => this.act('recenter')], ['🛋 استلقاء', () => p?.toggleLying()], ['☰ القائمة', () => this.act('launcher')]] });
+  }
+  // ---- game pads (Android: each VR Park in game mode is its own pad): one map per remote
+  padKey(gp) { return 'pad' + gp.index + ':' + (gp.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 24); }
+  pads() { return navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : []; }
+  startLearnPad(i) {
+    const gp = this.pads()[i]; if (!gp) { this.app.toast('لم أجد ريموت ' + (i + 1) + ' — اضغط أي زر فيه أولاً', 3000); return; }
+    saveSettings({ remote: true }); this.padLearn = { key: this.padKey(gp), idx: gp.index, i: 0, map: {}, prev: gp.buttons.map(b => b.pressed), ax: [...gp.axes] };
+    this.app.toast('🎮 ريموت ' + (i + 1) + ': ' + ACTIONS[0][1] + ' — اضغط الزر أو حرّك العصا', 15000);
+  }
+  // per frame (from the app loop): each mapped pad drives Madar by itself; unmapped pads stay with the usual controls
+  pollPads(now) {
+    const list = this.pads(); if (!list.length) return;
+    const maps = settings.padMaps || {}; window.__padCustom = new Set();
+    for (const gp of list) {
+      const key = this.padKey(gp), L = this.padLearn;
+      if (L && L.idx === gp.index) {
+        let hit = null;
+        gp.buttons.forEach((b, i) => { if (b.pressed && !L.prev[i]) hit = 'b' + i; });
+        gp.axes.forEach((v, i) => { if (Math.abs(v) > 0.7 && Math.abs(L.ax[i] || 0) < 0.4) hit = 'a' + i + (v > 0 ? '+' : '-'); });
+        L.prev = gp.buttons.map(b => b.pressed); L.ax = [...gp.axes];
+        if (hit && !Object.keys(L.map).includes(hit)) {
+          L.map[hit] = ACTIONS[L.i][0]; L.i++;
+          if (L.i >= ACTIONS.length) { saveSettings({ padMaps: { ...maps, [key]: L.map } }); this.padLearn = null; this.app.toast('✓ حُفظ هذا الريموت وحده', 2500); }
+          else this.app.toast('🎮 ' + ACTIONS[L.i][1], 15000);
+        }
+        window.__padCustom.add(gp.index); continue;
+      }
+      const m = maps[key]; if (!m) continue;
+      window.__padCustom.add(gp.index);
+      const st = (this.padState ||= {})[key] ||= { b: [], a: {} };
+      gp.buttons.forEach((b, i) => {
+        const act = m['b' + i]; if (!act) return;
+        if (b.pressed && !st.b[i]) { if (act === 'select') this.holdStart('pad' + key + i); else this.act(act); }
+        if (!b.pressed && st.b[i] && act === 'select') this.holdEnd();
+        st.b[i] = b.pressed;
+      });
+      gp.axes.forEach((v, i) => {
+        for (const sgn of ['+', '-']) {
+          const act = m['a' + i + sgn]; if (!act) continue;
+          const on = sgn === '+' ? v > 0.6 : v < -0.6, k = i + sgn;
+          if (on && (!st.a[k] || now - st.a[k] > (act === 'up' || act === 'down' ? 140 : 400))) { this.act(act); st.a[k] = now; }
+          if (!on) st.a[k] = 0;
+        }
+      });
+    }
+  }
+  // ---- from the phone remote page / «المركز»: buttons and a touchpad
+  rc(m) {
+    const c = this.app.controls;
+    if (m.action) this.act(m.action);
+    if (m.dx != null || m.dy != null) { const p = c.padPtr; p.tx = Math.max(-1.4, Math.min(1.4, p.tx + (m.dx || 0) * 2.2)); p.ty = Math.max(-1.2, Math.min(1.2, p.ty - (m.dy || 0) * 2.2)); p.last = performance.now(); }
+    if (m.click) { c.padPtr.down = true; c.padPtr.last = performance.now(); setTimeout(() => { c.padPtr.down = false; }, 120); }
+    if (m.scroll) c.scrollPointed?.(m.scroll * 900);
   }
   startLearn() { saveSettings({ remote: true }); this.map = {}; this.learn = { i: 0 }; this.ask(); }
   ask() { const [, ar] = ACTIONS[this.learn.i]; this.app.toast(`🎮 ${this.learn.i + 1}/${ACTIONS.length} · اضغط الزر الذي تريده لـ «${ar}»`, 15000); }

@@ -256,7 +256,7 @@ export class Controls {
   //  D-pad ↑↓ up/down, ←→ turn   Options/Menu launcher   Share/View environment   L3 recenter   R3 orbit
   pollPad(dt, set) {
     const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
-    const gp = pads.find(p => p.connected) || null;
+    const gp = pads.find(p => p.connected && !window.__padCustom?.has(p.index)) || null;
     if (!gp) { if (this.pad.id) { this.app.toast('انفصلت يد التحكم'); this.pad.id = null; } this.padPtr.down = false; return; }
     if (gp.id !== this.pad.id) {
       this.pad.id = gp.id; this.pad.prev = [];

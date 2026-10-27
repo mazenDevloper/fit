@@ -40,7 +40,7 @@ import { Plus } from './plus.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '113';
+export const APP_VERSION = '114';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -533,10 +533,13 @@ class App {
       catch (e) { $('#mirStatus').textContent = ''; alertBox(e.message || 'لم تبدأ المشاركة'); }
     });
     $('#mirStop').addEventListener('click', () => this.host.stop());
+    // remote only (Android app): the remote page / Madar can drive this device without its picture
+    if (window.MadarAndroid && $('#mirRemoteOnly')) { $('#mirRemoteOnly').hidden = false; $('#mirRemoteOnly').addEventListener('click', async () => { try { await this.host.start({ controlOnly: true }); } catch (e) { alertBox(e.message || 'لم يبدأ'); } }); }
     // HDMI card: pick it (the card is chosen by itself when its name says so; a list appears when there are several)
     const hdmiSel = $('#mirHdmiDev');
     $('#mirHdmi')?.addEventListener('click', async () => {
       try {
+        if (window.MadarAndroid?.startUvc) { await this.host.start({ hdmi: true }); this.log('بث HDMI (تطبيق أندرويد): ' + this.host.code); return; }
         const cams = await captureDevices();
         if (hdmiSel && cams.length > 1 && hdmiSel.hidden) {
           hdmiSel.innerHTML = cams.map(c => `<option value="${c.id}"${c.id === settings.hdmiDev ? ' selected' : ''}>${c.card ? '🎮 ' : '📷 '}${c.label}</option>`).join('');
@@ -1302,7 +1305,7 @@ class App {
     this.controls.update(dt);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
-    this.extras.update(dt, now); this.plus?.update(now);
+    this.extras.update(dt, now); this.plus?.update(now); this.remote?.pollPads(now);
     this.toastUI.update(now, this.renderQ);
     this.sports?.update(now, this.renderQ);
     if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }

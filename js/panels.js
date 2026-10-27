@@ -138,6 +138,8 @@ export class Launcher {
         ['sliders', 'نظارة جديدة', 'معالج من ٣ خطوات', () => { this.close(); a.plus?.headsetWizard(); }],
         ['play', 'ريموت VR Park', settings.remote ? 'يعمل · اضغط لإيقافه' : '@+C مؤشر · @+D أزرار', () => { this.close(); a.remote?.toggle(); }],
         ['play', 'تعلّم أزرار الريموت', 'اضغط كل زر عندما يُطلب', () => { this.close(); a.remote?.startLearn(); }],
+        ['play', 'ريموت 1 وحده', 'أندرويد: وضع اللعب', () => { this.close(); a.remote?.startLearnPad(0); }],
+        ['play', 'ريموت 2 وحده', 'أندرويد: وضع اللعب', () => { this.close(); a.remote?.startLearnPad(1); }],
       ];
       const ex = a.extras, W8 = (t, n, d) => [t === 'weather' ? 'sun' : t === 'timer' ? 'clock' : t === 'note' ? 'stack' : t === 'photos' ? 'image' : t === 'nowplaying' || t === 'dcmedia' ? 'play' : t === 'verse' ? 'book' : t === 'scenes' ? 'grid' : t === 'aihist' ? 'mic' : t === 'dcdash' ? 'ball' : t === 'remote' ? 'target' : 'sliders', n, d, () => { this.close(); ex?.widget(t); }];
       if (ex) list.push(
@@ -158,7 +160,7 @@ export class Launcher {
       );
       // folders (visionOS 26 Home View): setup tools and widgets each in one tile
       const FOLDERS = {
-        tools: ['grid', 'أدوات الإعداد', ['المعايرة', 'ضبط العدستين', 'إعادة التمركز', 'ترتيب النوافذ', 'دليل الإيماءات', 'لوحة المفاتيح', 'مسح الغرفة', 'البيئة', 'غرفة جديدة', 'تحديث التطبيق', 'نظاراتي', 'نظارة جديدة', 'ريموت VR Park', 'تعلّم أزرار الريموت']],
+        tools: ['grid', 'أدوات الإعداد', ['المعايرة', 'ضبط العدستين', 'إعادة التمركز', 'ترتيب النوافذ', 'دليل الإيماءات', 'لوحة المفاتيح', 'مسح الغرفة', 'البيئة', 'غرفة جديدة', 'تحديث التطبيق', 'نظاراتي', 'نظارة جديدة', 'ريموت VR Park', 'تعلّم أزرار الريموت', 'ريموت 1 وحده', 'ريموت 2 وحده']],
         widgets: ['clock', 'الأدوات المصغّرة', null],
         dc: ['play', 'DriveCast', null],
       };
