@@ -43,8 +43,9 @@
   import { ScreenViewer, qrSvg, lib } from './js/mirror.js';
   const $ = s => document.querySelector(s), view = $('#view');
   const toast = (m, ms = 3500) => { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', ms); };
-  const show = el => { view.innerHTML = ''; view.appendChild(el); view.style.display = 'block'; $('#home').style.display = 'none'; try { document.documentElement.requestFullscreen?.(); } catch {} };
-  const back = () => { view.innerHTML = ''; view.style.display = 'none'; $('#home').style.display = 'flex'; };
+  const stopMedia = () => view.querySelectorAll('video,audio').forEach(m => { try { m.pause(); m.srcObject = null; m.removeAttribute('src'); m.load(); } catch {} });
+  const show = el => { stopMedia(); view.innerHTML = ''; view.appendChild(el); view.style.display = 'block'; $('#home').style.display = 'none'; try { document.documentElement.requestFullscreen?.(); } catch {} };
+  const back = () => { stopMedia(); view.innerHTML = ''; view.style.display = 'none'; $('#home').style.display = 'flex'; };
   document.addEventListener('keydown', e => { if (['Escape', 'Backspace', 'GoBack', 'BrowserBack'].includes(e.key) || e.keyCode === 10009 || e.keyCode === 461) { if (view.style.display === 'block') { e.preventDefault(); viewer.close(); back(); } } });
   const app = {
     toast,
@@ -71,7 +72,7 @@
   async function watch(code, tries = 0) {
     toast('جاري الاتصال بـ ' + code + '…');
     try {
-      const stream = await viewer.connect(code, { onStream: s => { const v = document.querySelector('video'); if (v) { v.srcObject = s; v.play?.().catch(() => {}); } }, onEnd: () => { toast('انقطع البث — إعادة الاتصال…'); setTimeout(() => watch(code), 1500); } });
+      const stream = await viewer.connect(code, { onStream: s => { const v = view.querySelector('video'); if (v && v.srcObject !== s) { v.srcObject = s; v.play?.().catch(() => {}); } }, onEnd: () => { if (watch.busy) return; watch.busy = true; stopMedia(); toast('انقطع البث — إعادة الاتصال…'); setTimeout(() => { watch.busy = false; watch(code); }, 1500); } });
       const v = document.createElement('video'); v.autoplay = true; v.playsInline = true; v.srcObject = stream; show(v);
       v.play().catch(() => { v.muted = true; v.play(); toast('اضغط OK لتشغيل الصوت'); v.onclick = () => { v.muted = false; }; });
       v.onpause = () => setTimeout(() => v.play().catch(() => {}), 300);

@@ -119,7 +119,8 @@ function androidStream(onEnded, method = 'startCapture') {
         for (let i = 0; i < n; i++) { L[i] = pcm[2 * i] / 32768; R[i] = pcm[2 * i + 1] / 32768; }
         const src = ac.createBufferSource(); src.buffer = buf; src.connect(dest);
         const now = ac.currentTime;
-        if (at < now + 0.02 || at > now + 0.4) at = now + 0.08;   // small jitter buffer, resync if drifting
+        if (at < now + 0.01) at = now + 0.18;            // underrun: refill a 180 ms jitter buffer (no gaps on uneven delivery)
+        else if (at > now + 0.6) return;                  // too far ahead: drop this chunk instead of resetting (no repeated audio)
         src.start(at); at += buf.duration;
       } catch {}
     };
