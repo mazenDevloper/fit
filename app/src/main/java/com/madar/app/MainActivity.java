@@ -509,7 +509,11 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
             });
             uvc.start(); }); }
         @JavascriptInterface public void stopUvc() { runOnUiThread(() -> { if (uvc != null) { uvc.stop(); uvc = null; } }); }
-        @JavascriptInterface public void setRemoteOnly(boolean on) { ControlService.remoteOnly = on; }
+        @JavascriptInterface public void setRemoteOnly(boolean on) {
+            ControlService.remoteOnly = on;
+            Intent k = new Intent(MainActivity.this, KeepService.class);
+            if (on) { if (Build.VERSION.SDK_INT >= 26) startForegroundService(k); else startService(k); } else stopService(k);
+        }
         @JavascriptInterface public void hidStart() { runOnUiThread(() -> { if (!HidRemote.supported()) return; if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission("android.permission.BLUETOOTH_CONNECT") != PackageManager.PERMISSION_GRANTED) { requestPermissions(new String[]{"android.permission.BLUETOOTH_CONNECT", "android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_ADVERTISE"}, REQ_PERMS); return; } if (hidRemote == null) hidRemote = new HidRemote(MainActivity.this); hidRemote.start(); }); }
         @JavascriptInterface public String hidDevices() { return hidRemote == null ? "[]" : hidRemote.devices(); }
         @JavascriptInterface public void hidConnect(String addr) { if (hidRemote != null) hidRemote.connect(addr); }

@@ -121,10 +121,11 @@ public class ControlService extends AccessibilityService {
     private static final java.util.Map<String, Integer> DIR = new java.util.HashMap<>();
     static { DIR.put("up", android.view.View.FOCUS_UP); DIR.put("down", android.view.View.FOCUS_DOWN); DIR.put("left", android.view.View.FOCUS_LEFT); DIR.put("right", android.view.View.FOCUS_RIGHT); }
     private void nav(String d) {
-        AccessibilityNodeInfo root = getRootInActiveWindow(); if (root == null) return;
-        AccessibilityNodeInfo f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-        if (f == null) f = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        AccessibilityNodeInfo f = root == null ? null : root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if (f == null && root != null) f = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
         if ("ok".equals(d)) {
+            if (Build.VERSION.SDK_INT >= 33 && performGlobalAction(GLOBAL_ACTION_DPAD_CENTER)) return;
             if (f == null) return;
             AccessibilityNodeInfo c = f; int up = 0;
             while (c != null && !c.isClickable() && up++ < 6) c = c.getParent();
@@ -132,7 +133,13 @@ public class ControlService extends AccessibilityService {
             else { Rect r = new Rect(); f.getBoundsInScreen(r); gesture(r.exactCenterX(), r.exactCenterY(), r.exactCenterX(), r.exactCenterY(), 60); }
             return;
         }
+        // Android 13+: real D-pad keys (TV boxes, launchers and players respond exactly as to their remote)
+        if (Build.VERSION.SDK_INT >= 33) {
+            int g = "up".equals(d) ? GLOBAL_ACTION_DPAD_UP : "down".equals(d) ? GLOBAL_ACTION_DPAD_DOWN : "left".equals(d) ? GLOBAL_ACTION_DPAD_LEFT : "right".equals(d) ? GLOBAL_ACTION_DPAD_RIGHT : 0;
+            if (g != 0 && performGlobalAction(g)) return;
+        }
         Integer dir = DIR.get(d); if (dir == null) return;
+        if (root == null) return;
         if (f == null) {   // nothing focused yet: the first focusable thing on screen
             AccessibilityNodeInfo n = firstFocusable(root, 0);
             if (n != null) { n.performAction(AccessibilityNodeInfo.ACTION_FOCUS); n.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS); }
