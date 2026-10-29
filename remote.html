@@ -64,11 +64,11 @@ const A = window.MadarAndroid;
 const buzz = () => { try { navigator.vibrate?.(12); } catch {} };
 
 // ---------------- Madar (through «المركز»)
-let ws, devs = [], target = localStorage.getItem('rc.target') || '';
+let ws, all = [], devs = [], target = localStorage.getItem('rc.target') || '';
 function hub() {
   const id = localStorage.getItem('rc.id') || ('rc-' + Math.random().toString(36).slice(2, 9)); localStorage.setItem('rc.id', id);
   ws = new WebSocket(HUB + '?' + new URLSearchParams({ id, name: 'ريموت', kind: 'phone', app: 'remote' }));
-  ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.devices) { devs = d.devices.filter(x => x.app === 'madar'); draw(); } } catch {} };
+  ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.devices) { all = d.devices; devs = d.devices.filter(x => x.app === 'madar'); draw(); } } catch {} };
   ws.onclose = () => setTimeout(hub, 2500);
 }
 const toMadar = msg => { if (ws?.readyState !== 1) return; const t = target && devs.some(d => d.id === target) ? target : 'kind:madar'; ws.send(JSON.stringify({ op: 'send', to: t, msg: { type: 'rc', ...msg } })); };
@@ -96,8 +96,10 @@ function draw() {
     $('#sel').onchange = e => { target = e.target.value; localStorage.setItem('rc.target', target); };
     st.innerHTML = devs.length ? '<b>●</b> ' + devs.length + ' مدار متصل' : 'افتح مدار على النظارة';
   } else if (tab === 'android') {
-    pick.innerHTML = `<div class="row"><input id="code" inputmode="numeric" maxlength="6" placeholder="رقم الجهاز (6 أرقام)" value="${code}" dir="ltr"><button class="tab" id="go">اتصل</button></div>
+    const near = devs.filter(d => /^madar-\d{6}$/.test(d.id));
+    pick.innerHTML = (near.length ? `<select id="dsel"><option value="">اختر جهازاً متصلاً…</option>${near.map(d => `<option value="${d.id.slice(6)}" ${d.id.slice(6) === code ? 'selected' : ''}>📺 ${d.name} · ${d.id.slice(6)}</option>`).join('')}</select>` : '') + `<div class="row"><input id="code" inputmode="numeric" maxlength="6" placeholder="رقم الجهاز (6 أرقام)" value="${code}" dir="ltr"><button class="tab" id="go">اتصل</button></div>
       <p class="note">على الجهاز المتحكَّم به: ثبّت تطبيق مدار، فعّل «تحكم مدار» مرة واحدة، ثم «شارك الشاشة» أو «🎛 تحكم فقط».</p>`;
+    $('#dsel')?.addEventListener('change', e => { if (!e.target.value) return; code = e.target.value; localStorage.setItem('rc.code', code); link(); });
     $('#go').onclick = () => { code = $('#code').value.replace(/\D/g, ''); localStorage.setItem('rc.code', code); link(); };
   } else {
     if (!btOK) { pick.innerHTML = '<p class="note">ريموت البلوتوث يعمل من <b>تطبيق مدار للأندرويد</b>: يصبح هاتفك ريموت/لوحة مفاتيح بلوتوث لأي تي في بوكس أو تلفاز أو كمبيوتر — بلا تثبيت شيء عليه.</p>'; st.textContent = ''; return; }

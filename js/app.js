@@ -40,7 +40,7 @@ import { Plus } from './plus.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '121';
+export const APP_VERSION = '122';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -339,15 +339,17 @@ class App {
       this.launcher?.group.visible && this.launcher.tab === 'devices' && this.launcher.panel.redraw();
       const ul = $('#devList'); if (!ul) return;
       const paired = pairedDevices(), near = [...hub.nearby.values()];
-      const all = [...paired.map(d => ({ ...d, paired: true })), ...near.filter(n => !paired.some(p => p.code === n.code))];
+      // every Madar online anywhere (through «المركز», any network), not only this Wi-Fi
+      const cloud = (this.hub?.others() || []).filter(x => x.app === 'madar' && /^madar-\d{6}$/.test(x.id)).map(x => ({ code: x.id.slice(6), name: x.name, kind: 'madar', cloud: true }));
+      const all = [...paired.map(d => ({ ...d, paired: true })), ...near.filter(n => !paired.some(p => p.code === n.code)), ...cloud.filter(c => !paired.some(p => p.code === c.code) && !near.some(n => n.code === c.code))];
       ul.innerHTML = '';
       all.forEach(d => {
         const li = document.createElement('li');
-        const isNear = near.some(n => n.code === d.code);
+        const isNear = near.some(n => n.code === d.code) || cloud.some(c => c.code === d.code);
         li.innerHTML = `<b></b><button data-a="hdmi" title="اعرض شاشته / HDMI الآن">${isNear ? '🟢' : '⚪'} HDMI</button>${d.kind === 'tv' ? '<button data-a="watch">اعرض عليه شاشة</button>' : '<button data-a="screen">شاشته</button>'}<button data-a="file">إرسال ملف</button><button data-a="link">إرسال رابط</button>${d.paired ? '<button data-a="del">حذف</button>' : '<button data-a="pair">إضافة</button>'}`;
         li.querySelector('b').innerHTML = '';
         li.querySelector('b').append(d.name || d.code);
-        const sm = document.createElement('small'); sm.textContent = (KIND_LABEL[d.kind] || '') + ' · ' + d.code + (isNear ? ' · في شبكتك' : ''); if (isNear) sm.className = 'on';
+        const sm = document.createElement('small'); sm.textContent = (KIND_LABEL[d.kind] || '') + ' · ' + d.code + (near.some(n => n.code === d.code) ? ' · في شبكتك' : cloud.some(c => c.code === d.code) ? ' · متصل' : ''); if (isNear) sm.className = 'on';
         li.querySelector('b').append(sm);
         li.addEventListener('click', async e => {
           const act = e.target.dataset?.a; if (!act) return;
@@ -377,7 +379,9 @@ class App {
         ul.appendChild(li);
       });
     };
-    hub.on(render); render();
+    hub.on(render); render(); setTimeout(() => this.hub?.on?.(d => { if (d.type === 'devices' || d.type === 'hello') render(); }), 0);
+    // Android app: «تحكم فقط» stays on across restarts (the TV box is always reachable)
+    if (window.MadarAndroid && settings.remoteOnly) setTimeout(() => this.host?.start({ controlOnly: true }).catch(() => {}), 3000);
     hub.start().catch(() => {});
     // A device link (#d123456) opened here: add that device and show its screen when entering.
     const fromHash = (location.hash.match(/^#d(\d{6})$/) || [])[1];
@@ -537,7 +541,7 @@ class App {
     });
     $('#mirStop').addEventListener('click', () => this.host.stop());
     // remote only (Android app): the remote page / Madar can drive this device without its picture
-    if (window.MadarAndroid && $('#mirRemoteOnly')) { $('#mirRemoteOnly').hidden = false; $('#mirRemoteOnly').addEventListener('click', async () => { try { await this.host.start({ controlOnly: true }); } catch (e) { alertBox(e.message || 'لم يبدأ'); } }); }
+    if (window.MadarAndroid && $('#mirRemoteOnly')) { $('#mirRemoteOnly').hidden = false; $('#mirRemoteOnly').addEventListener('click', async () => { try { saveSettings({ remoteOnly: true }); await this.host.start({ controlOnly: true }); } catch (e) { alertBox(e.message || 'لم يبدأ'); } }); }
     // HDMI card: pick it (the card is chosen by itself when its name says so; a list appears when there are several)
     const hdmiSel = $('#mirHdmiDev');
     $('#mirHdmi')?.addEventListener('click', async () => {

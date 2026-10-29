@@ -307,7 +307,7 @@ export class ScreenHost {
   status() { const live = !!this.stream || !!this.controlOnly; this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live, controlOnly: !!this.controlOnly, caps: live ? this.caps() : null }); }
   stop() {
     if (!this.stream && !this.peer) return;
-    if (this.controlOnly) { this.controlOnly = false; try { window.MadarAndroid?.setRemoteOnly?.(false); } catch {} }
+    if (this.controlOnly) { this.controlOnly = false; try { window.MadarAndroid?.setRemoteOnly?.(false); localStorage && import('./config.js').then(c => c.saveSettings({ remoteOnly: false })); } catch {} }
     this.agent.stop(); clearInterval(this.capT);
     this.stream?.getTracks().forEach(t => t.stop()); this.stream = null;
     if (window.MadarAndroid) try { window.MadarAndroid.stopCapture(); } catch {}
