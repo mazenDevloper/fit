@@ -40,7 +40,7 @@ import { Plus } from './plus.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '122';
+export const APP_VERSION = '123';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -320,9 +320,12 @@ class App {
       $('#devName').addEventListener('change', () => { const n = $('#devName').value.trim() || me.name; saveDeviceIdentity({ name: n }); hub.rename(n); });
       $('#devCopy').addEventListener('click', () => navigator.clipboard?.writeText(link).then(() => { $('#devCopy').textContent = 'تم النسخ'; }).catch(() => {}));
       $('#devScan').addEventListener('click', async () => {
-        $('#devMsg').textContent = 'جاري البحث في شبكتك…';
+        $('#devMsg').textContent = 'جاري البحث…';
         const found = await hub.scan().catch(() => []);
-        $('#devMsg').textContent = found.length ? 'وُجد ' + found.length + ' جهاز في شبكتك' : 'لم يُعثر على أجهزة — تأكد أن مدار مفتوح عليها وأنها على نفس الواي فاي';
+        const cloud = (this.hub?.others() || []).filter(x => x.app === 'madar' && /^madar-\d{6}$/.test(x.id) && !found.some(f => 'madar-' + f.code === x.id));
+        render?.();
+        const n = found.length + cloud.length;
+        $('#devMsg').textContent = n ? 'وُجد ' + n + ' جهاز متصل (في أي شبكة)' : 'لم يُعثر على أجهزة — تأكد أن مدار مفتوح عليها ومتصل بالإنترنت';
       });
       $('#devAdd').addEventListener('submit', async e => {
         e.preventDefault();
