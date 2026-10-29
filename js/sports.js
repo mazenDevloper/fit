@@ -8,11 +8,10 @@ import { drawIsland, islandWidth, drawWidget, drawGoal, goalDuration, drawClock,
 export const SPORTS_ORIGIN = 'https://drivecast.c-p.workers.dev';
 const MADAR = location.origin;
 // Straight from the sources: favourite teams (with their 365Scores ids) from the cloud bin, games from 365Scores.
-const BIN = 'https://api.jsonbin.io/v3/b/69c782cbb7ec241ddcb0b99a/latest';
-const BIN_KEY = '$2a$10$SYrYv.ct8hiMU9YeUxEQ.ecRkOrTqs.TDchJRV3wW.aKJnDXy2oVy';
+const BIN = 'https://studio.c-p.workers.dev/bin/69c782cbb7ec241ddcb0b99a';
 const LOGO = id => 'https://imagecache.365scores.com/image/upload/f_png,w_64,h_64,c_limit,q_auto:eco/Competitors/' + id;
 async function cloudFavourites() {
-  const r = await fetch(BIN, { headers: { 'X-Master-Key': BIN_KEY, 'X-Bin-Meta': 'false' }, cache: 'no-store' });
+  const r = await fetch(BIN, { cache: 'no-store' });
   if (!r.ok) throw new Error('bin ' + r.status);
   const d = await r.json();
   return ((d.record || d).favoriteTeams || []).filter(t => t && +t.id > 0)
