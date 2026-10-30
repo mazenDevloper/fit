@@ -374,14 +374,19 @@ export class StereoRenderer {
     if (cam.fov !== fov || cam.aspect !== A) { cam.fov = fov; cam.aspect = A; cam.updateProjectionMatrix(); }
     u.uExtent.value.set(t.x / m.x, t.y / m.y);
     this.eyes.forEach(e => { e.quaternion.copy(cam.quaternion); e.position.set(0, 0, 0); e.updateMatrixWorld(); });
-    r.setRenderTarget(null);
+    // glow on: drawn into a target the same way each eye is in the headset, then through the effects onto the screen
+    const sz = this.post ? r.getDrawingBufferSize(new THREE.Vector2()) : null;
+    const pt = this.post ? this.post.mono(sz.x, sz.y) : null;
+    r.setRenderTarget(pt);
     r.setClearColor(0x05060a, this.nativeCam && envMode !== 'immersive' ? 0 : 1);
     r.clear(true, true, true);
     if (envMode !== 'immersive' && !this.nativeCam) r.render(this.bgScene, this.bgCam);
     r.clearDepth();
     if (envMode === 'portal' && this.portal) this.portal.pass(r, cam, this.scene); else r.render(this.scene, cam);
+    if (this.extraScene) r.render(this.extraScene, cam);   // a captured real place (Gaussian splats): its own pass
     if (this.maskOn && u.uHas.value > 0) r.render(this.handScene, this.bgCam);
     else if (this.maskOn && this.nativeCam && envMode !== 'immersive') r.render(this.holeScene, this.bgCam);
+    if (pt) { r.setRenderTarget(null); this.post.monoOut(r, pt); }
     r.clearDepth();
     r.render(this.overlay, cam);
     this.afterRender?.();
@@ -415,17 +420,21 @@ export class StereoRenderer {
       if (envMode !== 'immersive' && !this.nativeCam) r.render(this.bgScene, this.bgCam);
       r.clearDepth();
       if (envMode === 'portal' && this.portal) this.portal.pass(r, cam, this.scene); else r.render(this.scene, cam);
+      if (this.extraScene) r.render(this.extraScene, cam);
+    if (this.extraScene) r.render(this.extraScene, cam);   // a captured real place (Gaussian splats): its own pass
       if (this.maskOn && u.uHas.value > 0) r.render(this.handScene, this.bgCam);
       else if (this.maskOn && this.nativeCam && envMode !== 'immersive') r.render(this.holeScene, this.bgCam);
       r.clearDepth();
       r.render(this.overlay, cam);
+      // glow on: this eye's picture through bloom + vignette (the lenses then read the glowing copy)
+      (this.eyeOut ||= [])[i] = this.post ? this.post.eye(r, this.rts[i], i) : this.rts[i];
     }
     EYE.value = 0;
     r.setRenderTarget(null);
     r.setClearColor(0x000000, 1);
     r.clear(true, true, true);
-    this.distMat.uniforms.tL.value = this.rts[0].texture;
-    this.distMat.uniforms.tR.value = this.rts[1].texture;
+    this.distMat.uniforms.tL.value = (this.eyeOut?.[0] || this.rts[0]).texture;
+    this.distMat.uniforms.tR.value = (this.eyeOut?.[1] || this.rts[1]).texture;
     r.render(this.distScene, this.distCam);
 
     if (this.cssCount !== this.lastCss || (this.readCount || 0) !== this.lastRead) { this.lastCss = this.cssCount; this.lastRead = this.readCount || 0; this.resize(); }

@@ -170,11 +170,24 @@ export class Launcher {
         ['globe', 'الأجهزة المتصلة', hubN ? hubN + ' متصل' : 'لا يوجد', () => { a.toast(a.hub?.others().map(d => d.name).join(' · ') || 'لا أجهزة متصلة', 3500); }]];
       const widgets = [W8('today', 'يومك', 'المباريات · الصلاة · التذكيرات'), W8('weather', 'الطقس', 'حسب موقعك'), W8('timer', 'المؤقت', 'مؤقت وساعة إيقاف'), W8('note', 'ملاحظة لاصقة', 'تُملى بصوتك'), W8('photos', 'إطار الصور', 'صور مكتبتك'), W8('nowplaying', 'يُعرض الآن', 'تحكم بكل ما يعمل'),
         W8('verse', 'آية اليوم', 'بصوت العفاسي'), W8('scenes', 'المشاهد', 'احفظ ترتيبك وارجع إليه'), W8('aihist', 'سجل المساعد', 'محادثاتك السابقة'), W8('usage', 'استخدامك', 'وقتك والحرارة')];
-      if (this.folder === 'widgets') list = widgets;
+      // «المستوى التالي»: the free libraries (nextlevel.js)
+      const nx = a.nx, nxItems = nx ? [
+        ['sun', 'لافتة اليوم', nx.sign ? 'ظاهرة · اضغط لإخفائها' : 'الوقت وما بعده بخط عربي مجسّم', () => { this.close(); nx.toggleSign(); }],
+        ['grid', 'الشريط الزجاجي', nx.dock ? 'ظاهر · اضغط لإخفائه' : 'أزرار زجاجية أسفل نظرك', () => { this.close(); nx.toggleDock(); }],
+        ['sun', 'التوهّج الزجاجي', a.renderer.post ? 'يعمل · اضغط لإيقافه' : 'توهّج وإطار سينمائي', () => { this.close(); nx.toggleGlow(); }],
+        ['globe', 'غرفة حقيقية', nx.splat ? 'مفتوحة · اضغط لإغلاقها' : 'مكان حقيقي ثلاثي الأبعاد حولك', () => { this.close(); nx.splat ? nx.closeSplat() : nx.sampleSplat(); }],
+        ['image', 'غرفة من ملف', '.splat · .ply · .ksplat صوّرتها', () => { this.close(); nx.pickSplat(); }],
+        ['cube', 'رمي النوافذ', nx.phys ? 'يعمل · اضغط لإيقافه' : 'اترك النافذة وهي تتحرك', () => { this.close(); nx.togglePhysics(); }],
+        ['hand', 'الإيماءات', nx.gest ? 'تعمل · اضغط لإيقافها' : '👍 ✌️ ✋ ✊ بدون لمس', () => { this.close(); nx.toggleGestures(); }],
+        ['mic', 'أمر بلا خادم', 'Whisper على جهازك', () => { this.close(); nx.whisperListen(); }],
+      ] : [];
+      if (this.folder === 'nx') list = nxItems;
+      else if (this.folder === 'widgets') list = widgets;
       else if (this.folder === 'dc') list = dcItems;
       else if (this.folder === 'tools') list = list.filter(x => FOLDERS.tools[2].includes(x[1]));
       else {
         list = list.filter(x => !FOLDERS.tools[2].includes(x[1]));
+        if (nxItems.length) list.push(['star', 'المستوى التالي', nxItems.length + ' ميزات جديدة', () => { this.folder = 'nx'; this.page = 0; this.panel.redraw(); }]);
         list.push([FOLDERS.dc[0], FOLDERS.dc[1], hubN ? '🟢 ' + hubN + ' جهاز متصل' : 'السيارة · التلفاز · الهاتف', () => { this.folder = 'dc'; this.page = 0; this.panel.redraw(); }]);
         list.push([FOLDERS.widgets[0], FOLDERS.widgets[1], widgets.length + ' أدوات', () => { this.folder = 'widgets'; this.page = 0; this.panel.redraw(); }], [FOLDERS.tools[0], FOLDERS.tools[1], 'مجلد', () => { this.folder = 'tools'; this.page = 0; this.panel.redraw(); }]);
         // your own order: «ترتيب الشاشة» then tap tiles - each one tapped jumps to the front
