@@ -61,6 +61,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (!KeepService.prefs(this).getString("code", "").isEmpty()) KeepService.start(this);   // reachable for wake / remote
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -511,9 +512,12 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         @JavascriptInterface public void stopUvc() { runOnUiThread(() -> { if (uvc != null) { uvc.stop(); uvc = null; } }); }
         @JavascriptInterface public void setRemoteOnly(boolean on) {
             ControlService.remoteOnly = on;
-            Intent k = new Intent(MainActivity.this, KeepService.class);
-            if (on) { if (Build.VERSION.SDK_INT >= 26) startForegroundService(k); else startService(k); } else stopService(k);
+            KeepService.start(MainActivity.this);   // always on now: wake + remote from anywhere
         }
+        /** who this device is in «المركز» (its 6-digit code and name): the background link uses it as sys-<code> */
+        @JavascriptInterface public void setIdentity(String code, String name) { if (code != null && code.matches("\\d{6}")) KeepService.setIdentity(MainActivity.this, code, name == null ? "مدار" : name); }
+        @JavascriptInterface public boolean overlayAllowed() { return Build.VERSION.SDK_INT < 23 || android.provider.Settings.canDrawOverlays(MainActivity.this); }
+        @JavascriptInterface public void openOverlaySettings() { runOnUiThread(() -> { try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + getPackageName()))); } catch (Exception e) { try { startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) { } } }); }
         @JavascriptInterface public void hidStart() { runOnUiThread(() -> { if (!HidRemote.supported()) return; if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission("android.permission.BLUETOOTH_CONNECT") != PackageManager.PERMISSION_GRANTED) { requestPermissions(new String[]{"android.permission.BLUETOOTH_CONNECT", "android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_ADVERTISE"}, REQ_PERMS); return; } if (hidRemote == null) hidRemote = new HidRemote(MainActivity.this); hidRemote.start(); }); }
         @JavascriptInterface public String hidDevices() { return hidRemote == null ? "[]" : hidRemote.devices(); }
         @JavascriptInterface public void hidConnect(String addr) { if (hidRemote != null) hidRemote.connect(addr); }

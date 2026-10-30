@@ -39,6 +39,13 @@ public class ControlService extends AccessibilityService {
         try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
     }
 
+    /** from «المركز» (KeepService): the remote works whenever Madar runs on this device, no sharing needed */
+    static void handleRemote(String json) {
+        ControlService s = instance;
+        if (s == null) { Popup.show(KeepService.inst != null ? KeepService.inst : null, "فعّل «تحكم مدار» في إمكانية الوصول ليعمل الريموت", 5000); return; }
+        try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
+    }
+
     private int[] size() {
         WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
