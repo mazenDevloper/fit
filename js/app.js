@@ -38,10 +38,11 @@ import { audioContext, blip, setMaxAniso } from './ui.js';
 import { Remote } from './remote.js';
 import { Plus } from './plus.js';
 import { NextLevel } from './nextlevel.js';
+import { Together } from './together.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '126';
+export const APP_VERSION = '127';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -128,6 +129,7 @@ class App {
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.extras = new Extras(this);
     this.remote = new Remote(this);
+    this.together = new Together(this);   // «شاهد معاً»: voices + the same video at the same second (LiveKit)
     this.nx = new NextLevel(this);   // the free libraries: Arabic 3D text, glass dock, glow, real places, physics, gestures, Whisper
     this.plus = new Plus(this);       // match mode, spaces of the day, lying down, quiet notifications, headsets   // VR Park and other Bluetooth remotes
     this.hub = new HubClient(this);   // «المركز»: Madar ⇄ DriveCast
@@ -1317,7 +1319,7 @@ class App {
     this.controls.update(dt);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
-    this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.remote?.pollPads(now);
+    this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.together?.update(now); this.remote?.pollPads(now);
     this.toastUI.update(now, this.renderQ);
     this.sports?.update(now, this.renderQ);
     if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }

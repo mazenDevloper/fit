@@ -794,6 +794,8 @@ export class Extras {
     if (has('لخص', 'لخّص', 'ملخص')) { const w = [app.controls.pointedWindow(), ...[...app.windows.windows].reverse()].find(x => x?.kind === 'web'); if (w) this.summarize(w.url, w.title); else app.toast('افتح صفحة أولاً', 2000); return true; }
     if (has('ترجمة فورية', 'الترجمة الفورية', 'ترجمة نصية', 'الترجمة النصية', 'الترجمة')) { this.captions.toggle(has('انجليزي', 'إنجليزي', 'الانجليزية', 'الإنجليزية') ? 'en-US' : has('عربي') ? 'ar-SA' : null); return true; }
     if (has('عرض متعدد', 'شاشات متعددة', 'ملتي فيو')) { this.toggleMultiview(); return true; }
+    if (has('شاهد معا', 'شاهد معاً', 'مشاهدة جماعية')) { app.together?.toggle(); return true; }
+    if (has('قد المشاهدة', 'قُد المشاهدة')) { app.together?.leadNow(); return true; }
     if (has('وضع المباراة', 'المباراة')) { app.plus?.matchMode(); return true; }
     if (has('استلقاء', 'مستلقي', 'فوقي')) { app.plus?.toggleLying(); return true; }
     if (has('احفظ المساحة', 'احفظ كمساحة')) { app.plus?.saveSpace(); return true; }

@@ -180,6 +180,9 @@ export class Launcher {
         ['cube', 'رمي النوافذ', nx.phys ? 'يعمل · اضغط لإيقافه' : 'اترك النافذة وهي تتحرك', () => { this.close(); nx.togglePhysics(); }],
         ['hand', 'الإيماءات', nx.gest ? 'تعمل · اضغط لإيقافها' : '👍 ✌️ ✋ ✊ بدون لمس', () => { this.close(); nx.toggleGestures(); }],
         ['mic', 'أمر بلا خادم', 'Whisper على جهازك', () => { this.close(); nx.whisperListen(); }],
+        ['video', 'شاهد معاً', a.together?.on ? 'أنت في الغرفة · اضغط للخروج' : 'صوت + نفس الفيديو مع أهلك', () => { this.close(); a.together?.toggle(); }],
+        ...(a.together?.on ? [['play', 'قُد المشاهدة', 'ما تشاهده يظهر عند الجميع', () => { this.close(); a.together.leadNow(); }],
+          ['mic', 'المايكروفون', 'كتم / تشغيل صوتك', () => { this.close(); a.together.toggleMic(); }]] : []),
       ] : [];
       if (this.folder === 'nx') list = nxItems;
       else if (this.folder === 'widgets') list = widgets;
