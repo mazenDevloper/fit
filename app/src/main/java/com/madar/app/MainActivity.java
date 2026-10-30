@@ -104,11 +104,17 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         Uri data = getIntent() != null ? getIntent().getData() : null;
         if (data != null && HOST.equals(data.getHost())) url = data.toString();
         if (state != null) web.restoreState(state); else web.loadUrl(url);
+        takeIntent(getIntent());
     }
+
+    // woken from afar with «share»: the page starts streaming this screen as soon as it is ready (it asks for this)
+    static volatile String autoShareTo = null;
+    private void takeIntent(Intent i) { if (i != null && i.getBooleanExtra("autoshare", false)) { autoShareTo = i.getStringExtra("shareTo"); if (autoShareTo == null) autoShareTo = ""; if (web != null) js("window.__madarAutoShare&&__madarAutoShare()"); } }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        takeIntent(intent);
         Uri data = intent.getData();
         if (data != null && HOST.equals(data.getHost())) web.loadUrl(data.toString());
     }
@@ -516,9 +522,6 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         }
         /** who this device is in «المركز» (its 6-digit code and name): the background link uses it as sys-<code> */
         @JavascriptInterface public void setIdentity(String code, String name) { if (code != null && code.matches("\\d{6}")) KeepService.setIdentity(MainActivity.this, code, name == null ? "مدار" : name); }
-        /** «التحكم الكامل»: the device's own ADB (network debugging) - real remote keys + switches «تحكم مدار» on */
-        @JavascriptInterface public void adbSetup() { AdbSelf.setup(MainActivity.this); }
-        @JavascriptInterface public String adbState() { return AdbSelf.state; }
         @JavascriptInterface public boolean overlayAllowed() { return Build.VERSION.SDK_INT < 23 || android.provider.Settings.canDrawOverlays(MainActivity.this); }
         @JavascriptInterface public void openOverlaySettings() { runOnUiThread(() -> { try { startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + getPackageName()))); } catch (Exception e) { try { startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getPackageName()))); } catch (Exception ignored) { } } }); }
         @JavascriptInterface public void hidStart() { runOnUiThread(() -> { if (!HidRemote.supported()) return; if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission("android.permission.BLUETOOTH_CONNECT") != PackageManager.PERMISSION_GRANTED) { requestPermissions(new String[]{"android.permission.BLUETOOTH_CONNECT", "android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_ADVERTISE"}, REQ_PERMS); return; } if (hidRemote == null) hidRemote = new HidRemote(MainActivity.this); hidRemote.start(); }); }

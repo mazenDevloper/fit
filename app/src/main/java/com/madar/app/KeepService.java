@@ -86,6 +86,7 @@ public class KeepService extends Service {
                     JSONObject m = d.optJSONObject("msg"); if (m == null) return;
                     JSONObject from = d.optJSONObject("from");
                     String who = from == null ? "جهاز" : from.optString("name", "جهاز");
+                    if (from != null) m.put("_from", from.optString("id", ""));
                     h.post(() -> handle(m, who));
                 } catch (Exception ignored) { }
             }
@@ -98,7 +99,7 @@ public class KeepService extends Service {
     private void handle(JSONObject m, String who) {
         String t = m.optString("type");
         switch (t) {
-            case "wake": wake(who); break;
+            case "wake": wake(who); if (m.optBoolean("share", true)) shareFor(from(m)); break;
             case "input": ControlService.handleRemote(m.toString()); break;
             case "cursor": Pointer.get(this).command(m); break;
             case "open": wake(who); openApp(); break;
@@ -116,8 +117,19 @@ public class KeepService extends Service {
             PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "madar:wake");
             wl.acquire(10_000);
         } catch (Exception ignored) { }
-        AdbSelf.wake(this);   // the real WAKEUP key too (when the full control is set up)
         Popup.show(this, "مدار متصل · أيقظه " + who, 5000);
+    }
+    private static String from(JSONObject m) { return m.optString("_from", ""); }
+    /** woken to be seen: Madar opens, the remote is on, and the screen starts streaming to whoever woke it
+     *  (the recording consent is accepted by «تحكم مدار» by itself) */
+    private void shareFor(String to) {
+        ControlService.remoteOnly = true;
+        ControlService.acceptUntil = System.currentTimeMillis() + 25_000;
+        if (CaptureService.running) return;   // already streaming
+        try {
+            startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    .putExtra("autoshare", true).putExtra("shareTo", to));
+        } catch (Exception ignored) { }
     }
     private void openApp() {
         try { startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)); } catch (Exception ignored) { }

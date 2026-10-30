@@ -23,7 +23,35 @@ public class ControlService extends AccessibilityService {
     static volatile ControlService instance;
 
     @Override protected void onServiceConnected() { super.onServiceConnected(); instance = this; }
-    @Override public void onAccessibilityEvent(AccessibilityEvent event) { }
+    // ---- woken from afar: the screen-recording consent («ابدأ الآن») is accepted by itself for a few seconds
+    static volatile long acceptUntil = 0;
+    private static final String[] PICK = {"Entire screen", "Share entire screen", "الشاشة بأكملها", "الشاشة بالكامل", "مشاركة الشاشة بالكامل"};
+    private static final String[] START = {"Start now", "ابدأ الآن", "بدء الآن", "البدء الآن", "Start", "Share screen", "مشاركة الشاشة", "ابدأ", "بدء", "Allow", "السماح"};
+    @Override public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (System.currentTimeMillis() > acceptUntil || event == null) return;
+        CharSequence pk = event.getPackageName();
+        if (pk == null) return;
+        String p = pk.toString();
+        if (!p.contains("systemui") && !"android".equals(p) && !p.contains("permissioncontroller")) return;
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return;
+        if (clickText(root, PICK)) return;          // Android 14+: «the entire screen», then the start button
+        if (clickText(root, START)) acceptUntil = 0;  // done
+    }
+    private boolean clickText(AccessibilityNodeInfo root, String[] texts) {
+        for (String t : texts) {
+            java.util.List<AccessibilityNodeInfo> l = root.findAccessibilityNodeInfosByText(t);
+            if (l == null) continue;
+            for (AccessibilityNodeInfo n : l) {
+                CharSequence tx = n.getText();
+                if (tx == null || !tx.toString().trim().equalsIgnoreCase(t)) continue;   // the exact button, not a sentence containing it
+                AccessibilityNodeInfo c = n; int up = 0;
+                while (c != null && !c.isClickable() && up++ < 4) c = c.getParent();
+                if (c != null && c.isEnabled() && c.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
+            }
+        }
+        return false;
+    }
     @Override public void onInterrupt() { }
     @Override public boolean onUnbind(android.content.Intent intent) { instance = null; return super.onUnbind(intent); }
     @Override public void onDestroy() { instance = null; super.onDestroy(); }
@@ -39,21 +67,11 @@ public class ControlService extends AccessibilityService {
         try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
     }
 
-    /** from «المركز» (KeepService): the remote works whenever Madar runs on this device, no sharing needed.
-     *  Keys (arrows / OK / back / home / media) go as real remote keys through the device's own ADB when it is set
-     *  up (works in every app and on the TV home screen); touches and Arabic text through this service. */
+    /** from «المركز» (KeepService): the remote works whenever Madar runs on this device, no sharing needed */
     static void handleRemote(String json) {
-        JSONObject m; try { m = new JSONObject(json); } catch (Exception e) { return; }
-        String a = m.optString("a");
-        boolean keyLike = "nav".equals(a) || "key".equals(a) || "media".equals(a);
-        Context c = instance != null ? instance : KeepService.inst;
-        if (c != null && AdbSelf.ok && (keyLike || instance == null) && AdbSelf.input(c, m)) return;
         ControlService s = instance;
-        if (s == null) {
-            if (c != null && AdbSelf.input(c, m)) return;   // try ADB once even if not set up yet
-            Popup.show(c, "فعّل «تحكم مدار» أو «التحكم الكامل» من مدار ليعمل الريموت", 5000); return;
-        }
-        try { s.run(m); } catch (Exception ignored) { }
+        if (s == null) { Popup.show(KeepService.inst, "فعّل «تحكم مدار» في إمكانية الوصول ليعمل الريموت", 5000); return; }
+        try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
     }
 
     private int[] size() {
