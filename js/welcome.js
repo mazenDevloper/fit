@@ -42,7 +42,7 @@ export class Welcome {
     // prayer + match tiles
     const tile = (x, tint, a, b, c3) => { ctx.fillStyle = tint; roundRect(ctx, x, 235, 610, 190, 36); ctx.fill(); T(a, x + 580, 290, 30, 'rgba(255,255,255,0.7)', 700); T(b, x + 580, 355, 46); if (c3) T(c3, x + 580, 400, 28, 'rgba(255,255,255,0.6)', 600); };
     if (d.next) tile(w - 70 - 610, 'rgba(16,185,129,0.16)', 'الصلاة القادمة', `${d.next.title} · ${d.next.time}`, `بعد ${d.next.mins >= 60 ? Math.floor(d.next.mins / 60) + ' س ' : ''}${d.next.mins % 60} د`);
-    if (d.match) { const m = d.match; tile(70, m.live ? 'rgba(244,63,94,0.18)' : 'rgba(56,189,248,0.14)', m.live ? '🔴 مباشر الآن' : 'مباراتك اليوم', `${m.home.name} ${m.live ? (m.score.home ?? 0) + '-' + (m.score.away ?? 0) : '× ' } ${m.away.name}`.replace('×  ', '× '), m.live ? (m.elapsed ? 'الدقيقة ' + m.elapsed : '') : m.time + (m.league ? ' · ' + m.league : '')); }
+    if (d.match) { const m = d.match; tile(70, m.live ? 'rgba(244,63,94,0.18)' : 'rgba(56,189,248,0.14)', m.live ? '🔴 مباشر الآن' : 'مباراتك اليوم', `${m.home.name} ${m.live ? (m.score.away ?? 0) + '-' + (m.score.home ?? 0) : '× ' } ${m.away.name}`.replace('×  ', '× '), m.live ? (m.elapsed ? 'الدقيقة ' + m.elapsed : '') : m.time + (m.league ? ' · ' + m.league : '')); }
     // devices
     T('أجهزتك المتصلة', w - 70, 490, 30, 'rgba(255,255,255,0.55)', 700);
     const devs = (d.devices || []).slice(0, 5);
