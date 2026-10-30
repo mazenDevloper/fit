@@ -180,6 +180,7 @@ export class Launcher {
         ['cube', 'رمي النوافذ', nx.phys ? 'يعمل · اضغط لإيقافه' : 'اترك النافذة وهي تتحرك', () => { this.close(); nx.togglePhysics(); }],
         ['hand', 'الإيماءات', nx.gest ? 'تعمل · اضغط لإيقافها' : '👍 ✌️ ✋ ✊ بدون لمس', () => { this.close(); nx.toggleGestures(); }],
         ['mic', 'أمر بلا خادم', 'Whisper على جهازك', () => { this.close(); nx.whisperListen(); }],
+        ['sun', 'أيقظ أجهزتي', 'كل جهاز فيه مدار: تلفاز، تابلت، هاتف', () => { this.close(); a.hub?.op({ op: 'send', to: 'kind:sys', msg: { type: 'wake' } }); a.toast('⏻ أُرسل الإيقاظ لكل أجهزة مدار', 2000); }],
         ['globe', 'مرحباً', 'التاريخ والصلاة ومباراتك وأجهزتك', () => { this.close(); a.welcome?.show(); }],
         ['stack', 'أرسل ما نسخته', 'لكل أجهزتك (الهاتف، التلفاز، السيارة)', () => { this.close(); a.welcome?.sendClipboard(); }],
         ['video', 'شاهد معاً', a.together?.on ? 'أنت في الغرفة · اضغط للخروج' : 'صوت + نفس الفيديو مع أهلك', () => { this.close(); a.together?.toggle(); }],

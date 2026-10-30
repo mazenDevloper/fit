@@ -74,17 +74,23 @@ function hub() {
 const toMadar = msg => { if (ws?.readyState !== 1) return; const t = target && devs.some(d => d.id === target) ? target : 'kind:madar'; ws.send(JSON.stringify({ op: 'send', to: t, msg: { type: 'rc', ...msg } })); };
 const MADAR = { up: 'up', down: 'down', left: 'left', right: 'right', ok: 'select', back: 'back', home: 'recenter', menu: 'launcher' };
 
-// ---------------- an Android device running Madar (screen shared, or «تحكم فقط»)
-let conn = null, code = localStorage.getItem('rc.code') || '';
-async function link() {
-  if (!/^\d{6}$/.test(code)) return; await lib(); conn?.close?.();
-  const peer = new window.peerjs.Peer(undefined, rtc);
-  peer.on('open', () => { conn = peer.connect('madar-scr-' + code, { reliable: true }); conn.on('open', () => { st.innerHTML = '<b>●</b> متصل بـ ' + code; }); conn.on('close', () => { st.textContent = 'انقطع'; }); });
-  peer.on('error', () => { st.textContent = 'لم أجد الجهاز'; });
-}
-const toAndroid = m => { if (conn?.open) conn.send({ type: 'input', ...m }); };
+// ---------------- an Android device with Madar installed (TV box, tablet, phone): through «المركز», even with
+// Madar closed and the screen asleep (the app keeps its own link as sys-<code>). Two modes:
+//   تركيز  the arrows move the focus like a D-pad (TV apps)    ·    مؤشر  a pointer like a mouse (touch apps)
+let code = localStorage.getItem('rc.code') || '', mode = localStorage.getItem('rc.mode') || 'focus';
+const sysId = () => 'sys-' + code;
+const sysOnline = () => all.some(d => d.id === sysId());
+const toSys = msg => { if (ws?.readyState === 1 && /^\d{6}$/.test(code)) ws.send(JSON.stringify({ op: 'send', to: sysId(), msg })); };
+const toAndroid = m => toSys({ type: 'input', ...m });
 const ANDROID = { up: { a: 'nav', dir: 'up' }, down: { a: 'nav', dir: 'down' }, left: { a: 'nav', dir: 'left' }, right: { a: 'nav', dir: 'right' }, ok: { a: 'nav', dir: 'ok' },
   back: { a: 'key', key: 'back' }, home: { a: 'key', key: 'home' }, menu: { a: 'key', key: 'recents' }, play: { a: 'media', key: 'play' }, 'vol-': { a: 'media', key: 'vol-' }, 'vol+': { a: 'media', key: 'vol+' }, mute: { a: 'media', key: 'mute' } };
+const POINT = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+function androidKey(a) {
+  if (mode === 'pointer' && POINT[a]) return toSys({ type: 'cursor', a: 'move', dx: POINT[a][0], dy: POINT[a][1] });
+  if (mode === 'pointer' && a === 'ok') return toSys({ type: 'cursor', a: 'tap' });
+  if (ANDROID[a]) toAndroid(ANDROID[a]);
+}
+const wake = () => { toSys({ type: 'wake' }); st.innerHTML = '<b>●</b> أُرسل الإيقاظ إلى ' + code; };
 
 // ---------------- Bluetooth: this phone is a Bluetooth keyboard / remote for any TV box, TV or computer
 const btOK = !!A?.hidStart;
@@ -96,11 +102,17 @@ function draw() {
     $('#sel').onchange = e => { target = e.target.value; localStorage.setItem('rc.target', target); };
     st.innerHTML = devs.length ? '<b>●</b> ' + devs.length + ' مدار متصل' : 'افتح مدار على النظارة';
   } else if (tab === 'android') {
-    const near = devs.filter(d => /^madar-\d{6}$/.test(d.id));
-    pick.innerHTML = (near.length ? `<select id="dsel"><option value="">اختر جهازاً متصلاً…</option>${near.map(d => `<option value="${d.id.slice(6)}" ${d.id.slice(6) === code ? 'selected' : ''}>📺 ${d.name} · ${d.id.slice(6)}</option>`).join('')}</select>` : '') + `<div class="row"><input id="code" inputmode="numeric" maxlength="6" placeholder="رقم الجهاز (6 أرقام)" value="${code}" dir="ltr"><button class="tab" id="go">اتصل</button></div>
-      <p class="note">على الجهاز المتحكَّم به: ثبّت تطبيق مدار، فعّل «تحكم مدار» مرة واحدة، ثم «شارك الشاشة» أو «🎛 تحكم فقط».</p>`;
-    $('#dsel')?.addEventListener('change', e => { if (!e.target.value) return; code = e.target.value; localStorage.setItem('rc.code', code); link(); });
-    $('#go').onclick = () => { code = $('#code').value.replace(/\D/g, ''); localStorage.setItem('rc.code', code); link(); };
+    const sys = all.filter(d => d.app === 'sys');
+    pick.innerHTML = (sys.length ? `<select id="dsel"><option value="">اختر جهازاً…</option>${sys.map(d => `<option value="${d.id.slice(4)}" ${d.id.slice(4) === code ? 'selected' : ''}>🟢 ${d.name}</option>`).join('')}</select>` : '')
+      + `<div class="row"><input id="code" inputmode="numeric" maxlength="6" placeholder="رقم الجهاز (6 أرقام)" value="${code}" dir="ltr"><button class="tab" id="go">اختر</button></div>
+      <div class="row"><button class="tab ${mode === 'focus' ? 'on' : ''}" id="mf">🎯 تركيز</button><button class="tab ${mode === 'pointer' ? 'on' : ''}" id="mp">🖱 مؤشر</button><button class="tab" id="wk">⏻ أيقظ</button></div>
+      <p class="note">على الجهاز: افتح مدار مرة واحدة (يبقى متصلاً بعدها حتى بعد إعادة التشغيل)، وفعّل «تحكم مدار» من إعدادات إمكانية الوصول. «مؤشر» للتطبيقات التي تُستخدم باللمس.</p>`;
+    st.innerHTML = /^\d{6}$/.test(code) ? (sysOnline() ? '<b>●</b> متصل · ' + code : '○ ' + code + ' غير متصل الآن') : 'اختر الجهاز';
+    $('#dsel')?.addEventListener('change', e => { if (!e.target.value) return; code = e.target.value; localStorage.setItem('rc.code', code); draw(); });
+    $('#go').onclick = () => { code = $('#code').value.replace(/\D/g, ''); localStorage.setItem('rc.code', code); draw(); };
+    $('#mf').onclick = () => { mode = 'focus'; localStorage.setItem('rc.mode', mode); toSys({ type: 'cursor', a: 'hide' }); draw(); };
+    $('#mp').onclick = () => { mode = 'pointer'; localStorage.setItem('rc.mode', mode); toSys({ type: 'cursor', a: 'center' }); draw(); };
+    $('#wk').onclick = wake;
   } else {
     if (!btOK) { pick.innerHTML = '<p class="note">ريموت البلوتوث يعمل من <b>تطبيق مدار للأندرويد</b>: يصبح هاتفك ريموت/لوحة مفاتيح بلوتوث لأي تي في بوكس أو تلفاز أو كمبيوتر — بلا تثبيت شيء عليه.</p>'; st.textContent = ''; return; }
     let list = []; try { list = JSON.parse(A.hidDevices() || '[]'); } catch {}
@@ -114,7 +126,7 @@ function send(a) {
   buzz();
   if (a === 'kbd') { const t = $('#txt'); t.classList.toggle('hide'); if (!t.classList.contains('hide')) t.focus(); return; }
   if (tab === 'madar') { if (MADAR[a]) toMadar({ action: MADAR[a] }); else if (a === 'play') toMadar({ action: 'select' }); }
-  else if (tab === 'android') { if (ANDROID[a]) toAndroid(ANDROID[a]); }
+  else if (tab === 'android') androidKey(a);
   else if (btOK) A.hidKey(a);
 }
 document.querySelectorAll('[data-a]').forEach(b => {
@@ -134,12 +146,14 @@ tp.addEventListener('pointerdown', e => { tp.setPointerCapture(e.pointerId); lx 
 tp.addEventListener('pointermove', e => {
   if (!t0) return; const dx = (e.clientX - lx) / tp.clientWidth, dy = (e.clientY - ly) / tp.clientHeight; lx = e.clientX; ly = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
   if (tab === 'madar') toMadar({ dx, dy });
+  else if (tab === 'android' && mode === 'pointer') toSys({ type: 'cursor', a: 'by', dx: dx * 1.6, dy: dy * 1.6 });
 });
 tp.addEventListener('pointerup', e => {
   const dx = (e.clientX - sx) / tp.clientWidth, dy = (e.clientY - sy) / tp.clientHeight, tap = moved < 0.03 && performance.now() - t0 < 350; t0 = 0;
   if (tab === 'madar') { if (tap) toMadar({ click: true }); }
+  else if (tab === 'android' && mode === 'pointer') { if (tap) toSys({ type: 'cursor', a: 'tap' }); }
   else if (tab === 'android') { if (tap) toAndroid(ANDROID.ok); else toAndroid({ a: 'scroll', x: 0.5, y: 0.5, dx: -dx, dy: -dy }); }
   else if (btOK) { if (tap) A.hidKey('ok'); else A.hidKey(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up')); }
 });
-hub(); draw(); if (tab === 'android') link();
+hub(); draw();
 </script></body></html>

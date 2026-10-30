@@ -43,7 +43,7 @@ import { Welcome } from './welcome.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '128';
+export const APP_VERSION = '129';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -135,6 +135,8 @@ class App {
     this.nx = new NextLevel(this);   // the free libraries: Arabic 3D text, glass dock, glow, real places, physics, gestures, Whisper
     this.plus = new Plus(this);       // match mode, spaces of the day, lying down, quiet notifications, headsets   // VR Park and other Bluetooth remotes
     this.hub = new HubClient(this);   // «المركز»: Madar ⇄ DriveCast
+    // Android (TV box, tablet): the app keeps its own link to «المركز» as sys-<code> - wake + remote with Madar closed
+    try { const me = deviceIdentity(); window.MadarAndroid?.setIdentity?.(me.code, me.name || 'مدار'); } catch {}
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     if (IOS) setupNative(this);
     this.interaction.setTargets();
