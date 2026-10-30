@@ -58,6 +58,7 @@ export class HubClient {
     else if (m.type === 'island' && m.item) app.notify({ icon: m.item.icon || '🔔', title: m.item.title, body: m.item.sub || '' });
     else if (m.type === 'scene' && m.name) app.extras?.openScene(m.name);
     else if (m.type === 'match') app.plus?.onMatch(m);
+    else if (m.type === 'shared' && m.code) { app.toast?.('🟢 ' + (m.name || who) + ' استيقظ — شاشته أمامك', 3000); app.connectMirror?.(String(m.code)); }
     else if (m.type === 'clip' && m.text) app.welcome?.clip(String(m.text), who);
     else if (m.type === 'rc') app.remote?.rc(m);
     else if (m.type === 'ping') { try { const a = new AudioContext(), o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); o.stop(a.currentTime + 0.6); } catch {} app.toast?.('🔔 ' + who + ' يبحث عن مدار', 3000); }

@@ -68,7 +68,7 @@ let ws, all = [], devs = [], target = localStorage.getItem('rc.target') || '';
 function hub() {
   const id = localStorage.getItem('rc.id') || ('rc-' + Math.random().toString(36).slice(2, 9)); localStorage.setItem('rc.id', id);
   ws = new WebSocket(HUB + '?' + new URLSearchParams({ id, name: 'ريموت', kind: 'phone', app: 'remote' }));
-  ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.devices) { all = d.devices; devs = d.devices.filter(x => x.app === 'madar'); draw(); } } catch {} };
+  ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.type === 'msg' && d.msg?.type === 'shared' && d.msg.code) { st.innerHTML = `<b>●</b> ${d.msg.name || 'الجهاز'} استيقظ · <a href="tv.html#${d.msg.code}" style="color:#7cc4ff">شاهد شاشته</a>`; } if (d.devices) { all = d.devices; devs = d.devices.filter(x => x.app === 'madar'); draw(); } } catch {} };
   ws.onclose = () => setTimeout(hub, 2500);
 }
 const toMadar = msg => { if (ws?.readyState !== 1) return; const t = target && devs.some(d => d.id === target) ? target : 'kind:madar'; ws.send(JSON.stringify({ op: 'send', to: t, msg: { type: 'rc', ...msg } })); };
@@ -90,7 +90,7 @@ function androidKey(a) {
   if (mode === 'pointer' && a === 'ok') return toSys({ type: 'cursor', a: 'tap' });
   if (ANDROID[a]) toAndroid(ANDROID[a]);
 }
-const wake = () => { toSys({ type: 'wake' }); st.innerHTML = '<b>●</b> أُرسل الإيقاظ إلى ' + code; };
+const wake = () => { toSys({ type: 'wake', share: true }); st.innerHTML = '<b>●</b> أُرسل الإيقاظ إلى ' + code; };
 
 // ---------------- Bluetooth: this phone is a Bluetooth keyboard / remote for any TV box, TV or computer
 const btOK = !!A?.hidStart;

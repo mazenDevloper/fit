@@ -43,7 +43,7 @@ import { Welcome } from './welcome.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '130';
+export const APP_VERSION = '131';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -137,6 +137,9 @@ class App {
     this.hub = new HubClient(this);   // «المركز»: Madar ⇄ DriveCast
     // Android (TV box, tablet): the app keeps its own link to «المركز» as sys-<code> - wake + remote with Madar closed
     try { const me = deviceIdentity(); window.MadarAndroid?.setIdentity?.(me.code, me.name || 'مدار'); } catch {}
+    // woken from afar: the screen starts streaming by itself and whoever woke it is told the code to watch
+    window.__madarAutoShare = () => this.autoShare();
+    setTimeout(() => this.autoShare(), 2500);
     this.renderer.afterRender = () => { for (const w of this.windows.windows) w.placeCss?.(); };
     if (IOS) setupNative(this);
     this.interaction.setTargets();
@@ -444,6 +447,16 @@ class App {
   shareState() {
     const app = !!window.MadarAndroid, browser = typeof navigator.mediaDevices?.getDisplayMedia === 'function';
     return { sharing: !!this.host?.stream, canShare: app || browser };
+  }
+  async autoShare() {
+    const to = window.MadarAndroid?.takeAutoShare?.();
+    if (to == null) return;
+    try {
+      if (!this.host?.stream) await this.host.start();
+      const msg = { type: 'shared', code: this.host.code, name: deviceIdentity().name || 'مدار' };
+      setTimeout(() => this.hub?.op({ op: 'send', to: to || 'all', msg }), 800);
+      this.toast('🟢 شاشتك تُبث والريموت يعمل', 3000);
+    } catch (e) { this.toast('لم تبدأ مشاركة الشاشة', 2500); }
   }
   // A paired device asks to see this screen.
   receiveShareRequest(from) {
