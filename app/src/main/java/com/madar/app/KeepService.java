@@ -116,6 +116,7 @@ public class KeepService extends Service {
             PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "madar:wake");
             wl.acquire(10_000);
         } catch (Exception ignored) { }
+        AdbSelf.wake(this);   // the real WAKEUP key too (when the full control is set up)
         Popup.show(this, "مدار متصل · أيقظه " + who, 5000);
     }
     private void openApp() {

@@ -39,11 +39,21 @@ public class ControlService extends AccessibilityService {
         try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
     }
 
-    /** from «المركز» (KeepService): the remote works whenever Madar runs on this device, no sharing needed */
+    /** from «المركز» (KeepService): the remote works whenever Madar runs on this device, no sharing needed.
+     *  Keys (arrows / OK / back / home / media) go as real remote keys through the device's own ADB when it is set
+     *  up (works in every app and on the TV home screen); touches and Arabic text through this service. */
     static void handleRemote(String json) {
+        JSONObject m; try { m = new JSONObject(json); } catch (Exception e) { return; }
+        String a = m.optString("a");
+        boolean keyLike = "nav".equals(a) || "key".equals(a) || "media".equals(a);
+        Context c = instance != null ? instance : KeepService.inst;
+        if (c != null && AdbSelf.ok && (keyLike || instance == null) && AdbSelf.input(c, m)) return;
         ControlService s = instance;
-        if (s == null) { Popup.show(KeepService.inst != null ? KeepService.inst : null, "فعّل «تحكم مدار» في إمكانية الوصول ليعمل الريموت", 5000); return; }
-        try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
+        if (s == null) {
+            if (c != null && AdbSelf.input(c, m)) return;   // try ADB once even if not set up yet
+            Popup.show(c, "فعّل «تحكم مدار» أو «التحكم الكامل» من مدار ليعمل الريموت", 5000); return;
+        }
+        try { s.run(m); } catch (Exception ignored) { }
     }
 
     private int[] size() {
