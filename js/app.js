@@ -39,10 +39,11 @@ import { Remote } from './remote.js';
 import { Plus } from './plus.js';
 import { NextLevel } from './nextlevel.js';
 import { Together } from './together.js';
+import { Welcome } from './welcome.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '127';
+export const APP_VERSION = '128';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -129,6 +130,7 @@ class App {
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.extras = new Extras(this);
     this.remote = new Remote(this);
+    this.welcome = new Welcome(this);     // «مرحباً»: greeting + date + prayer + match + devices; shared clipboard; prayer pause
     this.together = new Together(this);   // «شاهد معاً»: voices + the same video at the same second (LiveKit)
     this.nx = new NextLevel(this);   // the free libraries: Arabic 3D text, glass dock, glow, real places, physics, gestures, Whisper
     this.plus = new Plus(this);       // match mode, spaces of the day, lying down, quiet notifications, headsets   // VR Park and other Bluetooth remotes
@@ -189,7 +191,7 @@ class App {
     n.hidden = false;
   }
 
-  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || []), ...(this.gallery?.targets || []), ...(this.extras?.targets || []), ...(this.nx?.targets || [])]; }
+  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || []), ...(this.gallery?.targets || []), ...(this.extras?.targets || []), ...(this.nx?.targets || []), ...(this.welcome?.targets || [])]; }
   notify(n) { if (this.active && this.notifier) this.notifier.push(n); else this.toast(n.title, 3000); }
   links() { return loadLinks(); }
   toast(msg, ms) { this.toastUI.show(msg, ms); }
@@ -466,10 +468,10 @@ class App {
     this.notify({ icon: '✨', title: 'مساعد مدار', body: '«' + q + '» …' });
     let r;
     try {
-      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar', context: this.hub?.context() || '' }) });
+      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar', device: this.hub?.me?.id, context: this.hub?.context() || '' }) });
       r = await res.json();
     } catch (e) { this.toast('المساعد غير متاح الآن', 2500); return; }
-    if (!r || !r.say) { this.toast('لم أفهم: «' + q + '»', 2500); return; }
+    if (!r || (!r.say && !(r.done || []).length)) { this.toast('لم أفهم: «' + q + '»', 2500); return; }
     this.aiHist = [...(this.aiHist || []), { role: 'user', content: q }, { role: 'assistant', content: r.say }].slice(-8);
     this.extras?.logAnswer(q, r.say);
     this.notifier.cur = null; this.notifier.queue = [];
@@ -971,7 +973,7 @@ class App {
     if (settings.walk && !IOS) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();
     this.restoreScene();
-    this.extras.enter(); this.plus?.enter();
+    this.extras.enter(); this.plus?.enter(); this.welcome?.enter();
     this.hub.enter();
     if (settings.ambient && settings.ambient !== 'off') setTimeout(() => this.ambient.set(settings.ambient), 1500);
     // Your teams from cplay2 (once a day), then matches for the live island.
@@ -1223,6 +1225,9 @@ class App {
   }
   voiceCommand(t) {
     t = t.trim();
+    // anything about another device (the TV, the car, the phone, the people at home) goes to the assistant: it sees
+    // every device and what it plays, understands any wording and carries the command out there
+    if (/التلفاز|التلفزيون|الشاشة الكبيرة|الصالة|السيارة|الهاتف|الجوال|التابلت|أهل البيت|اهل البيت|كل الأجهزة|كل الاجهزة/.test(t)) { this.askAssistant(t); return; }
     if (this.extras?.voice(t)) { this.toast('🎙 ' + t, 1500); this.log('أمر صوتي: ' + t); return; }
     const has = (...w) => w.some(x => t.includes(x));
     const after = (...w) => { for (const x of w) { const i = t.indexOf(x); if (i >= 0) return t.slice(i + x.length).trim(); } return ''; };
@@ -1319,7 +1324,7 @@ class App {
     this.controls.update(dt);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
-    this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.together?.update(now); this.remote?.pollPads(now);
+    this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.together?.update(now); this.welcome?.update(now); this.remote?.pollPads(now);
     this.toastUI.update(now, this.renderQ);
     this.sports?.update(now, this.renderQ);
     if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }
