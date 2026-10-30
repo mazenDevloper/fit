@@ -54,10 +54,12 @@ export class Plus {
   // ================================================================ + match moments from «المركز»
   onMatch(m) {
     const goal = m.kind === 'goal';
-    blip('open', settings.sounds); if (goal) { setTimeout(() => blip('open', settings.sounds), 180); setTimeout(() => blip('open', settings.sounds), 360); }
+    // goal sound off unless turned on (settings.goalSound); the card always shows
+    const loud = !goal || settings.goalSound === true;
+    if (loud) { blip('open', settings.sounds); if (goal) { setTimeout(() => blip('open', settings.sounds), 180); setTimeout(() => blip('open', settings.sounds), 360); } }
     this.rawNotify({ icon: goal ? '⚽' : m.kind === 'end' ? '🏁' : m.kind === 'pre' ? '⏰' : '🟢', title: m.title.replace(/^[^\p{L}]+/u, ''), body: m.body || '', important: true,
       actions: m.kind === 'pre' || m.kind === 'start' ? [['وضع المباراة', () => this.matchMode()]] : undefined });
-    if (goal || m.kind === 'end') speak(m.title.replace(/^[^\p{L}]+/u, '') + (m.kind === 'end' && m.body ? '. ' + m.body : ''));
+    if ((goal && loud) || m.kind === 'end') speak(m.title.replace(/^[^\p{L}]+/u, '') + (m.kind === 'end' && m.body ? '. ' + m.body : ''));
     this.app.windows.windows.forEach(w => w.type === 'today' && w.loadToday?.());
   }
   // ================================================================ 1) match mode
