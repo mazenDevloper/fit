@@ -4,17 +4,19 @@ permissions: { contents: write }
 jobs:
   go:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get -qq update && sudo apt-get -qq install -y ffmpeg >/dev/null
-      # a new poster for «درب أولد غوست» (its old one caught the white title card)
-      - name: poster
+      - run: sudo apt-get -qq update && sudo apt-get -qq install -y ffmpeg >/dev/null && pip install -q pillow
+      # «فيديو شفاف» (green screens from Wikimedia Commons, keyed into stacked-alpha MP4) + «عريض جداً» (32:9 from the 360° videos)
+      - name: build
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          mkdir -p out && cd out
-          gh release download media-360 -p ghost-road.mp4 -p manifest.json --clobber
-          ffmpeg -y -v error -ss 50 -i ghost-road.mp4 -frames:v 1 -vf scale=640:320 -q:v 4 ghost-road-p.jpg
-          python3 -c "import json; m=json.load(open('manifest.json')); [v.update(poster='ghost-road-p.jpg') for v in m if v['id']=='ghost-road']; json.dump(m, open('manifest.json','w'), ensure_ascii=False, indent=1)"
-          gh release upload media-360 ghost-road-p.jpg manifest.json --clobber
-          curl -s -o /dev/null -w "%{http_code}\n" https://studio.c-p.workers.dev/m/ghost-road-p.jpg || true
+          gh release download media-360 -p manifest.json --clobber
+          python3 tools/mediafx.py
+      - name: publish
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          cd out && ls -la | head -60
+          gh release upload media-360 *.mp4 *.jpg fx.json wide.json --clobber
+          for f in fx.json wide.json; do curl -s -o /dev/null -w "$f %{http_code}\n" "https://studio.c-p.workers.dev/m/$f?x=$RANDOM" || true; done
