@@ -279,6 +279,28 @@ class SpatialWindow {
     if (this.modeSide) this.modeSide.mesh.position.set(-w / 2 - 0.05 - 0.17, 0, 0.004);
   }
   setAspect(a) { if (a && isFinite(a) && Math.abs(a - this.aspect) > 0.001) { this.aspect = a; this.layout(); } }
+  // «المقاس» (videos and photos, like visionOS): عادي = the picture's own shape · عريض 21:9 · عريض جداً 32:9 -
+  // the picture fills the wider window (trimmed top and bottom); the window keeps its height, so it grows wider
+  baseRects() { const u = this.mat?.uniforms; if (!u?.uL) return; this.bL = u.uL.value.clone(); this.bR = u.uR.value.clone(); }
+  applySize(natural) {
+    const u = this.mat?.uniforms; if (!u?.uL || !natural) return;
+    this.natAspect = natural;
+    if (!this.bL) this.baseRects();
+    u.uL.value.copy(this.bL); u.uR.value.copy(this.bR);
+    const ta = { wide: 21 / 9, ultra: 32 / 9 }[this.sizeMode];
+    if (!ta || natural >= ta - 0.01) { this.setAspect(natural); return; }
+    const f = natural / ta;
+    for (const v of [u.uL.value, u.uR.value]) { v.y += v.w * (1 - f) / 2; v.w *= f; }   // (x, y, width, height)
+    this.setAspect(ta);
+  }
+  cycleSize() {
+    const o = ['normal', 'wide', 'ultra'], before = this.aspect;
+    this.sizeMode = o[(o.indexOf(this.sizeMode || 'normal') + 1) % o.length];
+    this.applySize(this.natAspect || this.aspect);
+    if (before && this.aspect) this.group.scale.multiplyScalar(Math.sqrt(this.aspect / before));   // wider, a little lower: stays in view
+    this.mgr.changed?.();
+    this.mgr.app.toast('المقاس: ' + SIZE_AR[this.sizeMode], 1200);
+  }
   // a small status pill above the top-right corner (e.g. the HDMI stream's delay)
   setBadge(textV, color = '#22c55e') {
     if (!textV) { if (this.badge) this.badge.mesh.visible = false; return; }
@@ -643,6 +665,7 @@ class PicturePanel {
   dispose() { this.panel.dispose(); }
 }
 
+const SIZE_AR = { normal: 'عادي', wide: 'عريض 21:9', ultra: 'عريض جداً 32:9' };
 export class VideoWindow extends SpatialWindow {
   isMuted() { return !!this.video?.muted; }
   applyVolume() { const v = this.video; if (!v) return; v.muted = this.mute; setElementVolume(v, this.vol ?? 1); if (!this.mute && v.paused && !this.userPaused) v.play().catch(() => {}); }
@@ -803,7 +826,8 @@ export class VideoWindow extends SpatialWindow {
     if (this.fmt === 'sbs' || this.fmt === 'sbsh') { L.set(0, 0, 0.5, 1); R.set(0.5, 0, 0.5, 1); }
     else if (this.fmt === 'ou' || this.fmt === 'ouh') { L.set(0, 0.5, 1, 0.5); R.set(0, 0, 1, 0.5); }
     else { L.set(0, 0, 1, 1); R.set(0, 0, 1, 1); }
-    if (this.video.videoWidth) this.setAspect(this.dispAspect());
+    this.baseRects();
+    if (this.video.videoWidth) this.applySize(this.dispAspect());
     this.setProjection(this.proj);
     this.opts?.redraw();
   }
@@ -819,6 +843,7 @@ export class VideoWindow extends SpatialWindow {
       ];
     }
     return [...base,
+      ['المقاس', SIZE_AR[this.sizeMode || 'normal'], () => this.cycleSize()],
       ['السرعة', (v.playbackRate || 1) + '×', () => { const o = [1, 1.25, 1.5, 2, 0.5, 0.75]; v.playbackRate = o[(o.indexOf(v.playbackRate) + 1) % o.length]; }],
       ['مؤقت النوم', this.sleepAt ? Math.max(1, Math.round((this.sleepAt - Date.now()) / 60000)) + ' د' : 'إيقاف', () => this.cycleSleep()],
       ['التكرار', v.loop ? 'مفعّل' : 'إيقاف', () => { v.loop = !v.loop; }],
@@ -1090,7 +1115,7 @@ export class ImageWindow extends SpatialWindow {
       t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
       this.mat.uniforms.map.value = t; this.mat.uniforms.uHas.value = 1;
       this.tex = t;
-      this.setAspect(c.width / c.height);
+      this.baseRects(); this.applySize(c.width / c.height);
       const r = c.width / c.height;
       if (this.cut == null && hasAlpha(c)) { this.setCut(1); this.mgr.app.toast('🖼 صورة بلا خلفية', 1800); }
       if (!this.depthSrc && this.proj === 'flat') this.depthSrc = cachedDepth(this.itemId);   // converted before: spatial again
@@ -1127,7 +1152,7 @@ export class ImageWindow extends SpatialWindow {
     this.content.geometry.dispose(); this.content.geometry = geo;
   }
   moreItems() {
-    const base = super.moreItems();
+    const base = [...super.moreItems(), ['المقاس', SIZE_AR[this.sizeMode || 'normal'], () => this.cycleSize()]];
     if (!this.depth) return base;
     return [...base, ['العمق', Math.round(this.depthAmount * 500) + '%', () => { const o = [0.2, 0.3, 0.4, 0.1]; this.depthAmount = o[(o.indexOf(this.depthAmount) + 1) % o.length]; this.layout(); }]];
   }

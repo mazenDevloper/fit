@@ -35,6 +35,21 @@ export class Interaction {
     this.scaleMode = null;
     this.recenterFired = false;
   }
+  // the window you are looking at (head gaze), else the one the other hand points at - scrolled by an air pinch
+  gazeScroll(p, s, i) {
+    const cand = [this.pointers[2], this.pointers[1 - i]].find(x => x.active && x.hit && x.hit.uv);
+    const it = cand?.hit.object.userData.interact;
+    if (!it || !it.scrollBy || !it.toPx || !(it.scroll ? it.scroll() : false)) return false;
+    if (!p.gscroll) { p.gscroll = { x: s.tx, y: s.ty }; return p.moved > 0.02; }
+    const dx = s.tx - p.gscroll.x, dy = s.ty - p.gscroll.y;
+    if (Math.abs(dx) + Math.abs(dy) > 0.002) {
+      const ax = Math.abs(dx), ay = Math.abs(dy);
+      // the content follows the hand: hand up → the page moves up (scrolls down); hand right → it moves right
+      it.scrollBy(ax > ay * 1.4 ? -dx * 1800 : 0, ay > ax * 1.4 ? dy * 1800 : 0, it.toPx(cand.hit.uv));
+      p.gscroll = { x: s.tx, y: s.ty };
+    }
+    return true;
+  }
   setTargets() { this.targets = [...this.app.windows.targets, ...this.app.systemTargets()]; }
   forget(win) {
     for (const p of this.pointers) {
@@ -198,7 +213,7 @@ export class Interaction {
         let pre = null; for (const h of p.hist) if (now - h.t >= 90) pre = h;
         const aimHit = pre && !p.drag ? (this.cast(pre.d) || hit) : hit;
         p.downObj = aimHit ? aimHit.object : null; p.downHit = aimHit;
-        p.surf = null; p.pendingDrag = null; p.world = null;
+        p.surf = null; p.pendingDrag = null; p.world = null; p.swipe = null; p.gscroll = null;
         const it = hit && hit.object.userData.interact;
         const other = this.pointers[1 - i];
         const otherWin = other.drag?.win || other.surf?.win || other.pendingDrag?.object.userData.interact.window;
@@ -248,8 +263,17 @@ export class Interaction {
           z.win.group.scale.setScalar(z.win.group.scale.x + (target - z.win.group.scale.x) * 0.35);
           this.drawCursor(p, null, 1, true);
         }
+        // visionOS: with Home open, pinch anywhere (on it or in the air) and move sideways to turn its page
+        const L = this.app.launcher;
+        if (L.group.visible && L.vision && (!p.downObj || p.downObj === L.panel.mesh) && !p.drag && !p.zoom && !p.scaleHelper) {
+          p.swipe ||= { x: s.tx };
+          const sdx = s.tx - p.swipe.x;
+          if (Math.abs(sdx) > 0.09) { if (L.turnPage(sdx > 0 ? -1 : 1)) p.fired = true; p.swipe = { x: s.tx }; }
+        }
         // Pinch in empty space and move: grab the world (move through it, or orbit the chosen model).
-        if (this.app.extras?.sketch.on && !p.downObj) p.fired = true;   // drawing in the air: the pinch is the pen
+        else if (this.app.extras?.sketch.on && !p.downObj) p.fired = true;   // drawing in the air: the pinch is the pen
+        // visionOS indirect scroll: look at a page / list, pinch anywhere and move - it scrolls (up/down and sideways)
+        else if (!p.downObj && !p.drag && !p.surf && !p.pendingDrag && !p.zoom && !p.scaleHelper && this.gazeScroll(p, s, i)) p.fired = true;
         else if (!p.downObj && !p.drag && !p.surf && !p.pendingDrag && !p.zoom && !p.scaleHelper && !this.pointers[1 - i].wasPinch && p.moved > 0.05) {
           const c = this.app.controls;
           if (p.world) {

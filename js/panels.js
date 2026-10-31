@@ -40,6 +40,7 @@ export class Launcher {
     this.panel.redraw();
   }
   open() {
+    this.app.welcome?.close?.(); this.app.welcome && (this.app.welcome.skip = true);
     this.refresh(); this.folder = null; this.edit = false;
     const yaw = this.app.windows.forwardYaw();
     const d = settings.viewMode !== 'sbs' ? 1.75 : 1.25;
@@ -71,9 +72,40 @@ export class Launcher {
     p.region(x, y, w, h, () => { blip('tap', settings.sounds); action(); }, id);
   }
 
+  // visionOS Home View: the apps float as round icons in the room (no panel behind them), pages with dots,
+  // swipe (pinch and move, anywhere) to turn the page; the other tabs keep the glass panel
+  get vision() { return this.tab === 'apps' && settings.homeStyle !== 'classic'; }
+  homeTile(ctx, p, cx, cy, r, ic, label, action, id) {
+    const hov = p.isHover(id), [c1, c2] = ICON_COLORS[ic] || ICON_COLORS._, R = hov ? r * 1.08 : r;
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = R * 0.5; ctx.shadowOffsetY = R * 0.12;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7);
+    const g = ctx.createLinearGradient(cx, cy - R, cx, cy + R); g.addColorStop(0, c1); g.addColorStop(1, c2); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+    // glass highlight on top, like a visionOS icon
+    const hl = ctx.createLinearGradient(cx, cy - R, cx, cy); hl.addColorStop(0, 'rgba(255,255,255,0.35)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fillStyle = hl; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.strokeStyle = hov ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.25)'; ctx.lineWidth = hov ? 4 : 2; ctx.stroke();
+    icon(ctx, ic, cx, cy, R * 0.9, '#ffffff');
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 8;
+    text(ctx, label, cx, cy + R + 34, 30, { weight: 700, maxWidth: r * 2.7, fit: true });
+    ctx.restore();
+    p.region(cx - r * 1.2, cy - r * 1.2, r * 2.4, r * 2.4 + 44, () => { blip('tap', settings.sounds); action(); }, id);
+  }
+  turnPage(d) { const n = this.pages || 1; if (n < 2) return false; this.page = (this.page + d + n) % n; blip('tap', settings.sounds); this.panel.redraw(); return true; }
+
   draw(ctx, W, H, p) {
-    roundRect(ctx, 0, 0, W, H, 70); ctx.fillStyle = 'rgba(14,16,24,0.55)'; ctx.fill();
-    glass(ctx, 0, 0, W, H, 70);
+    if (!this.vision) { roundRect(ctx, 0, 0, W, H, 70); ctx.fillStyle = 'rgba(14,16,24,0.55)'; ctx.fill(); glass(ctx, 0, 0, W, H, 70); }
+    if (this.vision) {
+      // the visionOS tab bar: a small glass pill on the left with one icon per tab
+      const TI = { apps: 'grid', devices: 'video', library: 'stack', links: 'globe', settings: 'sliders' };
+      const pw = 84, ph = TABS.length * 78 + 24, px = 6, py = (H - ph) / 2;
+      roundRect(ctx, px, py, pw, ph, pw / 2); ctx.fillStyle = 'rgba(30,34,52,0.55)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 2; ctx.stroke();
+      TABS.forEach(([k], i) => {
+        const id = 'tab-' + k, cy = py + 12 + 39 + i * 78, on = this.tab === k, hov = p.isHover(id);
+        if (on || hov) { ctx.beginPath(); ctx.arc(px + pw / 2, cy, 32, 0, 7); ctx.fillStyle = on ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)'; ctx.fill(); }
+        icon(ctx, TI[k] || 'grid', px + pw / 2, cy, 30, on ? '#151821' : '#ffffff');
+        p.region(px, cy - 39, pw, 78, () => { blip('tap', settings.sounds); this.setTab(k); }, id);
+      });
+    } else {
     // Header
     text(ctx, 'مدار', W - 70, 82, 58, { align: 'right', weight: 750 });
     const tw = 190, th = 66, gap = 12, total = TABS.length * tw + (TABS.length - 1) * gap;
@@ -91,6 +123,7 @@ export class Launcher {
     ctx.beginPath(); ctx.arc(95, 81, 38, 0, 7); ctx.fillStyle = hc ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
     icon(ctx, 'close', 95, 81, 34);
     p.region(50, 36, 90, 90, () => { blip('close', settings.sounds); this.close(); }, 'close');
+    }
 
     const top = 150, pad = 50, cols = 5, rows = 2, g = 20;
     const tileW = (W - pad * 2 - g * (cols - 1)) / cols, tileH = (H - top - 60 - g * (rows - 1)) / rows;
@@ -132,6 +165,7 @@ export class Launcher {
         ['sun', 'البيئة', ENV_LABEL[settings.environment], () => { a.cycleEnvironment(); this.panel.redraw(); }],
         ['stack', 'ترتيب النوافذ', 'أمامك', () => { a.windows.arrange(); this.close(); }],
         ['target', 'إعادة التمركز', 'اجعل الأمام هنا', () => { a.recenter(); this.close(); }],
+        ['grid', 'شكل الرئيسية', settings.homeStyle === 'classic' ? 'كلاسيكي · اضغط لـ visionOS' : 'visionOS · اضغط للكلاسيكي', () => { saveSettings({ homeStyle: settings.homeStyle === 'classic' ? 'vision' : 'classic' }); this.page = 0; this.panel.redraw(); }],
         ['sliders', 'المعايرة', 'العدسات والمسافات', () => { this.close(); a.calibration.open(); }],
         ['target', 'ضبط العدستين', 'تحريك وتكبير الصورتين', () => { this.close(); a.lensAdjust.open(); }],
         ['eye', 'نظاراتي', settings.headset ? '🥽 ' + settings.headset : 'ملف لكل نظارة', () => { this.close(); const h = Object.keys(a.plus?.headsets() || {}); if (!h.length) { a.plus?.headsetWizard(); return; } const i = (h.indexOf(settings.headset) + 1) % h.length; a.plus.useHeadset(h[i]); }],
@@ -160,7 +194,7 @@ export class Launcher {
       );
       // folders (visionOS 26 Home View): setup tools and widgets each in one tile
       const FOLDERS = {
-        tools: ['grid', 'أدوات الإعداد', ['المعايرة', 'ضبط العدستين', 'إعادة التمركز', 'ترتيب النوافذ', 'دليل الإيماءات', 'لوحة المفاتيح', 'مسح الغرفة', 'البيئة', 'غرفة جديدة', 'تحديث التطبيق', 'نظاراتي', 'نظارة جديدة', 'ريموت VR Park', 'تعلّم أزرار الريموت', 'ريموت 1 وحده', 'ريموت 2 وحده']],
+        tools: ['grid', 'أدوات الإعداد', ['شكل الرئيسية', 'المعايرة', 'ضبط العدستين', 'إعادة التمركز', 'ترتيب النوافذ', 'دليل الإيماءات', 'لوحة المفاتيح', 'مسح الغرفة', 'البيئة', 'غرفة جديدة', 'تحديث التطبيق', 'نظاراتي', 'نظارة جديدة', 'ريموت VR Park', 'تعلّم أزرار الريموت', 'ريموت 1 وحده', 'ريموت 2 وحده']],
         widgets: ['clock', 'الأدوات المصغّرة', null],
         dc: ['play', 'DriveCast', null],
       };
@@ -202,7 +236,26 @@ export class Launcher {
         list.push(['sliders', this.edit ? 'تم الترتيب' : 'ترتيب الشاشة', this.edit ? 'اضغط لإنهاء' : 'اضغط الأيقونات لتقديمها', () => { this.edit = !this.edit; this.panel.redraw(); }]);
       }
       if (this.folder) list.unshift(['chevR', 'رجوع', 'الشاشة الرئيسية', () => { this.folder = null; this.page = 0; this.panel.redraw(); }]);
+      if (this.vision) {
+        const ROWS = [4, 5, 4], per = 13, pages = Math.ceil(list.length / per);
+        this.pages = pages; this.page = Math.min(this.page, pages - 1);
+        const r = 76, gx = 232, gy = 222, top0 = 150;
+        let i = 0;
+        const slice = list.slice(this.page * per, this.page * per + per);
+        ROWS.forEach((n, row) => {
+          for (let c = 0; c < n && i < slice.length; c++, i++) {
+            const [ic, l, , act] = slice[i];
+            const run = this.edit && !this.folder && !/^(ترتيب الشاشة|تم الترتيب)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
+            const cx = W / 2 + 40 + ((n - 1) / 2 - c) * gx, cy = top0 + row * gy;   // right to left
+            this.homeTile(ctx, p, cx, cy, r, ic, l, run, 'app' + i);
+          }
+        });
+        // page dots (swipe to turn: pinch and move sideways)
+        if (pages > 1) for (let k = 0; k < pages; k++) { const x = W / 2 + 40 + ((pages - 1) / 2 - k) * 26; ctx.beginPath(); ctx.arc(x, H - 40, k === this.page ? 8 : 6, 0, 7); ctx.fillStyle = k === this.page ? '#fff' : 'rgba(255,255,255,0.4)'; ctx.fill(); p.region(x - 13, H - 54, 26, 28, () => { this.page = k; this.panel.redraw(); }, 'dot' + k); }
+        return;
+      }
       const per = 10, pages = Math.ceil(list.length / per);
+      this.pages = pages;
       this.page = Math.min(this.page, pages - 1);
       list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => {
         const [x, y] = cell(i);
@@ -281,7 +334,26 @@ export class Launcher {
         ['moon', 'إبطاء عند السكون', on(settings.idleSlow !== false), () => { saveSettings({ idleSlow: settings.idleSlow === false }); this.panel.redraw(); }],
         ['exit', 'الخروج', 'الرئيسية', () => { this.close(); a.exit(); }],
       ];
+      if (this.vision) {
+        const ROWS = [4, 5, 4], per = 13, pages = Math.ceil(list.length / per);
+        this.pages = pages; this.page = Math.min(this.page, pages - 1);
+        const r = 76, gx = 232, gy = 222, top0 = 150;
+        let i = 0;
+        const slice = list.slice(this.page * per, this.page * per + per);
+        ROWS.forEach((n, row) => {
+          for (let c = 0; c < n && i < slice.length; c++, i++) {
+            const [ic, l, , act] = slice[i];
+            const run = this.edit && !this.folder && !/^(ترتيب الشاشة|تم الترتيب)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
+            const cx = W / 2 + 40 + ((n - 1) / 2 - c) * gx, cy = top0 + row * gy;   // right to left
+            this.homeTile(ctx, p, cx, cy, r, ic, l, run, 'app' + i);
+          }
+        });
+        // page dots (swipe to turn: pinch and move sideways)
+        if (pages > 1) for (let k = 0; k < pages; k++) { const x = W / 2 + 40 + ((pages - 1) / 2 - k) * 26; ctx.beginPath(); ctx.arc(x, H - 40, k === this.page ? 8 : 6, 0, 7); ctx.fillStyle = k === this.page ? '#fff' : 'rgba(255,255,255,0.4)'; ctx.fill(); p.region(x - 13, H - 54, 26, 28, () => { this.page = k; this.panel.redraw(); }, 'dot' + k); }
+        return;
+      }
       const per = 10, pages = Math.ceil(list.length / per);
+      this.pages = pages;
       this.page = Math.min(this.page, pages - 1);
       list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => { const [x, y] = cell(i); this.tile(ctx, p, x, y, tileW, tileH, ic, l, s, act, 'set' + i, l === 'الخروج' ? COLORS.danger : COLORS.accent, true); });
       if (pages > 1) this.pager(ctx, p, W, H, pages);

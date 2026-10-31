@@ -30,7 +30,7 @@ export class Welcome {
   // ---------------------------------------------------------------- the card
   async show() {
     let d; try { d = await (await fetch(API + '/hub/welcome', { cache: 'no-store' })).json(); } catch { return; }
-    if (!d?.greet) return;
+    if (!d?.greet || this.skip || this.app.launcher?.group.visible) return;
     this.data = d; this.close();
     const w = 1400, h = 760, c = document.createElement('canvas'); c.width = w; c.height = h;
     const ctx = c.getContext('2d'); ctx.direction = 'rtl'; ctx.textAlign = 'right';
