@@ -233,7 +233,7 @@ class SpatialWindow {
     this.radius = 2;
     this.mat = contentMaterial();
     this.content = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.mat);
-    this.content.userData.interact = { type: 'surface', window: this, click: hit => this.onContentClick(hit), hover: () => true };
+    this.content.userData.interact = { type: 'surface', window: this, click: hit => { const hidden = (this.chromeA ?? 1) < 0.5; this.seenAt = performance.now(); return hidden && this.video ? true : this.onContentClick(hit); }, hover: () => true };   // a pinch on the picture first brings the controls back
     this.group.add(this.content);
     this.frame = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x7c818e, transparent: true, opacity: 0.4, depthWrite: false }));
     this.frame.position.z = -0.006;
@@ -256,7 +256,7 @@ class SpatialWindow {
     this.resizer = new THREE.Mesh(new THREE.CircleGeometry(0.05, 28), rm);
     const arrow = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.011), new THREE.MeshBasicMaterial({ color: 0x141824 }));
     arrow.rotation.z = -Math.PI / 4; arrow.position.z = 0.001; this.resizer.add(arrow);
-    this.resizer.userData.interact = { type: 'resize', window: this, hover: on => { rm.opacity = on ? 0.9 : 0.38; return true; }, click: () => this.mgr.app.interaction.beginResizeMode(this) };
+    this.resizer.userData.interact = { type: 'resize', window: this, hover: on => { rm.userData.a0 = on ? 0.9 : 0.38; rm.opacity = rm.userData.a0 * (this.chromeA ?? 1); return true; }, click: () => this.mgr.app.interaction.beginResizeMode(this) };
     this.group.add(this.resizer);
     this.toolbar = null;
   }
@@ -274,8 +274,8 @@ class SpatialWindow {
     this.closeBtn.mesh.position.set(-0.155, y, 0.004);
     this.pinBtn.mesh.position.set(0.155, y, 0.004);
     this.resizer.position.set(0.5 + 0.035, -h / 2 - 0.035, 0.006);
-    if (this.toolbar) this.toolbar.mesh.position.set(0, y - 0.075, 0.004);
-    if (this.more) this.more.mesh.position.set(0, y - 0.075 - 0.06 - this.more.heightM / 2 - (this.opts?.mesh.parent ? 0.13 : 0), 0.004);
+    if (this.toolbar) this.toolbar.mesh.position.set(0, y - 0.075, 0.022);   // ornament: floats a little in front
+    if (this.more) this.more.mesh.position.set(0, y - 0.075 - 0.06 - this.more.heightM / 2 - (this.opts?.mesh.parent ? 0.13 : 0), 0.03);
     if (this.glow) this.glow.scale.set(w * 1.7, h * 2.1, 1);
     if (this.matchSide) this.matchSide.mesh.position.set(w / 2 + 0.05 + 0.23 + (this.pic?.mesh.parent ? 0.36 : 0), 0, 0.004);
     if (this.modeSide) this.modeSide.mesh.position.set(-w / 2 - 0.05 - 0.17, 0, 0.004);
@@ -588,6 +588,23 @@ class SpatialWindow {
   }
   pokeVolume() { clearTimeout(this.volT); this.volT = setTimeout(() => { if (this.volPop?.mesh.parent) { this.group.remove(this.volPop.mesh); this.mgr.refreshTargets?.(); } }, 6000); }
   update() {}
+  // Deference (Apple): while a video plays and nobody looks at the window, its controls (bar, close, pin, resize,
+  // toolbar) fade out after 3 s so only the picture is left; a glance or a pointer on the window brings them back
+  chrome(now) {
+    const v = this.video, playing = v && !v.paused && !v.ended;
+    const idle = playing && !this.more?.mesh.parent && !this.volPop?.mesh.parent && now - (this.seenAt || now) > 3000;
+    if (!this.seenAt) this.seenAt = now;
+    const dt = Math.min(0.5, (now - (this.chromeT || now)) / 1000); this.chromeT = now;
+    const t = idle ? 0 : 1, k = 1 - Math.exp(-dt / (idle ? 0.35 : 0.08));   // fades out in ~1 s, back in ~0.25 s
+    this.chromeA = (this.chromeA ?? 1) + (t - (this.chromeA ?? 1)) * k;
+    const a = this.chromeA, show = a > 0.04;
+    if (Math.abs(a - (this.chromeLast ?? 1)) < 0.003) return; this.chromeLast = a;
+    for (const m of [this.bar, this.closeBtn?.mesh, this.pinBtn?.mesh, this.resizer, this.toolbar?.mesh]) {
+      if (!m) continue;
+      if (m.visible !== show) { m.visible = show; this.chromeDirty = true; }
+      m.traverse(o => { const mt = o.material; if (!mt) return; if (mt.userData.a0 == null) { mt.userData.a0 = mt.opacity ?? 1; if (!mt.transparent) { mt.transparent = true; mt.needsUpdate = true; } } mt.opacity = mt.userData.a0 * a; });
+    }
+  }
   ref() { return null; }
   serialize() {
     const g = this.group;
@@ -2134,7 +2151,7 @@ export class WindowManager {
     for (const w of this.windows) {
       // Cinema: only the chosen window stays visible. Pieces pinned to another environment wait for it.
       w.group.visible = !this.guard && (!this.cinema || w === this.cinema) && (!w.envPin || w.envPin === env);
-      w.update(dt, now); w.matchTick?.();
+      w.update(dt, now); w.matchTick?.(); w.chrome?.(performance.now());
       if (w.glow) w.updateGlow(now);
       // Pinned to the view: the window glides to stay straight ahead at the same distance.
       if (w.headLock && w.kind !== 'model') {

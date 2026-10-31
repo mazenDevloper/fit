@@ -76,6 +76,8 @@ export class Interaction {
     if (p.hoverObj && p.hoverObj !== obj) p.hoverObj.userData.interact?.hover?.(false, null);
     if (obj) obj.userData.interact.hover?.(true, hit);
     p.hoverObj = obj;
+    // looking at a window's frame or controls keeps them; watching the picture itself lets them fade (like visionOS)
+    if (obj) for (let o = obj; o; o = o.parent) { const w = o.userData?.window || o.userData?.interact?.window; if (w) { if (o !== w.content) w.seenAt = performance.now(); break; } }
   }
   castOn(mesh, dir) {
     this.raycaster.set(new THREE.Vector3(0, 0, 0), dir);

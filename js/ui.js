@@ -53,6 +53,12 @@ export function glass(ctx, x, y, w, h, r, hi = false) {
   ctx.fillStyle = g; ctx.fill();
   ctx.lineWidth = Math.max(1.5, h * 0.012);
   ctx.strokeStyle = COLORS.stroke; ctx.stroke();
+  // visionOS glass: a thin specular rim along the top edge (light from above) - the edge catches the room light
+  ctx.save(); roundRect(ctx, x, y, w, h, r); ctx.clip();
+  const rim = ctx.createLinearGradient(0, y, 0, y + Math.min(h, r * 1.2));
+  rim.addColorStop(0, hi ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.38)'); rim.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.strokeStyle = rim; ctx.lineWidth = Math.max(2, h * 0.02); roundRect(ctx, x + 1, y + 1, w - 2, h - 2, Math.max(0, r - 1)); ctx.stroke();
+  ctx.restore();
   ctx.restore();
 }
 

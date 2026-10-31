@@ -3,7 +3,7 @@
 // Also: the shared clipboard (a link copied on another device) and «وضع الصلاة» (videos pause at the azan).
 import * as THREE from 'three';
 import { settings } from './config.js';
-import { blip, roundRect } from './ui.js';
+import { blip, roundRect, glass } from './ui.js';
 
 const API = 'https://studio.c-p.workers.dev';
 const KIND_AR = { tv: 'التلفاز', car: 'السيارة', phone: 'الهاتف', tablet: 'التابلت', computer: 'الكمبيوتر', madar: 'مدار' };
@@ -34,8 +34,7 @@ export class Welcome {
     this.data = d; this.close();
     const w = 1400, h = 760, c = document.createElement('canvas'); c.width = w; c.height = h;
     const ctx = c.getContext('2d'); ctx.direction = 'rtl'; ctx.textAlign = 'right';
-    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(26,32,56,0.92)'); g.addColorStop(1, 'rgba(10,12,22,0.92)');
-    ctx.fillStyle = g; roundRect(ctx, 4, 4, w - 8, h - 8, 70); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 3; ctx.stroke();
+    glass(ctx, 4, 4, w - 8, h - 8, 70);   // the same visionOS glass as every window
     const T = (s, x, y, size, color = '#fff', weight = 800, align = 'right') => { ctx.font = `${weight} ${size}px ${FONT}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(s, x, y); };
     T(d.greet + ' 👋', w - 70, 120, 78);
     T(`اليوم ${d.date.weekday} ${d.date.day} ${d.date.month} · ${d.date.hijri}`, w - 70, 190, 40, 'rgba(226,232,250,0.75)', 700);
