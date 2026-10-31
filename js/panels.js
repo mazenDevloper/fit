@@ -236,6 +236,7 @@ export class Launcher {
         list.sort((x, y) => { const i = order.indexOf(x[1]), j = order.indexOf(y[1]); return (i < 0 ? 999 : i) - (j < 0 ? 999 : j); });
         list.push(['sliders', this.edit ? 'تم الترتيب' : 'ترتيب الشاشة', this.edit ? 'اضغط لإنهاء' : 'اضغط الأيقونات لتقديمها', () => { this.edit = !this.edit; this.panel.redraw(); }]);
       }
+      if (!this.folder) this.allApps = list.slice();   // the phone remote's «التطبيقات» tab lists these
       if (this.folder) list.unshift(['chevR', 'رجوع', 'الشاشة الرئيسية', () => { this.folder = null; this.page = 0; this.panel.redraw(); }]);
       if (this.vision) {
         const ROWS = [4, 5, 4], per = 13, pages = Math.ceil(list.length / per);

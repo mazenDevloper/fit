@@ -60,7 +60,7 @@ export class HubClient {
     else if (m.type === 'match') app.plus?.onMatch(m);
     else if (m.type === 'shared' && m.code) { app.toast?.('🟢 ' + (m.name || who) + ' استيقظ — شاشته أمامك', 3000); app.connectMirror?.(String(m.code)); }
     else if (m.type === 'clip' && m.text) app.welcome?.clip(String(m.text), who);
-    else if (m.type === 'rc') app.remote?.rc(m);
+    else if (m.type === 'rc') app.remote?.rc(m, from);
     else if (m.type === 'ping') { try { const a = new AudioContext(), o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); o.stop(a.currentTime + 0.6); } catch {} app.toast?.('🔔 ' + who + ' يبحث عن مدار', 3000); }
     else if (m.type === 'say' && m.text) { try { const u = new SpeechSynthesisUtterance(String(m.text)); u.lang = 'ar-SA'; speechSynthesis.speak(u); } catch {} app.toast?.('💬 ' + String(m.text).slice(0, 80), 4000); }
     else if (m.type === 'sleep' && m.minutes > 0) { clearTimeout(this._sleep); this._sleep = setTimeout(() => document.querySelectorAll('video,audio').forEach(v => v.pause()), m.minutes * 60000); app.toast?.('😴 يتوقف بعد ' + m.minutes + ' دقيقة', 3000); }

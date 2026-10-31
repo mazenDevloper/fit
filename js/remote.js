@@ -174,12 +174,25 @@ export class Remote {
     }
   }
   // ---- from the phone remote page / «المركز»: buttons and a touchpad
-  rc(m) {
+  rc(m, from) {
     const c = this.app.controls;
     if (m.action) this.act(m.action);
     if (m.dx != null || m.dy != null) { const p = c.padPtr; p.tx = Math.max(-1.4, Math.min(1.4, p.tx + (m.dx || 0) * 2.2)); p.ty = Math.max(-1.2, Math.min(1.2, p.ty - (m.dy || 0) * 2.2)); p.last = performance.now(); }
     if (m.click) { c.padPtr.down = true; c.padPtr.last = performance.now(); setTimeout(() => { c.padPtr.down = false; }, 120); }
     if (m.scroll) c.scrollPointed?.(m.scroll * 900);
+    // «التطبيقات» in the phone remote: Madar's home-screen apps, and opening one of them
+    const L = this.app.launcher;
+    if (m.apps && from?.id) {
+      if (!L.allApps) L.panel.redraw();
+      const list = (L.allApps || []).filter(x => !/^(ترتيب الشاشة|تم الترتيب)$/.test(x[1])).map(x => ({ name: x[1], sub: x[2], icon: x[0] }));
+      this.app.hub?.op({ op: 'send', to: from.id, msg: { type: 'apps', src: 'madar', list, total: list.length, upto: list.length } });
+    }
+    if (m.open) {
+      const it = (L.allApps || []).find(x => x[1] === m.open); if (!it) return;
+      it[3]();
+      if (L.folder) { const f = L.folder; if (!L.group.visible) L.open(); L.folder = f; L.page = 0; L.panel.redraw(); }   // a folder opens on the home screen
+      this.app.toast?.('📱 ' + m.open, 1500);
+    }
   }
   startLearn() { saveSettings({ remote: true }); this.map = {}; this.learn = { i: 0 }; this.ask(); }
   ask() { const [, ar] = ACTIONS[this.learn.i]; this.app.toast(`🎮 ${this.learn.i + 1}/${ACTIONS.length} · اضغط الزر الذي تريده لـ «${ar}»`, 15000); }

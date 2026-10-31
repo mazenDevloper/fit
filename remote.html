@@ -1,159 +1,387 @@
 <!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#07080c"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b1020"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>ريموت مدار</title>
 <style>
-:root{--bg:#07080c;--glass:rgba(255,255,255,.06);--line:rgba(255,255,255,.1);--txt:#f4f6fb;--dim:#9aa3b6;--ac:#8b5cf6;--ac2:#38bdf8}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-html,body{margin:0;height:100%;background:radial-gradient(120% 80% at 50% -10%,#1b1640 0,var(--bg) 55%);color:var(--txt);font:600 16px -apple-system,system-ui,"Segoe UI",sans-serif;overflow:hidden}
-.app{height:100%;display:flex;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 16px)}
-header{display:flex;align-items:center;justify-content:space-between}
-h1{font-size:22px;margin:0;font-weight:900}
-.st{font-size:12px;color:var(--dim)}.st b{color:#34d399}
-.tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
-.tab{flex:none;padding:10px 16px;border-radius:999px;background:var(--glass);border:1px solid var(--line);font-weight:800;font-size:14px;color:var(--txt)}
-.tab.on{background:linear-gradient(135deg,var(--ac),var(--ac2));border-color:transparent}
-select,input{width:100%;padding:12px 16px;border-radius:16px;background:var(--glass);border:1px solid var(--line);color:var(--txt);font:inherit;appearance:none}
-.row{display:flex;gap:8px}.row>*{flex:1}
-.pad{position:relative;width:min(78vw,300px);aspect-ratio:1;margin:4px auto;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid var(--line);box-shadow:0 30px 80px -30px var(--ac),inset 0 0 40px rgba(255,255,255,.04)}
-.pad button{position:absolute;border:0;background:transparent;color:var(--txt);font-size:26px;display:grid;place-items:center}
-.pad .u{top:0;left:30%;width:40%;height:30%}.pad .d{bottom:0;left:30%;width:40%;height:30%}.pad .l{left:0;top:30%;width:30%;height:40%}.pad .r{right:0;top:30%;width:30%;height:40%}
-.pad .ok{left:31%;top:31%;width:38%;height:38%;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));font-size:20px;font-weight:900;box-shadow:0 10px 30px -8px var(--ac)}
-.pad button:active{transform:scale(.92)}
-.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.k{height:58px;border-radius:20px;background:var(--glass);border:1px solid var(--line);color:var(--txt);font-size:22px;display:grid;place-items:center}
-.k small{display:block;font-size:10px;color:var(--dim);margin-top:-6px}
-.k:active{background:rgba(255,255,255,.16)}
-.touch{flex:1;min-height:120px;border-radius:26px;background:repeating-linear-gradient(45deg,rgba(255,255,255,.025) 0 12px,transparent 12px 24px),var(--glass);border:1px solid var(--line);display:grid;place-items:center;color:var(--dim);font-size:13px;touch-action:none}
-.hide{display:none!important}
-.note{font-size:12px;color:var(--dim);line-height:1.5}
+/* Apple «Liquid Glass»: translucent capsules over a living background, specular rims, springy presses */
+:root{--txt:rgba(255,255,255,.96);--txt2:rgba(235,235,245,.62);--txt3:rgba(235,235,245,.34);--tint:#0a84ff;--green:#30d158;
+  --g:rgba(255,255,255,.11);--g-hi:rgba(255,255,255,.2);--rim:rgba(255,255,255,.22);--spring:cubic-bezier(.32,.72,0,1);
+  --btn:min(19vw,78px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#0b1020;color:var(--txt);font:500 16px -apple-system,system-ui,"SF Arabic","Geeza Pro",sans-serif;overscroll-behavior:none}
+.bg{position:fixed;inset:-20%;z-index:0;background:
+  radial-gradient(40% 35% at 20% 15%,#3a5bd9 0,transparent 70%),radial-gradient(45% 40% at 85% 35%,#7b3fe4 0,transparent 70%),
+  radial-gradient(50% 40% at 30% 85%,#0e7490 0,transparent 70%),radial-gradient(40% 30% at 90% 90%,#1d4ed8 0,transparent 70%),#0b1020;
+  filter:blur(30px) saturate(140%);animation:drift 26s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(4%,-3%) rotate(8deg) scale(1.08)}}
+.glass{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.06));backdrop-filter:blur(26px) saturate(190%);-webkit-backdrop-filter:blur(26px) saturate(190%);
+  border:1px solid var(--rim);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),inset 0 -1px 0 rgba(255,255,255,.08),0 12px 34px -10px rgba(0,0,0,.45)}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.press{transition:transform .35s var(--spring),background .2s}
+.press:active,.press.on{transform:scale(.93)}
+.app{position:relative;z-index:1;height:100dvh;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + 96px)}
+header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cap{flex:1;min-width:0;height:52px;border-radius:999px;display:flex;align-items:center;gap:10px;padding:0 18px;font-weight:600;font-size:17px}
+.cap .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.cap small{display:block;font-size:12px;color:var(--txt2);font-weight:500}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--txt3);flex:none}.dot.on{background:var(--green);box-shadow:0 0 10px var(--green)}
+.round{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;flex:none}
+svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+main{flex:1;min-height:0;position:relative}
+.page{position:absolute;inset:0;display:flex;flex-direction:column;gap:14px;opacity:0;pointer-events:none;transform:translateY(10px) scale(.98);transition:opacity .3s,transform .45s var(--spring)}
+.page.cur{opacity:1;pointer-events:auto;transform:none}
+/* ---- the remote: a Siri-Remote clickpad + round buttons + volume capsule */
+.pad{position:relative;flex:none;margin:0 auto;width:min(88vw,calc(100dvh - 430px),400px);aspect-ratio:1;border-radius:50%;touch-action:none}
+.pad .ok{position:absolute;inset:30%;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,.08));border:1px solid var(--rim);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 8px 24px -8px rgba(0,0,0,.5);transition:transform .3s var(--spring),background .2s;pointer-events:none}
+.pad .ar{position:absolute;color:var(--txt2);pointer-events:none;transition:color .15s,transform .3s var(--spring)}
+.pad .ar svg{width:30px;height:30px;stroke-width:2.6}
+.pad .u{top:7%;left:50%;transform:translateX(-50%)}.pad .d{bottom:7%;left:50%;transform:translateX(-50%) rotate(180deg)}
+.pad .l{left:7%;top:50%;transform:translateY(-50%) rotate(-90deg)}.pad .r{right:7%;top:50%;transform:translateY(-50%) rotate(90deg)}
+.pad .ar.hit{color:#fff}.pad .ok.hit{transform:scale(.92);background:rgba(255,255,255,.3)}
+.pad .glow{position:absolute;width:44%;height:44%;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.35),transparent 70%);opacity:0;pointer-events:none;transition:opacity .25s}
+.btns{flex:none;display:grid;grid-template-columns:repeat(4,var(--btn));grid-template-rows:repeat(2,var(--btn));gap:14px;justify-content:center;margin-top:auto;margin-bottom:auto}
+.rb{width:var(--btn);height:var(--btn);border-radius:50%;display:grid;place-items:center}
+.rb svg{width:30px;height:30px}
+.vol{grid-column:4;grid-row:1/3;border-radius:999px;display:flex;flex-direction:column;overflow:hidden}
+.vol button{flex:1;display:grid;place-items:center}.vol button svg{width:30px;height:30px;stroke-width:2.6}
+.vol i{height:1px;background:var(--rim);margin:0 16px}
+/* ---- the mouse: a trackpad over the whole page */
+.track{flex:1;border-radius:34px;position:relative;touch-action:none;overflow:hidden}
+.track .hint{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--txt2);font-size:14px;line-height:1.9;padding:24px;pointer-events:none}
+.track .sbar{position:absolute;top:18px;bottom:18px;right:10px;width:38px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);display:grid;place-items:center;color:var(--txt3)}
+.track .sbar svg{width:20px;height:20px}
+.track .touchdot{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.4),rgba(255,255,255,0) 70%);pointer-events:none;opacity:0;transition:opacity .2s}
+.mrow{flex:none;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.mb{height:64px;border-radius:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--txt2)}
+.mb svg{color:var(--txt)}
+/* ---- apps: the device's own apps, like the Home Screen */
+.search{flex:none;height:46px;border-radius:999px;display:flex;align-items:center;gap:8px;padding:0 16px}
+.search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--txt);font:inherit;font-size:17px;user-select:text;-webkit-user-select:text}
+.search input::placeholder{color:var(--txt3)}.search svg{width:20px;height:20px;color:var(--txt2)}
+.grid{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:22px 8px;align-content:start;padding:6px 2px 20px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.grid::-webkit-scrollbar{display:none}
+.ap{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
+.ap .ic{width:min(16vw,66px);aspect-ratio:1;border-radius:24%;overflow:hidden;display:grid;place-items:center;font-size:26px;font-weight:700;color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 18px -8px rgba(0,0,0,.6);background:linear-gradient(160deg,rgba(255,255,255,.28),rgba(255,255,255,.08));border:1px solid var(--rim)}
+.ap .ic img{width:100%;height:100%;object-fit:cover}
+.ap span{font-size:12px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt)}
+.empty{grid-column:1/-1;text-align:center;color:var(--txt2);padding:40px 10px;line-height:1.8;font-size:14px}
+/* ---- the floating tab bar */
+.tabbar{position:fixed;z-index:5;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 14px);width:min(calc(100vw - 32px),420px);height:66px;border-radius:999px;display:grid;grid-template-columns:repeat(3,1fr);padding:5px}
+.tabbar button{border-radius:999px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:var(--txt2);transition:color .2s,background .35s var(--spring)}
+.tabbar button svg{width:24px;height:24px}
+.tabbar button.on{color:#fff;background:rgba(255,255,255,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+/* ---- device picker sheet */
+.scrim{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .3s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;z-index:10;left:8px;right:8px;bottom:8px;max-height:78dvh;overflow-y:auto;border-radius:38px;padding:10px 16px calc(env(safe-area-inset-bottom) + 18px);transform:translateY(110%);transition:transform .5s var(--spring);background:rgba(30,32,44,.72)}
+.sheet.on{transform:none}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--txt3);margin:0 auto 12px}
+.sheet h3{margin:6px 4px 10px;font-size:20px;font-weight:700}
+.sheet h4{margin:16px 6px 6px;font-size:13px;color:var(--txt2);font-weight:500}
+.list{border-radius:22px;background:rgba(255,255,255,.07);overflow:hidden}
+.it{width:100%;display:flex;align-items:center;gap:12px;padding:14px 16px;text-align:right;font-size:17px;min-height:56px}
+.it+.it{border-top:1px solid rgba(255,255,255,.08)}
+.it .tx{flex:1;min-width:0}.it small{display:block;font-size:13px;color:var(--txt2)}
+.it .chk{color:var(--tint);opacity:0}.it.sel .chk{opacity:1}
+.field{display:flex;gap:8px;margin-top:8px}
+.field input{flex:1;min-width:0;height:50px;border-radius:16px;border:0;padding:0 16px;background:rgba(255,255,255,.08);color:var(--txt);font:inherit;font-size:17px;outline:0;user-select:text;-webkit-user-select:text}
+.pill{height:50px;padding:0 20px;border-radius:999px;background:var(--tint);color:#fff;font-weight:600}
+.note{font-size:13px;color:var(--txt2);line-height:1.6;margin:10px 6px 0}
+.kbd{position:fixed;z-index:6;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 92px);height:54px;border-radius:999px;display:none;align-items:center;padding:0 8px 0 18px;gap:8px}
+.kbd.on{display:flex}.kbd input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--txt);font:inherit;font-size:17px;user-select:text;-webkit-user-select:text}
+.kbd .pill{height:40px;padding:0 16px}
+.toast{position:fixed;z-index:20;top:calc(env(safe-area-inset-top) + 72px);left:50%;transform:translate(-50%,-20px);opacity:0;padding:10px 18px;border-radius:999px;font-size:14px;font-weight:600;transition:opacity .25s,transform .45s var(--spring);pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation:none!important}}
 </style></head><body>
+<div class="bg"></div>
 <div class="app">
-  <header><h1>🎮 الريموت</h1><span class="st" id="st">…</span></header>
-  <div class="tabs" id="tabs">
-    <button class="tab on" data-t="madar">🥽 مدار</button>
-    <button class="tab" data-t="android">📱 جهاز أندرويد</button>
-    <button class="tab" data-t="bt">ᛒ بلوتوث</button>
-  </div>
-  <div id="pick"></div>
-  <div class="pad">
-    <button class="u" data-a="up">▲</button><button class="d" data-a="down">▼</button>
-    <button class="l" data-a="left">◀</button><button class="r" data-a="right">▶</button>
-    <button class="ok" data-a="ok">OK</button>
-  </div>
-  <div class="keys">
-    <button class="k" data-a="back">↩<small>رجوع</small></button>
-    <button class="k" data-a="home">⌂<small>الرئيسية</small></button>
-    <button class="k" data-a="menu">☰<small>القائمة</small></button>
-    <button class="k" data-a="play">⏯<small>تشغيل</small></button>
-    <button class="k" data-a="vol-">🔉<small>صوت</small></button>
-    <button class="k" data-a="vol+">🔊<small>صوت</small></button>
-    <button class="k" data-a="mute">🔇<small>كتم</small></button>
-    <button class="k" data-a="kbd">⌨️<small>كتابة</small></button>
-  </div>
-  <input id="txt" class="hide" placeholder="اكتب ثم اضغط إرسال ↵" enterkeyhint="send">
-  <div class="touch" id="touch">لوحة اللمس · اسحب لتحريك المؤشر/التمرير · انقر للاختيار</div>
-</div>
-<script type="module">
-import { lib, rtc } from './js/mirror.js';
-const $ = s => document.querySelector(s), st = $('#st'), pick = $('#pick');
-const HUB = 'wss://studio.c-p.workers.dev/hub/ws';
-let tab = localStorage.getItem('rc.tab') || 'madar';
-const A = window.MadarAndroid;
-const buzz = () => { try { navigator.vibrate?.(12); } catch {} };
+  <header>
+    <button class="cap glass press" id="dev"><span class="dot" id="dot"></span><span class="nm"><span id="dn">…</span><small id="ds"></small></span>
+      <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button class="round glass press" id="wk" aria-label="أيقظ"><svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
+  </header>
+  <main>
+    <section class="page" id="p-remote">
+      <div class="pad glass" id="pad">
+        <div class="glow" id="glow"></div>
+        <span class="ar u"><svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></span><span class="ar d"><svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></span>
+        <span class="ar l"><svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></span><span class="ar r"><svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></span>
+        <div class="ok" id="ok"></div>
+      </div>
+      <div class="btns">
+        <button class="rb glass press" data-a="back" aria-label="رجوع"><svg viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></svg></button>
+        <button class="rb glass press" data-a="home" aria-label="الرئيسية"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg></button>
+        <button class="rb glass press" data-a="menu" aria-label="القائمة"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg></button>
+        <div class="vol glass"><button class="press" data-a="vol+" aria-label="رفع الصوت"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><i></i><button class="press" data-a="vol-" aria-label="خفض الصوت"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button></div>
+        <button class="rb glass press" data-a="play" aria-label="تشغيل/إيقاف"><svg viewBox="0 0 24 24"><path d="M5 5v14l8-7z" fill="currentColor"/><path d="M16 6v12M20 6v12"/></svg></button>
+        <button class="rb glass press" data-a="mute" aria-label="كتم"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9 4 6m0-6-4 6"/></svg></button>
+        <button class="rb glass press" data-a="kbd" aria-label="كتابة"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
+      </div>
+    </section>
 
-// ---------------- Madar (through «المركز»)
-let ws, all = [], devs = [], target = localStorage.getItem('rc.target') || '';
+    <section class="page" id="p-mouse">
+      <div class="track glass" id="track">
+        <div class="hint" id="thint">حرّك إصبعك لتحريك المؤشر<br>انقر للاختيار · اضغط مطوّلاً للضغط المطوّل<br>إصبعان للتمرير · نقرة بإصبعين = رجوع</div>
+        <div class="sbar" id="sbar"><svg viewBox="0 0 24 24"><path d="m8 9 4-4 4 4M8 15l4 4 4-4"/></svg></div>
+        <div class="touchdot" id="tdot"></div>
+      </div>
+      <div class="mrow">
+        <button class="mb glass press" data-m="tap"><svg viewBox="0 0 24 24"><path d="M9 11V5a2 2 0 0 1 4 0v6"/><path d="M13 10a2 2 0 0 1 4 0v4a6 6 0 0 1-12 0v-2a2 2 0 0 1 4 0"/></svg>نقرة</button>
+        <button class="mb glass press" data-m="long"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>مطوّل</button>
+        <button class="mb glass press" data-a="back"><svg viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></svg>رجوع</button>
+        <button class="mb glass press" data-a="home"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg>الرئيسية</button>
+      </div>
+    </section>
+
+    <section class="page" id="p-apps">
+      <div class="search glass"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="بحث في التطبيقات" enterkeyhint="search">
+        <button id="rf" class="press" aria-label="تحديث"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg></button></div>
+      <div class="grid" id="apps"></div>
+    </section>
+  </main>
+</div>
+
+<nav class="tabbar glass" id="tabbar">
+  <button data-t="remote"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="5"/><circle cx="12" cy="8" r="2.5"/><path d="M12 14v.01M12 17.5v.01"/></svg>ريموت</button>
+  <button data-t="mouse"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></svg>الماوس</button>
+  <button data-t="apps"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.8"/><rect x="14" y="4" width="6" height="6" rx="1.8"/><rect x="4" y="14" width="6" height="6" rx="1.8"/><rect x="14" y="14" width="6" height="6" rx="1.8"/></svg>التطبيقات</button>
+</nav>
+
+<div class="kbd glass" id="kbd"><input id="txt" placeholder="اكتب هنا…" enterkeyhint="send"><button class="pill press" id="sendTxt">إرسال</button></div>
+<div class="scrim" id="scrim"></div>
+<div class="sheet glass" id="sheet"></div>
+<div class="toast glass" id="toast"></div>
+
+<script type="module">
+const $ = s => document.querySelector(s);
+const HUB = 'wss://studio.c-p.workers.dev/hub/ws';
+const A = window.MadarAndroid, btOK = !!A?.hidStart;
+const LS = { get: (k, d = '') => { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+const buzz = (n = 10) => { try { navigator.vibrate?.(n); } catch {} };
+let toastT; const toast = t => { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('on'), 1800); };
+
+// ---------------------------------------------------------------- the target device
+// madar: Madar glasses (one, or all) · android: a TV box / tablet / phone with the Madar app (sys-<code>) · bt: Bluetooth
+let kind = LS.get('rc.kind') || ({ android: 'android', bt: 'bt' }[LS.get('rc.tab')] || 'madar');
+let target = LS.get('rc.target'), code = LS.get('rc.code');
+let tab = LS.get('rc.page') || 'remote';
+let ws, all = [], devs = [];
 function hub() {
-  const id = localStorage.getItem('rc.id') || ('rc-' + Math.random().toString(36).slice(2, 9)); localStorage.setItem('rc.id', id);
+  let id = LS.get('rc.id'); if (!id) { id = 'rc-' + Math.random().toString(36).slice(2, 9); LS.set('rc.id', id); }
   ws = new WebSocket(HUB + '?' + new URLSearchParams({ id, name: 'ريموت', kind: 'phone', app: 'remote' }));
-  ws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.type === 'msg' && d.msg?.type === 'shared' && d.msg.code) { st.innerHTML = `<b>●</b> ${d.msg.name || 'الجهاز'} استيقظ · <a href="tv.html#${d.msg.code}" style="color:#7cc4ff">شاهد شاشته</a>`; } if (d.devices) { all = d.devices; devs = d.devices.filter(x => x.app === 'madar'); draw(); } } catch {} };
+  ws.onopen = () => { if (tab === 'apps') loadApps(); };
+  ws.onmessage = e => { try {
+    const d = JSON.parse(e.data);
+    if (d.devices) { all = d.devices; devs = all.filter(x => x.app === 'madar'); head(); if ($('#sheet').classList.contains('on')) sheet(); }
+    if (d.type === 'msg' && d.msg?.type === 'shared' && d.msg.code) toast('🟢 ' + (d.msg.name || 'الجهاز') + ' استيقظ');
+    if (d.type === 'msg' && d.msg?.type === 'apps') gotApps(d.msg);
+  } catch {} };
   ws.onclose = () => setTimeout(hub, 2500);
 }
-const toMadar = msg => { if (ws?.readyState !== 1) return; const t = target && devs.some(d => d.id === target) ? target : 'kind:madar'; ws.send(JSON.stringify({ op: 'send', to: t, msg: { type: 'rc', ...msg } })); };
-const MADAR = { up: 'up', down: 'down', left: 'left', right: 'right', ok: 'select', back: 'back', home: 'recenter', menu: 'launcher' };
-
-// ---------------- an Android device with Madar installed (TV box, tablet, phone): through «المركز», even with
-// Madar closed and the screen asleep (the app keeps its own link as sys-<code>). Two modes:
-//   تركيز  the arrows move the focus like a D-pad (TV apps)    ·    مؤشر  a pointer like a mouse (touch apps)
-let code = localStorage.getItem('rc.code') || '', mode = localStorage.getItem('rc.mode') || 'focus';
+const sendHub = (to, msg) => { if (ws?.readyState === 1) ws.send(JSON.stringify({ op: 'send', to, msg })); };
+const toMadar = msg => sendHub(target && devs.some(d => d.id === target) ? target : 'kind:madar', { type: 'rc', ...msg });
 const sysId = () => 'sys-' + code;
-const sysOnline = () => all.some(d => d.id === sysId());
-const toSys = msg => { if (ws?.readyState === 1 && /^\d{6}$/.test(code)) ws.send(JSON.stringify({ op: 'send', to: sysId(), msg })); };
+const toSys = msg => { if (/^\d{6}$/.test(code)) sendHub(sysId(), msg); };
 const toAndroid = m => toSys({ type: 'input', ...m });
+const online = () => kind === 'madar' ? devs.length > 0 : kind === 'android' ? all.some(d => d.id === sysId()) : !!btOK;
+
+function head() {
+  let n = '', s = '';
+  if (kind === 'madar') { const d = devs.find(x => x.id === target); n = d ? d.name : 'نظارة مدار'; s = devs.length ? devs.length + ' متصل' : 'افتح مدار على النظارة'; }
+  else if (kind === 'android') { const d = all.find(x => x.id === sysId()); n = d ? String(d.name).split(' · ')[0] : (code ? 'جهاز ' + code : 'اختر جهازاً'); s = d ? (d.name.split(' · ')[1] || 'متصل') : (code ? 'غير متصل الآن · أيقظه' : ''); }
+  else { n = 'بلوتوث'; s = btOK ? (A.hidState?.() || 'ريموت بلوتوث') : 'من تطبيق مدار للأندرويد'; }
+  $('#dn').textContent = n; $('#ds').textContent = s; $('#dot').classList.toggle('on', online());
+  $('#wk').style.display = kind === 'android' ? '' : 'none';
+}
+
+// ---------------------------------------------------------------- the device sheet
+const it = (sel, ic, t, sub, attr) => `<button class="it press ${sel ? 'sel' : ''}" ${attr}><span style="font-size:24px">${ic}</span><span class="tx">${t}${sub ? `<small>${sub}</small>` : ''}</span><svg class="chk" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></button>`;
+function sheet() {
+  const sys = all.filter(d => d.app === 'sys');
+  let h = `<div class="grab"></div><h3>تحكّم في</h3><h4>نظارة مدار</h4><div class="list">`
+    + it(kind === 'madar' && !target, '🥽', 'كل نظارات مدار', devs.length ? devs.length + ' متصل' : 'لا شيء متصل', 'data-k="madar" data-v=""')
+    + devs.map(d => it(kind === 'madar' && target === d.id, '🥽', d.name, '🟢 متصل', `data-k="madar" data-v="${d.id}"`)).join('') + '</div>'
+    + `<h4>أجهزة أندرويد (تي في بوكس · تابلت · هاتف)</h4><div class="list">`
+    + sys.map(d => it(kind === 'android' && code === d.id.slice(4), /tv|box|t95/i.test(d.name) ? '📺' : '📱', String(d.name).split(' · ')[0], '🟢 ' + (d.name.split(' · ')[1] || '') + ' · ' + d.id.slice(4), `data-k="android" data-v="${d.id.slice(4)}"`)).join('')
+    + (code && !sys.some(d => d.id.slice(4) === code) ? it(kind === 'android', '📺', 'جهاز ' + code, 'غير متصل الآن', `data-k="android" data-v="${code}"`) : '')
+    + (!sys.length && !code ? '<div class="it"><span class="tx"><small>لا جهاز متصل — افتح مدار على الجهاز مرة واحدة</small></span></div>' : '') + '</div>'
+    + `<div class="field"><input id="cin" inputmode="numeric" maxlength="6" dir="ltr" placeholder="رقم الجهاز (6 أرقام)"><button class="pill press" id="cgo">أضف</button></div>`
+    + (btOK ? `<h4>بلوتوث</h4><div class="list">${it(kind === 'bt', 'ᛒ', 'ريموت بلوتوث', 'لأي تي في بوكس أو تلفاز أو كمبيوتر', 'data-k="bt" data-v=""')}</div>` : '')
+    + '<p class="note">على الجهاز: افتح مدار مرة واحدة (يبقى متصلاً حتى بعد إعادة التشغيل) وفعّل «تحكم مدار» في إمكانية الوصول.</p>';
+  const s = $('#sheet'); s.innerHTML = h;
+  s.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { buzz(); pickDev(b.dataset.k, b.dataset.v); });
+  $('#cgo').onclick = () => { const v = $('#cin').value.replace(/\D/g, ''); if (v.length === 6) pickDev('android', v); else toast('الرقم 6 أرقام'); };
+}
+function pickDev(k, v) {
+  if (kind === 'android' && tab === 'mouse') toSys({ type: 'cursor', a: 'hide' });
+  kind = k; LS.set('rc.kind', k);
+  if (k === 'madar') { target = v; LS.set('rc.target', v); }
+  if (k === 'android') { code = v; LS.set('rc.code', v); }
+  if (k === 'bt' && btOK) A.hidStart();
+  closeSheet(); head(); appsCache(); if (tab === 'apps') loadApps(); if (tab === 'mouse') enterMouse();
+}
+const openSheet = () => { sheet(); $('#sheet').classList.add('on'); $('#scrim').classList.add('on'); };
+const closeSheet = () => { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); };
+$('#dev').onclick = () => { buzz(); openSheet(); };
+$('#scrim').onclick = closeSheet;
+$('#wk').onclick = () => { buzz(20); toSys({ type: 'wake', share: true }); toast('⏻ أُرسل الإيقاظ'); };
+
+// ---------------------------------------------------------------- the keys
+const MADAR = { up: 'up', down: 'down', left: 'left', right: 'right', ok: 'select', back: 'back', home: 'recenter', menu: 'launcher', play: 'select' };
 const ANDROID = { up: { a: 'nav', dir: 'up' }, down: { a: 'nav', dir: 'down' }, left: { a: 'nav', dir: 'left' }, right: { a: 'nav', dir: 'right' }, ok: { a: 'nav', dir: 'ok' },
   back: { a: 'key', key: 'back' }, home: { a: 'key', key: 'home' }, menu: { a: 'key', key: 'recents' }, play: { a: 'media', key: 'play' }, 'vol-': { a: 'media', key: 'vol-' }, 'vol+': { a: 'media', key: 'vol+' }, mute: { a: 'media', key: 'mute' } };
-const POINT = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-function androidKey(a) {
-  if (mode === 'pointer' && POINT[a]) return toSys({ type: 'cursor', a: 'move', dx: POINT[a][0], dy: POINT[a][1] });
-  if (mode === 'pointer' && a === 'ok') return toSys({ type: 'cursor', a: 'tap' });
-  if (ANDROID[a]) toAndroid(ANDROID[a]);
-}
-const wake = () => { toSys({ type: 'wake', share: true }); st.innerHTML = '<b>●</b> أُرسل الإيقاظ إلى ' + code; };
-
-// ---------------- Bluetooth: this phone is a Bluetooth keyboard / remote for any TV box, TV or computer
-const btOK = !!A?.hidStart;
-
-function draw() {
-  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
-  if (tab === 'madar') {
-    pick.innerHTML = `<select id="sel"><option value="">كل نظارات مدار</option>${devs.map(d => `<option value="${d.id}" ${d.id === target ? 'selected' : ''}>🥽 ${d.name}</option>`).join('')}</select>`;
-    $('#sel').onchange = e => { target = e.target.value; localStorage.setItem('rc.target', target); };
-    st.innerHTML = devs.length ? '<b>●</b> ' + devs.length + ' مدار متصل' : 'افتح مدار على النظارة';
-  } else if (tab === 'android') {
-    const sys = all.filter(d => d.app === 'sys');
-    pick.innerHTML = (sys.length ? `<select id="dsel"><option value="">اختر جهازاً…</option>${sys.map(d => `<option value="${d.id.slice(4)}" ${d.id.slice(4) === code ? 'selected' : ''}>🟢 ${d.name}</option>`).join('')}</select>` : '')
-      + `<div class="row"><input id="code" inputmode="numeric" maxlength="6" placeholder="رقم الجهاز (6 أرقام)" value="${code}" dir="ltr"><button class="tab" id="go">اختر</button></div>
-      <div class="row"><button class="tab ${mode === 'focus' ? 'on' : ''}" id="mf">🎯 تركيز</button><button class="tab ${mode === 'pointer' ? 'on' : ''}" id="mp">🖱 مؤشر</button><button class="tab" id="wk">⏻ أيقظ</button></div>
-      <p class="note">على الجهاز: افتح مدار مرة واحدة (يبقى متصلاً بعدها حتى بعد إعادة التشغيل)، وفعّل «تحكم مدار» من إعدادات إمكانية الوصول. «مؤشر» للتطبيقات التي تُستخدم باللمس.</p>`;
-    st.innerHTML = /^\d{6}$/.test(code) ? (sysOnline() ? '<b>●</b> متصل · ' + code : '○ ' + code + ' غير متصل الآن') : 'اختر الجهاز';
-    $('#dsel')?.addEventListener('change', e => { if (!e.target.value) return; code = e.target.value; localStorage.setItem('rc.code', code); draw(); });
-    $('#go').onclick = () => { code = $('#code').value.replace(/\D/g, ''); localStorage.setItem('rc.code', code); draw(); };
-    $('#mf').onclick = () => { mode = 'focus'; localStorage.setItem('rc.mode', mode); toSys({ type: 'cursor', a: 'hide' }); draw(); };
-    $('#mp').onclick = () => { mode = 'pointer'; localStorage.setItem('rc.mode', mode); toSys({ type: 'cursor', a: 'center' }); draw(); };
-    $('#wk').onclick = wake;
-  } else {
-    if (!btOK) { pick.innerHTML = '<p class="note">ريموت البلوتوث يعمل من <b>تطبيق مدار للأندرويد</b>: يصبح هاتفك ريموت/لوحة مفاتيح بلوتوث لأي تي في بوكس أو تلفاز أو كمبيوتر — بلا تثبيت شيء عليه.</p>'; st.textContent = ''; return; }
-    let list = []; try { list = JSON.parse(A.hidDevices() || '[]'); } catch {}
-    pick.innerHTML = `<div class="row"><select id="btd"><option value="">اختر الجهاز…</option>${list.map(d => `<option value="${d.addr}">${d.name}</option>`).join('')}</select><button class="tab" id="btc">اتصل</button></div>
-      <p class="note">أول مرة: اضغط «اتصل» ثم من إعدادات البلوتوث في التي في بوكس اقرن هاتفك (يظهر باسم «Madar Remote»).</p>`;
-    $('#btc').onclick = () => { A.hidStart(); const a = $('#btd').value; if (a) A.hidConnect(a); setTimeout(draw, 1500); };
-    st.textContent = A.hidState?.() || '';
-  }
-}
 function send(a) {
   buzz();
-  if (a === 'kbd') { const t = $('#txt'); t.classList.toggle('hide'); if (!t.classList.contains('hide')) t.focus(); return; }
-  if (tab === 'madar') { if (MADAR[a]) toMadar({ action: MADAR[a] }); else if (a === 'play') toMadar({ action: 'select' }); }
-  else if (tab === 'android') androidKey(a);
+  if (a === 'kbd') { const k = $('#kbd'); k.classList.toggle('on'); if (k.classList.contains('on')) $('#txt').focus(); return; }
+  if (kind === 'madar') { if (MADAR[a]) toMadar({ action: MADAR[a] }); }
+  else if (kind === 'android') { if (ANDROID[a]) toAndroid(ANDROID[a]); }
   else if (btOK) A.hidKey(a);
 }
+const REPEAT = ['up', 'down', 'left', 'right', 'vol+', 'vol-'];
 document.querySelectorAll('[data-a]').forEach(b => {
   let rep = 0;
-  const start = e => { e.preventDefault(); const a = b.dataset.a; send(a); if (['up', 'down', 'left', 'right', 'vol+', 'vol-'].includes(a)) rep = setTimeout(function r() { send(a); rep = setTimeout(r, 120); }, 420); };
   const stop = () => clearTimeout(rep);
-  b.addEventListener('pointerdown', start); b.addEventListener('pointerup', stop); b.addEventListener('pointerleave', stop); b.addEventListener('pointercancel', stop);
+  b.addEventListener('pointerdown', e => { e.preventDefault(); const a = b.dataset.a; send(a); if (REPEAT.includes(a)) rep = setTimeout(function r() { send(a); rep = setTimeout(r, 110); }, 420); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => b.addEventListener(t, stop));
 });
-document.querySelectorAll('.tab[data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; localStorage.setItem('rc.tab', tab); draw(); });
-$('#txt').addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return; const v = e.target.value; e.target.value = '';
-  if (tab === 'android') toAndroid({ a: 'text', value: v }); else if (tab === 'bt' && btOK) A.hidText(v); else toMadar({ text: v });
+const sendText = () => { const v = $('#txt').value; if (!v) return; $('#txt').value = ''; if (kind === 'android') toAndroid({ a: 'text', value: v }); else if (kind === 'bt' && btOK) A.hidText(v); else toMadar({ text: v }); toast('✓ أُرسل'); };
+$('#txt').addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
+$('#sendTxt').onclick = sendText;
+
+// ---------------------------------------------------------------- the clickpad: press an edge, press the middle, or swipe
+const pad = $('#pad'), glow = $('#glow');
+let pd = null;
+const zone = (x, y) => {
+  const r = pad.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, dx = x - cx, dy = y - cy;
+  if (Math.hypot(dx, dy) < r.width * 0.21) return 'ok';
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+};
+const flash = z => {
+  const el = z === 'ok' ? $('#ok') : pad.querySelector('.' + z[0]); el?.classList.add('hit'); setTimeout(() => el?.classList.remove('hit'), 160);
+  const r = pad.getBoundingClientRect(), P = { ok: [.5, .5], up: [.5, .16], down: [.5, .84], left: [.16, .5], right: [.84, .5] }[z];
+  glow.style.left = (P[0] * 100 - 22) + '%'; glow.style.top = (P[1] * 100 - 22) + '%'; glow.style.opacity = 1; setTimeout(() => glow.style.opacity = 0, 180);
+};
+const padSend = z => { flash(z); send(z); };
+pad.addEventListener('pointerdown', e => {
+  pad.setPointerCapture(e.pointerId);
+  pd = { x: e.clientX, y: e.clientY, rx: e.clientX, ry: e.clientY, swiped: false, held: false, z: zone(e.clientX, e.clientY) };
+  // hold an edge = keep moving
+  pd.t = setTimeout(function r() { if (!pd || pd.swiped || pd.z === 'ok') return; pd.held = true; padSend(pd.z); pd.t = setTimeout(r, 120); }, 450);
 });
-// touchpad: Madar → move its pointer / tap; Android → swipe to scroll / tap = OK
-const tp = $('#touch'); let lx = 0, ly = 0, sx = 0, sy = 0, t0 = 0, moved = 0;
-tp.addEventListener('pointerdown', e => { tp.setPointerCapture(e.pointerId); lx = sx = e.clientX; ly = sy = e.clientY; t0 = performance.now(); moved = 0; });
-tp.addEventListener('pointermove', e => {
-  if (!t0) return; const dx = (e.clientX - lx) / tp.clientWidth, dy = (e.clientY - ly) / tp.clientHeight; lx = e.clientX; ly = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
-  if (tab === 'madar') toMadar({ dx, dy });
-  else if (tab === 'android' && mode === 'pointer') toSys({ type: 'cursor', a: 'by', dx: dx * 1.6, dy: dy * 1.6 });
+pad.addEventListener('pointermove', e => {
+  if (!pd) return;
+  const dx = e.clientX - pd.rx, dy = e.clientY - pd.ry, step = Math.max(44, pad.clientWidth * 0.16);
+  if (Math.max(Math.abs(dx), Math.abs(dy)) > step) {
+    clearTimeout(pd.t); pd.swiped = true;
+    padSend(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+    pd.rx = e.clientX; pd.ry = e.clientY;
+  }
 });
-tp.addEventListener('pointerup', e => {
-  const dx = (e.clientX - sx) / tp.clientWidth, dy = (e.clientY - sy) / tp.clientHeight, tap = moved < 0.03 && performance.now() - t0 < 350; t0 = 0;
-  if (tab === 'madar') { if (tap) toMadar({ click: true }); }
-  else if (tab === 'android' && mode === 'pointer') { if (tap) toSys({ type: 'cursor', a: 'tap' }); }
-  else if (tab === 'android') { if (tap) toAndroid(ANDROID.ok); else toAndroid({ a: 'scroll', x: 0.5, y: 0.5, dx: -dx, dy: -dy }); }
-  else if (btOK) { if (tap) A.hidKey('ok'); else A.hidKey(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up')); }
+const padUp = () => { if (!pd) return; clearTimeout(pd.t); if (!pd.swiped && !pd.held) padSend(pd.z); pd = null; };
+pad.addEventListener('pointerup', padUp); pad.addEventListener('pointercancel', () => { if (pd) clearTimeout(pd.t); pd = null; });
+
+// ---------------------------------------------------------------- the mouse: a trackpad over the whole page
+const tr = $('#track'), tdot = $('#tdot'), pts = new Map();
+let acc = { dx: 0, dy: 0, s: 0 }, raf = 0, t0 = 0, moved = 0, longT = 0, longDone = false, maxFingers = 0;
+const flush = () => {
+  raf = 0;
+  if (acc.dx || acc.dy) {
+    if (kind === 'madar') toMadar({ dx: acc.dx, dy: acc.dy });
+    else if (kind === 'android') toSys({ type: 'cursor', a: 'by', dx: acc.dx, dy: acc.dy });
+    else if (btOK && Math.hypot(acc.dx, acc.dy) > 0.06) A.hidKey(Math.abs(acc.dx) > Math.abs(acc.dy) ? (acc.dx > 0 ? 'right' : 'left') : (acc.dy > 0 ? 'down' : 'up'));
+    if (kind !== 'bt' || Math.hypot(acc.dx, acc.dy) > 0.06) acc.dx = acc.dy = 0;
+  }
+  if (Math.abs(acc.s) > 0.06) {
+    if (kind === 'madar') toMadar({ scroll: acc.s });
+    else if (kind === 'android') toSys({ type: 'cursor', a: 'scroll', dx: 0, dy: Math.max(-0.6, Math.min(0.6, acc.s * 1.4)) });
+    else if (btOK) A.hidKey(acc.s > 0 ? 'down' : 'up');
+    acc.s = 0;
+  }
+};
+const queue = () => { if (!raf) raf = requestAnimationFrame(flush); };
+const click = how => { buzz(how === 'long' ? 30 : 12); if (kind === 'madar') toMadar(how === 'long' ? { action: 'launcher' } : { click: true }); else if (kind === 'android') toSys({ type: 'cursor', a: how }); else if (btOK) A.hidKey('ok'); };
+function enterMouse() { if (kind === 'android') toSys({ type: 'cursor', a: 'center' }); }
+tr.addEventListener('pointerdown', e => {
+  tr.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  maxFingers = Math.max(maxFingers, pts.size);
+  if (pts.size === 1) { t0 = performance.now(); moved = 0; longDone = false; maxFingers = 1; clearTimeout(longT); longT = setTimeout(() => { if (moved < 10 && pts.size === 1) { longDone = true; click('long'); } }, 550); }
+  const r = tr.getBoundingClientRect(); tdot.style.left = e.clientX - r.left + 'px'; tdot.style.top = e.clientY - r.top + 'px'; tdot.style.opacity = 1; $('#thint').style.opacity = 0;
 });
-hub(); draw();
+tr.addEventListener('pointermove', e => {
+  const p = pts.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
+  const r = tr.getBoundingClientRect(); tdot.style.left = e.clientX - r.left + 'px'; tdot.style.top = e.clientY - r.top + 'px';
+  if (pts.size >= 2) { acc.s += -dy / r.height / 2; }   // two fingers: scroll (each finger reports, so half each)
+  else {
+    // faster finger = farther pointer (like a real trackpad)
+    const v = Math.hypot(dx, dy), gain = 1.3 + Math.min(2.2, v / 14);
+    acc.dx += dx / r.width * gain; acc.dy += dy / r.height * gain * (r.height / r.width);
+  }
+  queue();
+});
+const trUp = e => {
+  if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId);
+  if (pts.size) return;
+  clearTimeout(longT); tdot.style.opacity = 0;
+  const quick = performance.now() - t0 < 300 && moved < 14;
+  if (quick && !longDone) { if (maxFingers >= 2) send('back'); else click('tap'); }
+};
+tr.addEventListener('pointerup', trUp); tr.addEventListener('pointercancel', trUp);
+// the scroll strip on the edge: one finger scrolls
+const sb = $('#sbar'); let sy = null;
+sb.addEventListener('pointerdown', e => { e.stopPropagation(); sb.setPointerCapture(e.pointerId); sy = e.clientY; buzz(6); });
+sb.addEventListener('pointermove', e => { if (sy == null) return; e.stopPropagation(); acc.s += -(e.clientY - sy) / tr.clientHeight; sy = e.clientY; queue(); });
+['pointerup', 'pointercancel'].forEach(t => sb.addEventListener(t, e => { e.stopPropagation(); sy = null; }));
+document.querySelectorAll('[data-m]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); click(b.dataset.m); }));
+
+// ---------------------------------------------------------------- the device's apps
+let apps = [];
+const cacheKey = () => 'rc.apps.' + (kind === 'android' ? code : kind);
+function appsCache() { try { apps = JSON.parse(LS.get(cacheKey(), '[]')); } catch { apps = []; } drawApps(); }
+let appsT;
+function loadApps() {
+  if (kind === 'bt') return drawApps();
+  if (kind === 'android') toSys({ type: 'apps' }); else toMadar({ apps: true });
+  clearTimeout(appsT); appsT = setTimeout(() => { if (!apps.length) drawApps(true); }, 6000);
+}
+let incoming = [];
+function gotApps(m) {
+  const list = Array.isArray(m.list) ? m.list : [];
+  if ((m.upto || 0) <= list.length) incoming = [];   // the first page
+  incoming.push(...list.map(a => ({ ...a, src: m.src || 'android' })));
+  if (!m.total || (m.upto || 0) >= m.total) { apps = incoming; incoming = []; LS.set(cacheKey(), JSON.stringify(apps)); }
+  else apps = incoming.slice();
+  drawApps();
+}
+const HUE = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+function drawApps(failed) {
+  const g = $('#apps'), q = $('#q').value.trim().toLowerCase();
+  if (kind === 'bt') { g.innerHTML = '<div class="empty">التطبيقات تظهر لأجهزة أندرويد التي عليها مدار، ولنظارة مدار.</div>'; return; }
+  const list = apps.filter(a => !q || String(a.name).toLowerCase().includes(q));
+  if (!list.length) { g.innerHTML = `<div class="empty">${failed ? (kind === 'android' ? 'لم يرد الجهاز — تأكد أنه متصل (أيقظه ⏻) وأن تطبيق مدار محدّث.' : 'افتح مدار على النظارة ثم اضغط تحديث.') : q ? 'لا نتائج' : 'جارٍ جلب التطبيقات…'}</div>`; return; }
+  g.innerHTML = list.map((a, i) => `<button class="ap press" data-i="${apps.indexOf(a)}"><span class="ic" style="${a.icon && a.icon.startsWith('data:') ? 'background:none;border:0' : `background:linear-gradient(160deg,hsl(${HUE(a.name)} 70% 58%),hsl(${(HUE(a.name) + 40) % 360} 70% 40%))`}">${a.icon && a.icon.startsWith('data:') ? `<img src="${a.icon}" alt="">` : String(a.name).trim()[0] || '•'}</span><span>${a.name}</span></button>`).join('');
+  g.querySelectorAll('.ap').forEach(b => b.onclick = () => {
+    const a = apps[+b.dataset.i]; buzz(14);
+    if (a.pkg) toSys({ type: 'launch', pkg: a.pkg }); else toMadar({ open: a.name });
+    toast('يفتح ' + a.name);
+  });
+}
+$('#q').addEventListener('input', () => drawApps());
+$('#rf').onclick = () => { buzz(); apps = []; drawApps(); loadApps(); };
+
+// ---------------------------------------------------------------- tabs
+function show(t) {
+  if (tab === 'mouse' && t !== 'mouse' && kind === 'android') toSys({ type: 'cursor', a: 'hide' });
+  tab = t; LS.set('rc.page', t);
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('cur', p.id === 'p-' + t));
+  document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  $('#kbd').classList.remove('on');
+  if (t === 'mouse') enterMouse();
+  if (t === 'apps') { appsCache(); loadApps(); }
+}
+document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => { buzz(); show(b.dataset.t); });
+hub(); head(); show(tab);
 </script></body></html>
