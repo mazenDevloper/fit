@@ -10,13 +10,13 @@ jobs:
       - run: sudo apt-get -qq update && sudo apt-get -qq install -y ffmpeg >/dev/null && pip install -q pillow
       # «فيديو شفاف» (green screens from Wikimedia Commons, keyed into stacked-alpha MP4) + «عريض جداً» (32:9 from the 360° videos)
       - name: build
-        env: { GH_TOKEN: "${{ github.token }}" }
+        env: { GH_TOKEN: "${{ github.token }}", PIXABAY_KEY: "${{ secrets.PIXABAY_KEY }}" }
         run: |
-          gh release download media-360 -p manifest.json --clobber
+          gh release download media-360 -p manifest.json -p wide.json --clobber || gh release download media-360 -p manifest.json --clobber
           python3 tools/mediafx.py
       - name: publish
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           cd out && ls -la | head -60
-          gh release upload media-360 *.mp4 *.jpg fx.json wide.json --clobber
+          ls *.mp4 >/dev/null 2>&1 && gh release upload media-360 *.mp4 *.jpg --clobber; gh release upload media-360 fx.json wide.json --clobber
           for f in fx.json wide.json; do curl -s -o /dev/null -w "$f %{http_code}\n" "https://studio.c-p.workers.dev/m/$f?x=$RANDOM" || true; done
