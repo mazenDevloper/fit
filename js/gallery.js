@@ -21,7 +21,7 @@ const W8 = 'https://studio.c-p.workers.dev';
 const THUMB = id => `https://cdn.polyhaven.com/asset_img/thumbs/${id}.png?width=320&height=200`;
 const COMMONS = 'https://commons.wikimedia.org/w/api.php?format=json&origin=*';
 export const MANUSCRIPTS_BIN = '69b63c5cc3097a1dd5278b25';
-const TABS = [['rooms', 'غرف وأماكن', 'home'], ['views', 'إطلالات', 'globe'], ['hdris', 'بيئات 360°', 'sun'], ['pano', 'بانوراما', 'image'], ['video', 'فيديو 360', 'video'], ['models', 'أثاث ومجسمات', 'cube'], ['manuscripts', 'مخطوطات', 'book'], ['mine', 'ملفاتي', 'stack']];
+const TABS = [['rooms', 'غرف وأماكن', 'home'], ['views', 'إطلالات', 'globe'], ['hdris', 'بيئات 360°', 'sun'], ['pano', 'بانوراما', 'image'], ['video', 'فيديو 360', 'video'], ['fx', 'فيديو شفاف', 'cube'], ['wide', 'عريض جداً', 'video'], ['models', 'أثاث ومجسمات', 'cube'], ['manuscripts', 'مخطوطات', 'book'], ['mine', 'ملفاتي', 'stack']];
 const HDRI_CATS = [['all', 'الكل'], ['nature', 'طبيعة'], ['urban', 'مدن'], ['indoor', 'داخلي'], ['skies', 'سماء'], ['sunrise-sunset', 'غروب'], ['night', 'ليل'], ['studio', 'استوديو']];
 const MODEL_CATS = [['all', 'الكل'], ['madar', 'أثاث مدار'], ['furniture', 'أثاث'], ['seating', 'كراسي'], ['table', 'طاولات'], ['shelves', 'رفوف'], ['lighting', 'إضاءة'], ['electronics', 'أجهزة'], ['decorative', 'زينة'], ['plants', 'نباتات']];
 // Madar's own places: [key, category]
@@ -71,14 +71,14 @@ export class Gallery {
   }
   close() { this.group.visible = false; this.app.interaction?.setTargets(); }
   redraw() { this.panel?.redraw(); }
-  defaultCat() { return { views: 'citynight', pano: 'pick', video: 'all', rooms: 'all', mine: 'all', manuscripts: 'all' }[this.tab] || 'all'; }
+  defaultCat() { return { views: 'citynight', pano: 'pick', video: 'all', fx: 'all', wide: 'all', rooms: 'all', mine: 'all', manuscripts: 'all' }[this.tab] || 'all'; }
   cats() {
     if (this.tab === 'rooms') return ROOM_CATS;
     if (this.tab === 'views') return VIEWS.map(([k, l]) => [k, l]);
     if (this.tab === 'hdris') return HDRI_CATS;
     if (this.tab === 'models') return MODEL_CATS;
     if (this.tab === 'pano') return PANO.map(([k, l]) => [k, l]);
-    if (this.tab === 'video') return [['all', 'الكل'], ...[...new Set((this.lists.video || []).map(v => v.cat))].map(c => [c, c])];
+    if (this.tab === 'video' || this.tab === 'fx' || this.tab === 'wide') return [['all', 'الكل'], ...[...new Set((this.lists[this.tab] || []).map(v => v.cat))].map(c => [c, c])];
     if (this.tab === 'mine') return [['all', 'الكل'], ['env', 'بيئات'], ['model', 'مجسمات'], ['image', 'صور'], ['video', 'فيديو']];
     return [];
   }
@@ -103,6 +103,8 @@ export class Gallery {
         }
       } else if (this.tab === 'pano') this.lists[key] = await this.panoList(this.cat);
       else if (this.tab === 'video') this.lists.video = (await (await fetch(W8 + '/m/manifest.json')).json()).map(v => ({ ...v, name: v.title, kind: 'video', cats: [v.cat] }));
+      // «فيديو شفاف» (cut-outs that stand in your room) and «عريض جداً» (32:9 cinema strips): built next to the 360° videos
+      else if (this.tab === 'fx' || this.tab === 'wide') this.lists[this.tab] = (await (await fetch(W8 + '/m/' + this.tab + '.json')).json()).map(v => ({ ...v, name: v.title, kind: this.tab, cats: [v.cat] }));
       else if (this.tab === 'manuscripts') this.lists.manuscripts = await this.manuscripts();
       else if (this.tab === 'mine') this.lists.mine = [{ id: 'import', kind: 'import', name: 'استيراد صورة أو بيئة', cats: ['all', 'env', 'image'] }, ...(await listItems()).filter(i => ['env', 'model', 'image', 'video'].includes(i.type)).map(i => ({ id: i.id, name: i.name, kind: 'mine', type: i.type, format: i.format, cats: [i.type], item: i }))];
       this.busy = '';
@@ -130,7 +132,7 @@ export class Gallery {
     return all.filter(a => a.cats.includes(this.cat));
   }
   thumb(a) {
-    const src = a.own ? (OWN_THUMBS.has(a.id) ? new URL('../assets/rooms/thumbs/' + a.id + '.jpg', import.meta.url).href : null) : a.thumb || (a.kind === 'video' ? W8 + '/m/' + a.poster : a.kind === 'mine' ? null : THUMB(a.id));
+    const src = a.own ? (OWN_THUMBS.has(a.id) ? new URL('../assets/rooms/thumbs/' + a.id + '.jpg', import.meta.url).href : null) : a.thumb || (a.kind === 'video' || a.kind === 'fx' || a.kind === 'wide' ? W8 + '/m/' + a.poster : a.kind === 'mine' ? null : THUMB(a.id));
     if (!src) return null;
     let t = this.thumbs.get(src);
     if (!t) {
@@ -170,7 +172,7 @@ export class Gallery {
         p.region(x, 124, cw, 48, () => { blip('tap', settings.sounds); this.cat = k; this.page = 0; if (this.tab === 'pano') this.load(); else this.redraw(); }, id);
       });
     }
-    const hint = { rooms: 'اختر مكاناً لتكون فيه', views: 'إطلالات حقيقية 360° · Poly Haven', hdris: 'Poly Haven · مجانية', pano: 'صور 360° من ويكيميديا كومنز', video: 'فيديوهات 360° حولك · اضبط سرعة جهاز المشي من وضع الرياضة', models: 'تُثبّت في البيئة الحالية · ⋯ لإلغاء التثبيت', manuscripts: 'من DriveCast · تظهر بلا خلفية على جدارك', mine: 'أضف بيئاتك ومجسماتك وصورك من الشاشة الرئيسية' }[this.tab];
+    const hint = { rooms: 'اختر مكاناً لتكون فيه', views: 'إطلالات حقيقية 360° · Poly Haven', hdris: 'Poly Haven · مجانية', pano: 'صور 360° من ويكيميديا كومنز', video: 'فيديوهات 360° حولك · اضبط سرعة جهاز المشي من وضع الرياضة', fx: 'مقاطع بلا خلفية تقف في غرفتك · ويكيميديا كومنز', wide: 'سينما 32:9 أمامك · من فيديوهات 360°', models: 'تُثبّت في البيئة الحالية · ⋯ لإلغاء التثبيت', manuscripts: 'من DriveCast · تظهر بلا خلفية على جدارك', mine: 'أضف بيئاتك ومجسماتك وصورك من الشاشة الرئيسية' }[this.tab];
     text(ctx, hint, W / 2, H - 38, 22, { color: COLORS.dim, maxWidth: W * 0.5, fit: true });
     if (this.busy) { text(ctx, this.busy, W / 2, H / 2, 34, { weight: 700, color: COLORS.dim }); return; }
     const list = this.shown(), pages = Math.max(1, Math.ceil(list.length / PER));
@@ -271,6 +273,15 @@ export class Gallery {
         const i = Object.values(d.query?.pages || {})[0]?.imageinfo?.[0];
         if (!i?.thumburl) throw new Error('no image');
         await this.applyImage({ id: a.id, name: a.name, url: i.thumburl, type: 'img' });
+      } else if (a.kind === 'fx') {
+        // a cut-out in your room: no frame, transparent background, looping
+        const w = this.app.windows.open({ kind: 'video', url: W8 + '/m/' + a.file, name: a.title, fmt: 'alpha' });
+        if (w) { w.setCut(3); if (w.video) w.video.loop = true; }
+        this.close?.();
+      } else if (a.kind === 'wide') {
+        const w = this.app.windows.open({ kind: 'video', url: W8 + '/m/' + a.file, name: a.title });
+        if (w) { w.group.scale.multiplyScalar(1.6); w.setCurved?.(true); }
+        this.close?.();
       } else if (a.kind === 'video') {
         this.app.windows.open({ kind: 'video', url: W8 + '/m/' + a.file, name: a.title, proj: '360' });
         this.app.toast('🎥 ' + a.title + ' · ' + (a.license || '') + (a.author ? ' — ' + a.author : ''), 4000);

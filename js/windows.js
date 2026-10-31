@@ -32,10 +32,12 @@ const CONTENT_FRAG = /* glsl */`
     }
     vec4 R = uEye > 0.5 ? uR : uL;
     vec2 tc = R.xy + vUv * R.zw;
+    float alpha = 1.0;
+    // 3 = «stacked alpha» video: the picture on the left half, its transparency mask on the right half
+    if (uCut > 2.5) { vec2 tm = vec2(tc.x * 0.5 + 0.5, tc.y); tc.x *= 0.5; alpha = texture2D(map, tm).r; if (alpha < 0.03) discard; }
     vec4 s4 = texture2D(map, tc);
     vec3 s = s4.rgb;
-    float alpha = 1.0;
-    if (uCut > 0.5) {
+    if (uCut > 0.5 && uCut < 2.5) {
       if (uCut < 1.5) alpha = s4.a;
       else { float k = smoothstep(0.06, 0.22, s.g - max(s.r, s.b)); alpha = 1.0 - k; s.g = min(s.g, max(s.r, s.b) + 0.04); }   // key out green, no green fringe
       if (alpha < 0.02) discard;
@@ -392,7 +394,7 @@ class SpatialWindow {
       ['لقطة', 'حفظ', () => this.snapshot()],
       ['على الجدار', this.wallLock ? 'مثبّتة · إلغاء' : (app.room?.tv() || app.room?.wallAhead?.()) ? 'ثبّت هنا' : 'ثبّت', () => this.toggleWall()],
       ['في هذه البيئة', this.envPin ? 'مثبّتة' : 'إيقاف', () => M.pinToEnv(this, !this.envPin)],
-      ['بلا خلفية', ['إيقاف', 'شفافية', 'شاشة خضراء'][this.cut || 0], () => this.setCut(((this.cut || 0) + 1) % 3)],
+      ['بلا خلفية', ['إيقاف', 'شفافية', 'شاشة خضراء', 'فيديو شفاف'][this.cut || 0], () => this.setCut(this.cut === 3 ? 0 : ((this.cut || 0) + 1) % 3)],
       ...(app.hub?.canSend(this) ? [['أرسل إلى', app.hub.targetName(), () => app.hub.sendWindow(this)]] : []),
     ];
   }
@@ -810,7 +812,7 @@ export class VideoWindow extends SpatialWindow {
   // ---- Player options (like Play'A / VR Station): 3D formats, 180°/360°, speed, brightness, lock to view ----
   dispAspect() {
     const v = this.video, w = v.videoWidth || 16, h = v.videoHeight || 9;
-    return { sbs: w / 2 / h, ou: w / (h / 2) }[this.fmt] || w / h;   // half-width formats (sbsh/ouh) keep the full shape
+    return { sbs: w / 2 / h, ou: w / (h / 2), alpha: w / 2 / h }[this.fmt] || w / h;   // half-width formats (sbsh/ouh) keep the full shape; stacked alpha = half
   }
   // Guess the format from the file name: "SBS", "3D", "_LR", "OU", "TB", "180", "360".
   guessFormat() {
