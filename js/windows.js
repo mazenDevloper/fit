@@ -1538,6 +1538,12 @@ export class WebWindow extends SpatialWindow {
   async onSnap(d) {
     this.snapBusy = false;
     if (!this.snap) return;
+    // a video player in the page: a picture of the page shows it black - switch to the live page by itself
+    // (curved / 360 are pictures only: there it stays a hint)
+    if ((d.media || d.video) && !this.liveAuto && !this.curved && this.proj !== '360' && this.oneSource) {
+      this.liveAuto = true; this.toggleLive();
+      this.mgr.app.toast('🎬 في الصفحة فيديو: عرض مباشر', 2500); return;
+    }
     if (d.media && !this.mediaHint && !this.curved && this.proj !== '360') { this.mediaHint = true; this.mgr.app.toast('في الصفحة فيديو يعمل: اضغط 🎬 في الشريط لعرضه مباشرة', 4500); }
     if (d.blob) {
       try {

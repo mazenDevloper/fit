@@ -209,12 +209,22 @@ export class Launcher {
         ...(a.together?.on ? [['play', 'قُد المشاهدة', 'ما تشاهده يظهر عند الجميع', () => { this.close(); a.together.leadNow(); }],
           ['mic', 'المايكروفون', 'كتم / تشغيل صوتك', () => { this.close(); a.together.toggleMic(); }]] : []),
       ] : [];
-      if (this.folder === 'nx') list = nxItems;
+      // «HDMI · شاشات أجهزتي»: every Madar device (tablet with an HDMI card, TV box, phone) - wake it, its screen opens here
+      const myCode = a.hub?.me?.id?.replace(/^\D+-/, '');
+      const scr = [...new Map((a.hub?.others() || []).filter(d => /^(sys|madar)-\d{6}$/.test(d.id)).map(d => [d.id.slice(-6), d])).values()].filter(d => d.id.slice(-6) !== myCode);
+      const screens = scr.map(d => ['cast', String(d.name || '').split(' · ')[0] || d.id.slice(-6), (d.app === 'sys' ? 'نائم · ' : '🟢 ') + 'اعرض شاشته / HDMI', () => {
+        this.close(); const c = d.id.slice(-6);
+        a.hub?.op({ op: 'send', to: 'sys-' + c, msg: { type: 'wake', share: true } });
+        a.toast('📺 يفتح شاشة ' + (String(d.name || '').split(' · ')[0] || c) + '…', 2500); a.connectMirror(c);
+      }]);
+      if (this.folder === 'screens') list = screens.length ? screens : [['cast', 'لا أجهزة', 'افتح مدار على التابلت أو التي في بوكس مرة واحدة', () => {}]];
+      else if (this.folder === 'nx') list = nxItems;
       else if (this.folder === 'widgets') list = widgets;
       else if (this.folder === 'dc') list = dcItems;
       else if (this.folder === 'tools') list = list.filter(x => FOLDERS.tools[2].includes(x[1]));
       else {
         list = list.filter(x => !FOLDERS.tools[2].includes(x[1]));
+        list.unshift(['cast', 'HDMI · شاشات أجهزتي', scr.length ? '🟢 ' + scr.length + ' جهاز' : 'التابلت · التي في بوكس', () => { this.folder = 'screens'; this.page = 0; this.panel.redraw(); }]);
         if (nxItems.length) list.push(['star', 'المستوى التالي', nxItems.length + ' ميزات جديدة', () => { this.folder = 'nx'; this.page = 0; this.panel.redraw(); }]);
         list.push([FOLDERS.dc[0], FOLDERS.dc[1], hubN ? '🟢 ' + hubN + ' جهاز متصل' : 'السيارة · التلفاز · الهاتف', () => { this.folder = 'dc'; this.page = 0; this.panel.redraw(); }]);
         list.push([FOLDERS.widgets[0], FOLDERS.widgets[1], widgets.length + ' أدوات', () => { this.folder = 'widgets'; this.page = 0; this.panel.redraw(); }], [FOLDERS.tools[0], FOLDERS.tools[1], 'مجلد', () => { this.folder = 'tools'; this.page = 0; this.panel.redraw(); }]);

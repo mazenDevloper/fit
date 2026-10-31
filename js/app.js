@@ -43,7 +43,7 @@ import { Welcome } from './welcome.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '138';
+export const APP_VERSION = '139';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -268,7 +268,7 @@ class App {
           else if (!c.control && c.why) this.log('التحكم: ' + c.why);
         },
         // the delay meter: a small badge on the window (green < 200 ms, amber < 500, red above)
-        onDelay: d => { if (this.viewer?.caps?.hdmi || settings.delayMeter) { const v = this.mirrorWin?.video; const dg = v ? ` · ${v.videoWidth}×${v.videoHeight} r${v.readyState}${v.paused ? ' ⏸' : ''}` : ''; this.mirrorWin?.setBadge?.(`${d.ms < 200 ? '🟢' : d.ms < 500 ? '🟡' : '🔴'} ${d.ms} ms · ${d.fps} fps${d.relay ? ' · عبر خادم' : ' · مباشر'}${dg}`, d.ms < 200 ? '#22c55e' : d.ms < 500 ? '#eab308' : '#ef4444'); } },
+        onDelay: d => { if (d.fast) { this.toast('⚡ المسار السلس: ترميز العتاد H.264 مباشرة من الجهاز', 2500); this.mirrorWin?.setBadge?.('⚡ H.264 · سلس', '#22c55e'); return; } if (this.viewer?.caps?.hdmi || settings.delayMeter) { const v = this.mirrorWin?.video; const dg = v ? ` · ${v.videoWidth}×${v.videoHeight} r${v.readyState}${v.paused ? ' ⏸' : ''}` : ''; this.mirrorWin?.setBadge?.(`${d.ms < 200 ? '🟢' : d.ms < 500 ? '🟡' : '🔴'} ${d.ms} ms · ${d.fps} fps${d.relay ? ' · عبر خادم' : ' · مباشر'}${dg}`, d.ms < 200 ? '#22c55e' : d.ms < 500 ? '#eab308' : '#ef4444'); } },
       });
       if (!this.active) { this.viewer.close(); return; }
       if (this.mirrorWin && this.windows.windows.includes(this.mirrorWin)) {

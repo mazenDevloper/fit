@@ -96,6 +96,7 @@ if (typeof window !== 'undefined' && !window.__madarBin) {
     const k = h[3];
     if (k === 1) { window.__madarBinFrame?.(new Uint8Array(d, 4)); try { window.__madarTick?.(); } catch {} }
     else if (k === 2) window.__madarBinAudio?.(new Int16Array(d.slice(4)));
+    else if (k === 5) { const ts = new DataView(d, 4, 4).getUint32(0, true); window.__madarH264?.(new Uint8Array(d, 8), ts); try { window.__madarTick?.(); } catch {} }
     else if (k === 3 || k === 4) {
       const ts = new DataView(d, 4, 4).getUint32(0, true), u = new Uint8Array(d, 8);
       if (k === 4) { window.__madarBinFrame?.(u, ts); try { window.__madarTick?.(); } catch {} }
@@ -260,6 +261,7 @@ export class ScreenHost {
     });
   }
   accept(conn) {
+    if (conn.metadata?.fast) { conn.on('open', () => { if (fastSender.ok && this.stream && !this.controlOnly && window.MadarAndroid) fastSender.add(conn); else conn.close(); }); return; }
     conn.on('open', () => {
       this.viewers.add(conn); this.status();
       conn.send({ type: 'links', links: loadLinks() });
@@ -307,6 +309,7 @@ export class ScreenHost {
   }
   status() { const live = !!this.stream || !!this.controlOnly; this.onStatus?.({ code: this.code, link: this.link, viewers: this.viewers.size, live, controlOnly: !!this.controlOnly, caps: live ? this.caps() : null }); }
   stop() {
+    fastSender.stop();
     if (!this.stream && !this.peer) return;
     if (this.controlOnly) { this.controlOnly = false; try { window.MadarAndroid?.setRemoteOnly?.(false); localStorage && import('./config.js').then(c => c.saveSettings({ remoteOnly: false })); } catch {} }
     this.agent.stop(); clearInterval(this.capT);
@@ -447,6 +450,123 @@ export function preferH264(sdp) {
   });
 }
 
+
+// ---------- The smooth path: hardware H.264 over a data channel ----------
+// The old way made four copies of every picture (screen → JPEG on the tablet → decoded in the page → encoded again
+// by WebRTC → decoded on the iPhone) and the tablet's processor could not keep up: the picture stuttered even on a
+// strong 5 GHz network. Now the tablet's hardware encoder reads the screen / HDMI card directly and its H.264 pieces
+// go to the iPhone as they are, where the hardware decoder shows them (WebCodecs). Sound stays on the WebRTC call.
+// Pieces: 16-byte header ['H', flags(1=key), idx u16, count u16, 0, 0, seq u32, ts u32] + up to 16 000 bytes.
+const CHUNK = 16000, FAST_BPS = 6000000;
+class FastSender {
+  constructor() { this.conns = new Set(); this.seq = 0; this.needKey = true; this.on = false; }
+  get ok() { return !!window.MadarAndroid?.hwStart; }
+  add(conn) {
+    this.conns.add(conn);
+    conn.on('close', () => { this.conns.delete(conn); if (!this.conns.size) this.stop(); });
+    conn.on('data', d => { if (d && d.byteLength === 1) this.key(); });   // the viewer lost its place: a key frame
+    this.start();
+  }
+  start() {
+    const A = window.MadarAndroid; if (!A?.hwStart) return;
+    window.__madarH264 = (u, ts) => this.frame(u, ts);
+    if (!this.on) { let ok = false; try { ok = A.hwStart(FAST_BPS); } catch {} this.on = ok; }
+    this.needKey = true; this.key();
+  }
+  key() { try { window.MadarAndroid?.hwKey?.(); } catch {} }
+  frame(u, ts) {
+    const key = (u[0] & 1) === 1, data = u.subarray(1);
+    if (this.needKey && !key) return;
+    for (const c of this.conns) {
+      const dc = c.dataChannel;
+      if (!dc || dc.readyState !== 'open') continue;
+      // the network is behind: drop this picture and start again from the next key frame (never a growing delay)
+      if (dc.bufferedAmount > 1500000) { c._skip = true; this.key(); continue; }
+      if (c._skip && !key) continue;
+      c._skip = false;
+      const seq = ++this.seq, n = Math.ceil(data.length / CHUNK);
+      for (let i = 0; i < n; i++) {
+        const part = data.subarray(i * CHUNK, Math.min(data.length, (i + 1) * CHUNK));
+        const b = new Uint8Array(16 + part.length), v = new DataView(b.buffer);
+        b[0] = 72; b[1] = key ? 1 : 0; v.setUint16(2, i, true); v.setUint16(4, n, true); v.setUint32(8, seq, true); v.setUint32(12, ts >>> 0, true);
+        b.set(part, 16);
+        try { dc.send(b.buffer); } catch {}
+      }
+    }
+    if (key) this.needKey = false;
+  }
+  stop() { if (this.on) { try { window.MadarAndroid?.hwStop?.(); } catch {} } this.on = false; this.conns.forEach(c => { try { c.close(); } catch {} }); this.conns.clear(); }
+}
+export const fastSender = new FastSender();
+
+// iPhone side: rebuild the pieces, decode them in hardware, draw them on a canvas that becomes the video track
+export async function canFast() {
+  try {
+    if (typeof VideoDecoder !== 'function' || typeof EncodedVideoChunk !== 'function') return false;
+    const r = await VideoDecoder.isConfigSupported({ codec: 'avc1.42E029', optimizeForLatency: true });
+    return !!r.supported;
+  } catch { return false; }
+}
+export class FastReceiver {
+  constructor(conn, onFirst, onStall) {
+    this.conn = conn; this.onFirst = onFirst; this.onStall = onStall; this.parts = null; this.waitKey = true; this.last = 0;
+    this.canvas = document.createElement('canvas'); this.canvas.width = 1280; this.canvas.height = 720;
+    this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
+    this.track = this.canvas.captureStream().getVideoTracks()[0];
+    conn.on('data', d => this.piece(d));
+    this.watch = setInterval(() => { if (this.started && performance.now() - this.last > 4000) this.onStall?.(); }, 1000);
+  }
+  ask() { try { this.conn.send(new Uint8Array([1]).buffer); } catch {} }
+  piece(d) {
+    const buf = d instanceof ArrayBuffer ? d : d?.buffer; if (!buf || buf.byteLength < 17) return;
+    const b = new Uint8Array(buf, d.byteOffset || 0, d.byteLength || buf.byteLength), v = new DataView(b.buffer, b.byteOffset);
+    if (b[0] !== 72) return;
+    const key = b[1] & 1, idx = v.getUint16(2, true), n = v.getUint16(4, true), seq = v.getUint32(8, true), ts = v.getUint32(12, true);
+    if (idx === 0) this.parts = { seq, key, ts, n, got: 0, list: new Array(n) };
+    const P = this.parts; if (!P || P.seq !== seq) return;
+    P.list[idx] = b.subarray(16); P.got++;
+    if (P.got < P.n) return;
+    this.parts = null;
+    let len = 0; P.list.forEach(x => len += x.length);
+    const data = new Uint8Array(len); let o = 0; P.list.forEach(x => { data.set(x, o); o += x.length; });
+    this.decode(data, !!P.key, P.ts);
+  }
+  // the codec string straight from the stream's own SPS (profile, constraints, level)
+  codecOf(data) {
+    for (let i = 0; i + 4 < data.length; i++) if (data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 1 && (data[i + 3] & 31) === 7) {
+      const h = x => x.toString(16).padStart(2, '0'); return 'avc1.' + h(data[i + 4]) + h(data[i + 5]) + h(data[i + 6]);
+    }
+    return null;
+  }
+  decode(data, key, ts) {
+    if (this.waitKey && !key) return;
+    if (key) {
+      const codec = this.codecOf(data);
+      if (codec && codec !== this.codec) {
+        try { this.dec?.close(); } catch {}
+        this.codec = codec;
+        this.dec = new VideoDecoder({ output: f => this.show(f), error: () => { this.waitKey = true; this.codec = null; this.ask(); } });
+        try { this.dec.configure({ codec, optimizeForLatency: true, hardwareAcceleration: 'prefer-hardware' }); } catch { this.dec.configure({ codec }); }
+      }
+      this.waitKey = false;
+    }
+    if (!this.dec || this.dec.state !== 'configured') { this.waitKey = true; return; }
+    // the decoder is behind: skip to the next key frame instead of piling up delay
+    if (this.dec.decodeQueueSize > 4 && !key) { this.waitKey = true; this.ask(); return; }
+    try { this.dec.decode(new EncodedVideoChunk({ type: key ? 'key' : 'delta', timestamp: ts * 1000, data })); }
+    catch { this.waitKey = true; this.ask(); }
+  }
+  show(f) {
+    const w = f.displayWidth, h = f.displayHeight;
+    if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
+    try { this.ctx.drawImage(f, 0, 0, w, h); } catch {}
+    f.close();
+    this.last = performance.now();
+    if (!this.started) { this.started = true; this.onFirst?.(this.track); }
+  }
+  close() { clearInterval(this.watch); try { this.dec?.close(); } catch {} try { this.conn.close(); } catch {} try { this.track.stop(); } catch {} }
+}
+
 // ---------- Phone side ----------
 export class ScreenViewer {
   // prefix: 'madar-scr-' (shared screens) or 'madar-web-' (a device's built-in browser).
@@ -474,7 +594,7 @@ export class ScreenViewer {
         if (last && jn > last.jn && fd > last.fd) {
           const buf = (jb - last.jb) / (jn - last.jn), d = (dec - last.dec) / (fd - last.fd);
           const ms = Math.round((rtt / 2 + buf + d + 1 / Math.max(24, fps || 30)) * 1000 + 15);
-          cb({ ms, fps: Math.round(fps), relay, lost });
+          if (!this.fastTrack) cb({ ms, fps: Math.round(fps), relay, lost });
         }
         last = cur;
       } catch {}
@@ -501,10 +621,31 @@ export class ScreenViewer {
         else if (d.type === 'page') { this.page = d; onPage?.(d); }
       });
       conn.on('close', () => end('closed'));
+      // the smooth path (Madar on an Android tablet / TV box, iPhone with hardware H.264): its own channel
+      if (this.prefix === PREFIX) canFast().then(ok => {
+        if (!ok || gen !== this.gen) return;
+        const fc = peer.connect(this.prefix + code, { reliable: true, serialization: 'raw', metadata: { fast: true } });
+        fc.on('open', () => {
+          const rx = this.fast = new FastReceiver(fc, track => {
+            if (gen !== this.gen) return;
+            this.fastTrack = track;
+            const st = new MediaStream([track, ...(this.rtcStream ? this.rtcStream.getAudioTracks() : [])]);
+            if (this.got) onStream?.(st); else { this.got = true; clearTimeout(timer); res(st); }
+            onDelay?.({ ms: 0, fps: 0, relay: false, lost: 0, fast: true });
+          }, () => {
+            // no pieces for 4 s: back to the ordinary picture
+            if (gen !== this.gen || !this.fastTrack) return;
+            this.fastTrack = null; rx.close(); this.fast = null;
+            if (this.rtcStream) onStream?.(this.rtcStream);
+          });
+        });
+      });
       peer.on('call', call => {
         call.answer();
         call.on('stream', s => {
           clearTimeout(timer);
+          this.rtcStream = s;
+          if (this.fastTrack) { s = new MediaStream([this.fastTrack, ...s.getAudioTracks()]); }
           // A small steady buffer evens out Wi-Fi hiccups (smoother picture, ~0.1 s later).
           try { call.peerConnection.getReceivers().forEach(r => { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 100; }); } catch {}
           if (this.caps?.hdmi) this.lowDelay();
@@ -527,5 +668,5 @@ export class ScreenViewer {
     });
   }
   healthy() { const st = this.pc && this.pc.iceConnectionState; return st === 'connected' || st === 'completed'; }
-  close() { clearInterval(this.meterT); this.gen++; this.pc = null; this.conn = null; this.caps = null; try { this.peer?.destroy(); } catch {} this.peer = null; }
+  close() { clearInterval(this.meterT); this.fast?.close(); this.fast = null; this.fastTrack = null; this.rtcStream = null; this.gen++; this.pc = null; this.conn = null; this.caps = null; try { this.peer?.destroy(); } catch {} this.peer = null; }
 }
