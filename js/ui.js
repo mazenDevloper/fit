@@ -1,7 +1,8 @@
 // Spatial UI primitives drawn with canvas textures: glass panels, icon buttons, ornaments, toasts.
 import * as THREE from 'three';
+import { PX, IOS, SF, material } from './vos.js';
 
-export const FONT = 'system-ui, -apple-system, "SF Arabic", "Geeza Pro", "Helvetica Neue", sans-serif';
+export const FONT = SF;   // the OS font (SF / SF Arabic): native, nothing to load
 export const COLORS = {
   // visionOS-like frosted glass: light grey, translucent, bright hairline edge.
   glass: 'rgba(108,112,124,0.52)',
@@ -41,26 +42,8 @@ export function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-export function glass(ctx, x, y, w, h, r, hi = false) {
-  ctx.save();
-  roundRect(ctx, x, y, w, h, r);
-  ctx.fillStyle = hi ? COLORS.glassHi : COLORS.glass;
-  ctx.fill();
-  const g = ctx.createLinearGradient(0, y, 0, y + h);
-  g.addColorStop(0, 'rgba(255,255,255,0.24)');
-  g.addColorStop(0.35, 'rgba(255,255,255,0.06)');
-  g.addColorStop(1, 'rgba(255,255,255,0.00)');
-  ctx.fillStyle = g; ctx.fill();
-  ctx.lineWidth = Math.max(1.5, h * 0.012);
-  ctx.strokeStyle = COLORS.stroke; ctx.stroke();
-  // visionOS glass: a thin specular rim along the top edge (light from above) - the edge catches the room light
-  ctx.save(); roundRect(ctx, x, y, w, h, r); ctx.clip();
-  const rim = ctx.createLinearGradient(0, y, 0, y + Math.min(h, r * 1.2));
-  rim.addColorStop(0, hi ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.38)'); rim.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.strokeStyle = rim; ctx.lineWidth = Math.max(2, h * 0.02); roundRect(ctx, x + 1, y + 1, w - 2, h - 2, Math.max(0, r - 1)); ctx.stroke();
-  ctx.restore();
-  ctx.restore();
-}
+// visionOS 27 glass (vos.js): translucent grey, lit top edge and rim
+export function glass(ctx, x, y, w, h, r, hi = false) { material(ctx, x, y, w, h, r, { hi }); }
 
 export const TEXT_SCALE = 1.12;   // all spatial UI text slightly larger
 export function text(ctx, str, x, y, size, opts = {}) {
@@ -173,7 +156,8 @@ export function icon(ctx, name, cx, cy, s, color = COLORS.text) {
 // A plane mesh backed by a canvas, with clickable regions defined during draw.
 export class CanvasPanel {
   constructor(widthM, heightM, draw, { pxPerM = 1100, maxPx = 2048, doubleSided = false } = {}) {
-    const scale = Math.min(pxPerM, maxPx / Math.max(widthM, heightM));
+    // fewer pixels on the iPhone (vos.PX): sharp at viewing distance, much cheaper to redraw and upload
+    const scale = Math.min(pxPerM * PX, (IOS ? 1600 : maxPx) / Math.max(widthM, heightM));
     this.w = Math.round(widthM * scale); this.h = Math.round(heightM * scale);
     const { canvas, ctx, texture } = canvasTexture(this.w, this.h);
     this.canvas = canvas; this.ctx = ctx; this.texture = texture;
@@ -276,9 +260,12 @@ export class IconButton {
   draw() {
     const c = this.ctx;
     c.clearRect(0, 0, 160, 160);
+    // visionOS glass button: grey glass, brighter when looked at, a lit top edge
     c.beginPath(); c.arc(80, 80, 76, 0, 7);
-    c.fillStyle = this.hover ? 'rgba(96,102,126,0.95)' : 'rgba(40,43,56,0.82)'; c.fill();
-    c.lineWidth = 3; c.strokeStyle = 'rgba(255,255,255,0.22)'; c.stroke();
+    const g = c.createLinearGradient(0, 4, 0, 156); g.addColorStop(0, this.hover ? 'rgba(170,172,184,0.92)' : 'rgba(110,112,126,0.78)'); g.addColorStop(1, this.hover ? 'rgba(130,132,146,0.9)' : 'rgba(70,72,86,0.74)');
+    c.fillStyle = g; c.fill();
+    const rim = c.createLinearGradient(0, 4, 0, 156); rim.addColorStop(0, 'rgba(255,255,255,0.6)'); rim.addColorStop(0.5, 'rgba(255,255,255,0.1)'); rim.addColorStop(1, 'rgba(255,255,255,0.25)');
+    c.lineWidth = 3; c.strokeStyle = rim; c.stroke();
     icon(c, this.iconName, 80, 80, 74, this.tint || COLORS.text);
     this.texture.needsUpdate = true;
   }

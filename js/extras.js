@@ -5,6 +5,7 @@
 // day, scenes, assistant history, usage) + the thermal guard (ten measures that keep the iPhone cool).
 import * as THREE from 'three';
 import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
+import { SYS, SF, widgetBg, label, glassNumerals, clockFace, ring } from './vos.js';
 import { settings, saveSettings, loadLayout, pairedDevices } from './config.js';
 import { registerKind, spatialize } from './windows.js';
 import { listItems, getItem, importFiles } from './db.js';
@@ -23,15 +24,15 @@ function wrapLines(ctx, str, maxW, font) {
 }
 const btn = (ctx, p, x, y, w, h, label, act, id, on = false) => {
   const hv = p.isHover(id);
-  roundRect(ctx, x, y, w, h, h / 2); ctx.fillStyle = on ? 'rgba(124,196,255,0.85)' : hv ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.12)'; ctx.fill();
-  text(ctx, label, x + w / 2, y + h / 2 + 1, h * 0.42, { weight: 800, color: on ? '#06222b' : COLORS.text, maxWidth: w - 12, fit: true, dir: 'auto' });
+  roundRect(ctx, x, y, w, h, h / 2); ctx.fillStyle = on ? SYS.blue : hv ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.14)'; ctx.fill();
+  text(ctx, label, x + w / 2, y + h / 2 + 1, h * 0.42, { weight: 600, color: '#fff', maxWidth: w - 12, fit: true, dir: 'auto' });
   p.region(x, y, w, h, () => { blip('tap', settings.sounds); act(); }, id);
 };
 
 // ======================================================================== widgets in the room
 const SIZES = { xs: [0.2, 0.12], s: [0.3, 0.3], m: [0.48, 0.3], l: [0.62, 0.44] };
-const DEFAULT_SIZE = { dcmedia: 'l', dcdash: 'm', remote: 's', weather: 's', timer: 's', note: 's', photos: 'm', nowplaying: 'm', verse: 'm', scenes: 'm', aihist: 'l', usage: 's', text: 'l', today: 'm' };
-const W_TITLE = { dcmedia: 'مكتبتي', today: 'يومك', dcdash: 'لوحة DriveCast', remote: 'ريموت', weather: 'الطقس', timer: 'المؤقت', note: 'ملاحظة', photos: 'إطار الصور', nowplaying: 'يُعرض الآن', verse: 'آية اليوم', scenes: 'المشاهد', aihist: 'سجل المساعد', usage: 'استخدامك', text: '' };
+const DEFAULT_SIZE = { clock: 's', dcmedia: 'l', dcdash: 'm', remote: 's', weather: 's', timer: 's', note: 's', photos: 'm', nowplaying: 'm', verse: 'm', scenes: 'm', aihist: 'l', usage: 's', text: 'l', today: 'm' };
+const W_TITLE = { clock: '', dcmedia: 'مكتبتي', today: 'يومك', dcdash: 'لوحة DriveCast', remote: 'ريموت', weather: 'الطقس', timer: 'المؤقت', note: 'ملاحظة', photos: 'إطار الصور', nowplaying: 'يُعرض الآن', verse: 'آية اليوم', scenes: 'المشاهد', aihist: 'سجل المساعد', usage: 'استخدامك', text: '' };
 const WX = { 0: ['☀️', 'صافٍ'], 1: ['🌤', 'صافٍ غالباً'], 2: ['⛅', 'غائم جزئياً'], 3: ['☁️', 'غائم'], 45: ['🌫', 'ضباب'], 48: ['🌫', 'ضباب'], 51: ['🌦', 'رذاذ'], 53: ['🌦', 'رذاذ'], 55: ['🌦', 'رذاذ'], 61: ['🌧', 'مطر خفيف'], 63: ['🌧', 'مطر'], 65: ['🌧', 'مطر غزير'], 80: ['🌦', 'زخات'], 81: ['🌧', 'زخات'], 82: ['⛈', 'زخات قوية'], 95: ['⛈', 'عاصفة رعدية'], 96: ['⛈', 'عاصفة'], 99: ['⛈', 'عاصفة'] };
 let weather = null, weatherAt = 0, verse = null;
 
@@ -83,29 +84,59 @@ export class Widget {
     if (!t) { t = { img: null }; this.thumbs.set(url, t); const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => { t.img = im; clearTimeout(this.thT); this.thT = setTimeout(() => this.redraw(), 120); }; im.src = 'https://studio.c-p.workers.dev/img?u=' + encodeURIComponent(url); }
     return t.img;
   }
+  // visionOS 27 widget: Apple's backgrounds (Weather blue sky, Notes, Calendar, Clock black, glass for the rest) and
+  // the small coloured app name at the top, like every Apple widget
   frame(ctx, W, H, title) {
-    roundRect(ctx, 0, 0, W, H, Math.min(W, H) * 0.12); ctx.fillStyle = this.type === 'note' ? 'rgba(250,204,21,0.92)' : 'rgba(20,24,34,0.78)'; ctx.fill();
-    glass(ctx, 0, 0, W, H, Math.min(W, H) * 0.12);
-    if (title && this.size !== 'xs') text(ctx, title, W - H * 0.08, H * 0.1, H * 0.065, { align: 'right', weight: 800, color: this.type === 'note' ? '#3b2f05' : COLORS.dim });
+    const r = Math.min(W, H) * 0.16, t = this.type;
+    if (t === 'photos' && this.bitmap) return;
+    widgetBg(ctx, W, H, { weather: 'weather', note: 'notes', today: 'calendar', clock: 'clock' }[t], r);
+    const TINT = { timer: SYS.orange, note: SYS.yellow, nowplaying: SYS.pink, verse: SYS.green, scenes: SYS.cyan, aihist: SYS.purple, usage: SYS.green, remote: SYS.blue, dcdash: SYS.green, dcmedia: SYS.red };
+    if (title && this.size !== 'xs' && t !== 'weather' && t !== 'today') label(ctx, title, W - H * 0.08, H * 0.1, H * 0.06, { weight: 700, align: 'right', color: TINT[t] || SYS.label2 });
   }
   draw(ctx, W, H, p) {
     const t = this.type, xs = this.size === 'xs', f = H / 100;
     this.frame(ctx, W, H, t === 'text' ? this.data.title : t === 'dcmedia' ? '' : W_TITLE[t]);
+    if (t === 'clock') {
+      // Apple Clock: the analog face (S / L), face + city and digital time (M), Liquid Glass numerals (XS)
+      const d = new Date();
+      if (xs) { glassNumerals(ctx, d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), W / 2, H / 2, H * 0.62); return; }
+      if (this.size === 'm') {
+        clockFace(ctx, H * 0.52, H / 2, H * 0.4, d);
+        label(ctx, 'مسقط', W - H * 0.12, H * 0.26, H * 0.09, { weight: 700, align: 'right', color: SYS.label2 });
+        const tm = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), avail = W - H * 1.1;
+        glassNumerals(ctx, tm, W - H * 0.12, H * 0.5, Math.min(H * 0.3, avail / (tm.length * 0.6)), { align: 'right' });
+        label(ctx, d.toLocaleDateString('ar', { weekday: 'long', day: 'numeric', month: 'long' }), W - H * 0.12, H * 0.76, H * 0.075, { weight: 600, align: 'right', color: SYS.label2 });
+        return;
+      }
+      clockFace(ctx, W / 2, H / 2, Math.min(W, H) * 0.43, d);
+      return;
+    }
     if (t === 'weather') {
-      const w = weather;
-      if (!w) { text(ctx, '…', W / 2, H / 2, f * 20); return; }
+      // Apple Weather: the city with ➤, a big light temperature, the sky symbol (Apple's own emoji) and the high / low
+      const w = weather, pad = H * 0.09;
+      if (!w) { label(ctx, '…', W / 2, H / 2, f * 20); return; }
       const [e, l] = WX[w.code] || ['🌡', ''];
-      if (xs) { text(ctx, e + ' ' + Math.round(w.t) + '°', W / 2, H / 2, f * 40, { weight: 800, dir: 'ltr' }); return; }
-      text(ctx, e, W * 0.26, H * 0.42, f * 26);
-      text(ctx, Math.round(w.t) + '°', W * 0.66, H * 0.42, f * 25, { weight: 800, dir: 'ltr' });
-      text(ctx, l + ' · ' + (w.city || ''), W / 2, H * 0.68, f * 9, { weight: 700, maxWidth: W - 20, fit: true });
-      text(ctx, '↑' + Math.round(w.hi) + '°  ↓' + Math.round(w.lo) + '°  💧' + w.hum + '%', W / 2, H * 0.84, f * 8.5, { color: COLORS.dim, dir: 'ltr' });
-      if (this.size === 'm' || this.size === 'l') (w.next || []).slice(0, 4).forEach((h, i) => text(ctx, h.h + ' ' + (WX[h.c]?.[0] || '') + Math.round(h.t) + '°', W * (0.12 + i * 0.25), H * 0.2, f * 7, { dir: 'ltr', color: COLORS.dim }));
+      if (xs) { label(ctx, e + ' ' + Math.round(w.t) + '°', W / 2, H / 2, f * 40, { weight: 500, dir: 'ltr' }); return; }
+      label(ctx, (w.city || 'موقعي') + ' ➤', W - pad, pad + f * 5, f * 8, { weight: 700, align: 'right' });
+      label(ctx, Math.round(w.t) + '°', W - pad, pad + f * 30, f * 30, { weight: 300, align: 'right', dir: 'ltr' });
+      const bigRow = this.size === 'm' || this.size === 'l';
+      label(ctx, e, W - pad - f * 5, H * (bigRow ? 0.66 : 0.72), f * 9, { dir: 'ltr' });
+      label(ctx, l, W - pad, H * (bigRow ? 0.77 : 0.83), f * 7.5, { weight: 600, align: 'right' });
+      label(ctx, 'ع:' + Math.round(w.hi) + '° ص:' + Math.round(w.lo) + '°', W - pad, H * (bigRow ? 0.88 : 0.93), f * 7, { weight: 600, align: 'right', dir: 'rtl' });
+      if (bigRow) (w.next || []).slice(0, 5).forEach((h, i) => {
+        const x = W * 0.08 + i * W * 0.1;
+        label(ctx, String(h.h), x, H * 0.4, f * 6, { weight: 600, color: SYS.label2, dir: 'ltr' });
+        label(ctx, WX[h.c]?.[0] || '', x, H * 0.56, f * 9, { dir: 'ltr' });
+        label(ctx, Math.round(h.t) + '°', x, H * 0.72, f * 7, { weight: 600, dir: 'ltr' });
+      });
     } else if (t === 'timer') {
       const d = this.data, now = Date.now();
       const left = d.mode === 'watch' ? (d.running ? now - d.startAt : 0) + (d.acc || 0) : d.running ? Math.max(0, d.endAt - now) : (d.left ?? (d.total || 300000));
       const s = Math.floor(left / 1000), str = (s >= 3600 ? Math.floor(s / 3600) + ':' : '') + p2(Math.floor(s / 60) % 60) + ':' + p2(s % 60);
-      text(ctx, str, W / 2, xs ? H / 2 : H * 0.36, f * (xs ? 44 : 26), { weight: 800, dir: 'ltr', color: d.running ? '#7cc4ff' : COLORS.text });
+      // Apple Timer: an orange ring that empties, the time inside it
+      const frac = d.mode === 'watch' ? (left / 60000) % 1 : (d.total ? left / d.total : 1);
+      if (!xs) ring(ctx, W / 2, H * 0.37, H * 0.2, frac, d.mode === 'watch' ? SYS.green : SYS.orange, H * 0.035);
+      label(ctx, str, W / 2, xs ? H / 2 : H * 0.37, f * (xs ? 40 : 11), { weight: 500, dir: 'ltr', font: SF, color: d.running ? '#fff' : SYS.label2 });
       if (xs) { p.region(0, 0, W, H, () => this.timerToggle(), 'tg'); return; }
       const bw = (W - 40) / 4, by = H * 0.6, bh = H * 0.15;
       if (d.mode !== 'watch') [1, 5, 10, 25].forEach((m, i) => btn(ctx, p, 12 + i * (bw + 5), by, bw, bh, m + 'د', () => this.timerSet(m), 'm' + m));
@@ -147,11 +178,16 @@ export class Widget {
       const L = (this.today || []).slice(0, xs ? 2 : this.size === 's' ? 4 : 7);
       if (!this.today) { text(ctx, '…', W / 2, H / 2, f * 10); return; }
       if (!L.length) { text(ctx, 'يوم هادئ', W / 2, H * 0.55, f * 8, { color: COLORS.dim }); return; }
-      const rh = (H * 0.78) / Math.max(4, L.length), IC = { match: '⚽', azan: '🕌', iqamah: '🕋', reminder: '⏰', plan: '💪', timer: '⏱' };
+      // Apple Calendar «Up Next»: the weekday in red and the date, then each event with its colour bar
+      const now = new Date(), top = H * 0.27;
+      label(ctx, now.toLocaleDateString('ar', { weekday: 'long' }), W - 20, H * 0.09, H * 0.065, { weight: 700, align: 'right', color: SYS.red });
+      label(ctx, String(now.getDate()), W - 20, H * 0.19, H * 0.13, { weight: 400, align: 'right', dir: 'ltr' });
+      const rh = (H - top - 10) / Math.max(4, L.length), IC = { match: '⚽', azan: '🕌', iqamah: '🕋', reminder: '⏰', plan: '💪', timer: '⏱' }, BAR = { match: SYS.green, azan: SYS.teal, iqamah: SYS.teal, reminder: SYS.orange, plan: SYS.pink, timer: SYS.orange };
       L.forEach((x, i) => {
-        const y = H * 0.18 + i * rh;
-        roundRect(ctx, 12, y + 2, W - 24, rh - 4, (rh - 4) / 2); ctx.fillStyle = x.live ? 'rgba(225,29,72,0.45)' : 'rgba(255,255,255,0.07)'; ctx.fill();
-        text(ctx, (IC[x.kind] || '•') + ' ' + x.title, W - 26, y + rh / 2, rh * 0.34, { align: 'right', weight: 800, maxWidth: W * 0.62, dir: 'auto' });
+        const y = top + i * rh;
+        roundRect(ctx, 12, y + 3, W - 24, rh - 6, 10); ctx.fillStyle = x.live ? 'rgba(255,69,58,0.4)' : 'rgba(255,255,255,0.06)'; ctx.fill();
+        roundRect(ctx, W - 22, y + 7, 6, rh - 14, 3); ctx.fillStyle = BAR[x.kind] || SYS.blue; ctx.fill();
+        text(ctx, (IC[x.kind] || '•') + ' ' + x.title, W - 34, y + rh / 2, rh * 0.32, { align: 'right', weight: 700, maxWidth: W * 0.6, dir: 'auto' });
         const tm = x.live ? (x.sub || 'مباشر') : new Date(x.at).toLocaleTimeString('ar-OM', { hour: 'numeric', minute: '2-digit' });
         text(ctx, tm, 26, y + rh / 2, rh * 0.3, { align: 'left', color: x.live ? '#fff' : '#cfd6e6', maxWidth: W * 0.3, dir: 'auto' });
       });
@@ -178,7 +214,7 @@ export class Widget {
       keys.forEach(([l, a], i) => btn(ctx, p, 14 + (i % 3) * (bw + 6), H * 0.36 + Math.floor(i / 3) * (bh + 8), bw, bh, l, () => hub?.remote(a), 'k' + i));
     } else if (t === 'note') {
       const lines = wrapLines(ctx, this.data.text || 'اضغط 🎙 وتكلّم…', W - 40, `700 ${f * 9}px system-ui`);
-      lines.slice(0, xs ? 2 : 8).forEach((l, i) => text(ctx, l, W - 20, H * (xs ? 0.35 : 0.24) + i * f * 11.5, f * 8.5, { align: 'right', weight: 700, color: '#2b2203', dir: 'auto' }));
+      lines.slice(0, xs ? 2 : 8).forEach((l, i) => text(ctx, l, W - 20, H * (xs ? 0.35 : 0.26) + i * f * 11.5, f * 8.5, { align: 'right', weight: i ? 500 : 700, color: '#fff', dir: 'auto' }));
       if (!xs) { btn(ctx, p, W - 20 - W * 0.4, H * 0.82, W * 0.4, H * 0.13, '🎙 إملاء', () => this.app.extras.dictateInto(this), 'mic'); btn(ctx, p, 20, H * 0.82, W * 0.3, H * 0.13, 'مسح', () => { this.data.text = ''; this.mgr.changed(); this.redraw(); }, 'clr'); }
     } else if (t === 'photos') {
       const b = this.bitmap;
@@ -281,7 +317,7 @@ export class Widget {
     this.redraw();
   }
   update(dt, now) {
-    const t = this.type, every = { timer: 250, nowplaying: 1000, usage: 30000, weather: 60000, photos: 10000, dcdash: 30000, dcmedia: 60000, remote: 5000 }[t];
+    const t = this.type, every = { clock: this.size === 'xs' ? 15000 : 1000, timer: 250, nowplaying: 1000, usage: 30000, weather: 60000, photos: 10000, dcdash: 30000, dcmedia: 60000, remote: 5000 }[t];
     if (!every || now - (this.drawnAt || 0) < every) return;
     this.drawnAt = now;
     if (t === 'photos') { this.nextPhoto(); return; }

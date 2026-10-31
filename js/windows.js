@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, TEXT_SCALE, canvasTexture, blip, audioContext } from './ui.js';
+import { material, label as vLabel, glassNumerals } from './vos.js';
 import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem, importFiles } from './db.js';
 import { settings, saveSettings, loadLinks, saveLinks } from './config.js';
@@ -1247,11 +1248,19 @@ export class PanelWindow extends SpatialWindow {
     const { ctx, canvas, texture } = this.cv;
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
+    const k = this.panelKind;
+    if (k === 'clock') {
+      // visionOS 27 / Lock Screen clock: the date on top, then the time in Liquid Glass numerals, on light glass
+      material(ctx, 0, 0, W, H, H * 0.16, { a: 0.75 });
+      const now = new Date();
+      vLabel(ctx, now.toLocaleDateString('ar', { weekday: 'long', day: 'numeric', month: 'long' }), W / 2, H * 0.17, H * 0.1, { weight: 600 });
+      glassNumerals(ctx, now.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), W / 2, H * 0.6, H * 0.62);
+      texture.needsUpdate = true; return;
+    }
     const g = ctx.createLinearGradient(0, 0, W, H);
     g.addColorStop(0, 'rgba(96,100,114,0.92)'); g.addColorStop(1, 'rgba(78,82,96,0.92)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, 0, W, H * 0.02);
-    const k = this.panelKind;
     if (k === 'matches') { drawMatches(ctx, W, H, this.mgr.app.sports); this.drawnV = this.mgr.app.sports?.version; texture.needsUpdate = true; return; }
     if (k === 'scoreboard') { drawBoard(ctx, W, H, this.mgr.app.sports); this.drawnV = this.mgr.app.sports?.version; this.drawnAt = performance.now(); texture.needsUpdate = true; return; }
     if (k === 'store') { this.drawStore(ctx, W, H); texture.needsUpdate = true; return; }
@@ -1295,7 +1304,7 @@ export class PanelWindow extends SpatialWindow {
     texture.needsUpdate = true;
   }
   update(dt, now) {
-    if (this.panelKind === 'clock' && now - this.lastDraw > 1000) { this.lastDraw = now; this.draw(); }
+    if (this.panelKind === 'clock') { const m = new Date().getMinutes(); if (m !== this.lastMin) { this.lastMin = m; this.draw(); } }   // once a minute (lighter for the iPhone)
     if (this.panelKind === 'matches' && this.drawnV !== this.mgr.app.sports?.version) this.draw();
     if (this.panelKind === 'scoreboard' && (this.drawnV !== this.mgr.app.sports?.version || now - (this.drawnAt || 0) > 2000)) this.draw();   // logos arriving
   }

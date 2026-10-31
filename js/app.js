@@ -43,7 +43,7 @@ import { Welcome } from './welcome.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '137';
+export const APP_VERSION = '138';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -880,7 +880,7 @@ class App {
     this.renderEnvChoices();
     this.bindMirror();
     this.bindDevices();
-    if ($('#appVer')) $('#appVer').textContent = 'v' + APP_VERSION;
+    if ($('#appVer')) $('#appVer').textContent = 'visionOS 27 · v' + APP_VERSION;
     this.bindTeams();
     this.renderLibrary(); this.renderLinks(); this.renderSettings();
   }

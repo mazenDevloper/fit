@@ -1,6 +1,7 @@
 // System panels: the Launcher (home), in-headset calibration, and head-locked toasts.
 import * as THREE from 'three';
 import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip, canvasTexture } from './ui.js';
+import { appIcon, floatLabel, material, OS_NAME } from './vos.js';
 import { slotNow } from './plus.js';
 import { settings, saveSettings, VIEWER_PRESETS, applyPreset, pairedDevices, KIND_LABEL } from './config.js';
 import { listItems, formatSize } from './db.js';
@@ -57,15 +58,9 @@ export class Launcher {
     const hov = p.isHover(id);
     glass(ctx, x, y, w, h, 34, hov);
     if (hov) { roundRect(ctx, x, y, w, h, 34); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 4; ctx.stroke(); }
-    // an Apple-style app icon: a coloured rounded square with a white symbol
-    const cx = x + w / 2, cy = y + h * 0.38, r = h * 0.22, [c1, c2] = round && /^(متوقف|مخفية)$/.test(sub) ? ['#6b7280', '#374151'] : ICON_COLORS[ic] || ICON_COLORS._;
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = r * 0.35; ctx.shadowOffsetY = r * 0.08;
-    const shape = () => { if (round) { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); } else roundRect(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.46); };
-    shape();
-    const g = ctx.createLinearGradient(cx, cy - r, cx, cy + r); g.addColorStop(0, c1); g.addColorStop(1, c2);
-    ctx.fillStyle = g; ctx.fill(); ctx.restore();
-    shape(); ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2; ctx.stroke();
-    icon(ctx, ic, cx, cy, r * 0.95, '#ffffff');
+    // a visionOS 27 app icon on the glass tile
+    const cx = x + w / 2, cy = y + h * 0.38, r = h * 0.22;
+    appIcon(ctx, icon, ic, cx, cy, r, { hover: hov, round: true });
     // the whole name (shrunk to fit instead of cut), the description under it
     text(ctx, label, cx, y + h * 0.74, h * 0.11, { weight: 800, maxWidth: w - 16, fit: true });
     if (sub) text(ctx, sub, cx, y + h * 0.89, h * 0.085, { color: '#d5ddef', weight: 600, maxWidth: w - 16, dir: 'auto', fit: true });
@@ -76,18 +71,10 @@ export class Launcher {
   // swipe (pinch and move, anywhere) to turn the page; the other tabs keep the glass panel
   get vision() { return this.tab === 'apps' && settings.homeStyle !== 'classic'; }
   homeTile(ctx, p, cx, cy, r, ic, label, action, id) {
-    const hov = p.isHover(id), [c1, c2] = ICON_COLORS[ic] || ICON_COLORS._, R = hov ? r * 1.08 : r;
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = R * 0.5; ctx.shadowOffsetY = R * 0.12;
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7);
-    const g = ctx.createLinearGradient(cx, cy - R, cx, cy + R); g.addColorStop(0, c1); g.addColorStop(1, c2); ctx.fillStyle = g; ctx.fill(); ctx.restore();
-    // glass highlight on top, like a visionOS icon
-    const hl = ctx.createLinearGradient(cx, cy - R, cx, cy); hl.addColorStop(0, 'rgba(255,255,255,0.35)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fillStyle = hl; ctx.fill();
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.strokeStyle = hov ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.25)'; ctx.lineWidth = hov ? 4 : 2; ctx.stroke();
-    icon(ctx, ic, cx, cy, R * 0.9, '#ffffff');
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 8;
-    text(ctx, label, cx, cy + R + 34, 30, { weight: 700, maxWidth: r * 2.7, fit: true });
-    ctx.restore();
+    // visionOS 27 app icon (vos.js): vivid round icon, layered white symbol, glass cap; it grows a little when looked at
+    const hov = p.isHover(id), R = hov ? r * 1.1 : r;
+    appIcon(ctx, icon, ic, cx, cy, R, { hover: hov });
+    floatLabel(ctx, label, cx, cy + r + 36, 29, r * 2.7);
     p.region(cx - r * 1.2, cy - r * 1.2, r * 2.4, r * 2.4 + 44, () => { blip('tap', settings.sounds); action(); }, id);
   }
   turnPage(d) { const n = this.pages || 1; if (n < 2) return false; this.page = (this.page + d + n) % n; blip('tap', settings.sounds); this.panel.redraw(); return true; }
@@ -98,7 +85,7 @@ export class Launcher {
       // the visionOS tab bar: a small glass pill on the left with one icon per tab
       const TI = { apps: 'grid', devices: 'video', library: 'stack', links: 'globe', settings: 'sliders' };
       const pw = 84, ph = TABS.length * 78 + 24, px = 6, py = (H - ph) / 2;
-      roundRect(ctx, px, py, pw, ph, pw / 2); ctx.fillStyle = 'rgba(30,34,52,0.55)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 2; ctx.stroke();
+      material(ctx, px, py, pw, ph, pw / 2);
       TABS.forEach(([k], i) => {
         const id = 'tab-' + k, cy = py + 12 + 39 + i * 78, on = this.tab === k, hov = p.isHover(id);
         if (on || hov) { ctx.beginPath(); ctx.arc(px + pw / 2, cy, 32, 0, 7); ctx.fillStyle = on ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)'; ctx.fill(); }
@@ -176,7 +163,7 @@ export class Launcher {
         ['play', 'ريموت 1 وحده', 'أندرويد: وضع اللعب', () => { this.close(); a.remote?.startLearnPad(0); }],
         ['play', 'ريموت 2 وحده', 'أندرويد: وضع اللعب', () => { this.close(); a.remote?.startLearnPad(1); }],
       ];
-      const ex = a.extras, W8 = (t, n, d) => [t === 'weather' ? 'sun' : t === 'timer' ? 'clock' : t === 'note' ? 'stack' : t === 'photos' ? 'image' : t === 'nowplaying' || t === 'dcmedia' ? 'play' : t === 'verse' ? 'book' : t === 'scenes' ? 'grid' : t === 'aihist' ? 'mic' : t === 'dcdash' ? 'ball' : t === 'remote' ? 'target' : 'sliders', n, d, () => { this.close(); ex?.widget(t); }];
+      const ex = a.extras, W8 = (t, n, d) => [t === 'weather' ? 'sun' : t === 'timer' || t === 'clock' ? 'clock' : t === 'note' ? 'stack' : t === 'photos' ? 'image' : t === 'nowplaying' || t === 'dcmedia' ? 'play' : t === 'verse' ? 'book' : t === 'scenes' ? 'grid' : t === 'aihist' ? 'mic' : t === 'dcdash' ? 'ball' : t === 'remote' ? 'target' : 'sliders', n, d, () => { this.close(); ex?.widget(t); }];
       if (ex) list.push(
         ['mic', 'كرة المساعد', settings.orb ? 'ظاهرة · انظر إليها لتتكلم' : 'انظر إليها لتتكلم', () => { this.close(); const on = !settings.orb; saveSettings({ orb: on }); ex.orb.show(on); }],
         ['eye', 'ما هذا؟', 'اسأل عمّا تراه أمامك', () => { this.close(); ex.lookAndAsk('ما هذا الذي أمامي؟'); }],
@@ -203,7 +190,7 @@ export class Launcher {
       const dcItems = [W8('dcmedia', 'مكتبتي', 'تابع · المحفوظة · القوائم · هنا · لاحقاً'), W8('dcdash', 'لوحة DriveCast', 'الصلاة · المباريات · مقترحات'), W8('remote', 'ريموت التلفاز', 'تحكم بـDriveCast'),
         ['stack', 'أرسل النافذة', 'إلى السيارة أو التلفاز', () => { this.close(); const w = [...a.windows.windows].reverse().find(x => a.hub?.canSend(x)); if (w) a.hub.sendWindow(w); else a.toast('افتح فيديو أو صفحة أولاً', 2000); }],
         ['globe', 'الأجهزة المتصلة', hubN ? hubN + ' متصل' : 'لا يوجد', () => { a.toast(a.hub?.others().map(d => d.name).join(' · ') || 'لا أجهزة متصلة', 3500); }]];
-      const widgets = [W8('today', 'يومك', 'المباريات · الصلاة · التذكيرات'), W8('weather', 'الطقس', 'حسب موقعك'), W8('timer', 'المؤقت', 'مؤقت وساعة إيقاف'), W8('note', 'ملاحظة لاصقة', 'تُملى بصوتك'), W8('photos', 'إطار الصور', 'صور مكتبتك'), W8('nowplaying', 'يُعرض الآن', 'تحكم بكل ما يعمل'),
+      const widgets = [W8('clock', 'الساعة', 'ساعة أبل بعقارب · رقمية زجاجية'), W8('today', 'يومك', 'المباريات · الصلاة · التذكيرات'), W8('weather', 'الطقس', 'حسب موقعك'), W8('timer', 'المؤقت', 'مؤقت وساعة إيقاف'), W8('note', 'ملاحظة لاصقة', 'تُملى بصوتك'), W8('photos', 'إطار الصور', 'صور مكتبتك'), W8('nowplaying', 'يُعرض الآن', 'تحكم بكل ما يعمل'),
         W8('verse', 'آية اليوم', 'بصوت العفاسي'), W8('scenes', 'المشاهد', 'احفظ ترتيبك وارجع إليه'), W8('aihist', 'سجل المساعد', 'محادثاتك السابقة'), W8('usage', 'استخدامك', 'وقتك والحرارة')];
       // «المستوى التالي»: the free libraries (nextlevel.js)
       const nx = a.nx, nxItems = nx ? [

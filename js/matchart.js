@@ -1,4 +1,5 @@
 // The DriveCast APK's match art, drawn the same way in Madar: the live island pill, the «مباريات فرقي»
+import { glassNumerals } from './vos.js';
 // widget rows, and the animated goal card (GOAAAL! → score bar with the scoring digit popping green).
 // Ported from IslandArt.java / WidgetArt.java / Art.java so both look identical.
 import { FONT } from './ui.js';
@@ -262,10 +263,9 @@ export function drawGoal(ctx, W, H, g, t) {
 
 // ---------- the clock (the APK's glass outlined digits) ----------
 export function drawClock(ctx, W, H, now = new Date()) {
-  let hh = now.getHours() % 12 || 12; const mm = String(now.getMinutes()).padStart(2, '0');
-  const s = hh + ':' + mm, f = font(800, H * 0.72);
-  glassText(ctx, s, W / 2, H / 2, f, a(WHITE, 0.6), a(WHITE, 0.12));
-  ctx.font = f; ctx.lineWidth = Math.max(1, H / 90); ctx.strokeStyle = a(WHITE, 0.22); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.strokeText(s, W / 2, H / 2);
+  // visionOS 27: the time at the top of your view in Liquid Glass numerals (vos.js)
+  const s = (now.getHours() % 12 || 12) + ':' + String(now.getMinutes()).padStart(2, '0');
+  glassNumerals(ctx, s, W / 2, H / 2, H * 0.78);
 }
 
 // ---------- the sports-mode scoreboard: no names, big logos, a huge score and minute ----------
