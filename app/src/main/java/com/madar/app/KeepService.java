@@ -105,6 +105,8 @@ public class KeepService extends Service {
             case "open": wake(who); openApp(); break;
             case "ping": wake(who); Popup.show(this, "🔔 " + who + " يبحث عن هذا الجهاز", 5000); break;
             case "say": Popup.show(this, "💬 " + m.optString("text"), 6000); break;
+            case "apps": new Thread(() -> sendApps(from(m))).start(); break;
+            case "launch": launch(m.optString("pkg")); break;
             default: break;
         }
     }
@@ -129,6 +131,55 @@ public class KeepService extends Service {
         try {
             startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                     .putExtra("autoshare", true).putExtra("shareTo", to));
+        } catch (Exception ignored) { }
+    }
+    /** «التطبيقات» in the phone remote: every app on this device (TV and phone launchers), with its icon */
+    private void sendApps(String to) {
+        if (to.isEmpty() || ws == null) return;
+        try {
+            android.content.pm.PackageManager pm = getPackageManager();
+            java.util.LinkedHashMap<String, android.content.pm.ResolveInfo> seen = new java.util.LinkedHashMap<>();
+            for (String cat : new String[]{ "android.intent.category.LEANBACK_LAUNCHER", Intent.CATEGORY_LAUNCHER }) {
+                for (android.content.pm.ResolveInfo r : pm.queryIntentActivities(new Intent(Intent.ACTION_MAIN).addCategory(cat), 0)) {
+                    String pkg = r.activityInfo.packageName;
+                    if (!seen.containsKey(pkg) && !pkg.equals(getPackageName())) seen.put(pkg, r);
+                }
+            }
+            java.util.List<android.content.pm.ResolveInfo> list = new java.util.ArrayList<>(seen.values());
+            list.sort((a, b) -> String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm))));
+            org.json.JSONArray page = new org.json.JSONArray();
+            for (int i = 0; i < list.size(); i++) {
+                android.content.pm.ResolveInfo r = list.get(i);
+                JSONObject a = new JSONObject();
+                a.put("pkg", r.activityInfo.packageName); a.put("name", String.valueOf(r.loadLabel(pm))); a.put("icon", icon(r.loadIcon(pm)));
+                page.put(a);
+                if (page.length() == 20 || i == list.size() - 1) {
+                    JSONObject msg = new JSONObject().put("type", "apps").put("list", page).put("total", list.size()).put("upto", i + 1);
+                    ws.send(new JSONObject().put("op", "send").put("to", to).put("msg", msg).toString());
+                    page = new org.json.JSONArray();
+                }
+            }
+        } catch (Exception ignored) { }
+    }
+    private static String icon(android.graphics.drawable.Drawable d) {
+        try {
+            int s = 96; android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(s, s, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas c = new android.graphics.Canvas(b); d.setBounds(0, 0, s, s); d.draw(c);
+            java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+            @SuppressWarnings("deprecation") android.graphics.Bitmap.CompressFormat f = Build.VERSION.SDK_INT >= 30 ? android.graphics.Bitmap.CompressFormat.WEBP_LOSSY : android.graphics.Bitmap.CompressFormat.WEBP;
+            b.compress(f, 82, o);
+            return "data:image/webp;base64," + android.util.Base64.encodeToString(o.toByteArray(), android.util.Base64.NO_WRAP);
+        } catch (Exception e) { return ""; }
+    }
+    private void launch(String pkg) {
+        if (pkg.isEmpty()) return;
+        try {
+            android.content.pm.PackageManager pm = getPackageManager();
+            Intent i = pm.getLeanbackLaunchIntentForPackage(pkg);
+            if (i == null) i = pm.getLaunchIntentForPackage(pkg);
+            if (i == null) return;
+            wake("الريموت");
+            startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
         } catch (Exception ignored) { }
     }
     private void openApp() {
