@@ -132,6 +132,7 @@ export class Launcher {
 
     if (this.tab === 'apps') {
       let list = [
+        ['sun', 'أيقظ أجهزتي', 'التلفاز والتابلت والهاتف', () => { this.close(); a.hub?.op({ op: 'send', to: 'kind:sys', msg: { type: 'wake', share: true } }); a.toast('⏻ أُرسل الإيقاظ — تظهر شاشاتها هنا', 2500); }],
         ['book', 'المصحف', 'تلاوة وتفسير بصفحتين', () => { this.close(); a.openReader('quran'); }],
         ['stack', 'رف الكتب', 'كتبك و PDF والمقالات', () => { this.close(); a.openShelf(); }],
         ['muscle', 'المدرب الرياضي', 'تمارين مع مجسم وعدّ', () => { this.close(); a.openCoach?.(); }],

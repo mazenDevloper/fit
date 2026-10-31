@@ -31,6 +31,7 @@
     <div class="code" id="me">——</div>
     <p>أرسل إليها ملفاً أو رابطاً من مدار على جهازك، أو اعرض شاشة جهاز:</p>
     <form id="f"><input id="c" inputmode="numeric" maxlength="6" placeholder="123456"><button>اعرض شاشته</button></form>
+    <button id="wake" style="margin-top:12px">⏻ أيقظ أجهزة مدار</button>
     <div id="list"></div>
   </div>
   <div class="qr" id="qr"></div>
@@ -81,6 +82,15 @@
   $('#f').addEventListener('submit', e => { e.preventDefault(); const c = $('#c').value.replace(/\D/g, ''); if (c.length === 6) watch(c); });
   const renderList = () => { const l = $('#list'); l.innerHTML = ''; pairedDevices().forEach(d => { const b = document.createElement('button'); b.textContent = '▶ ' + d.name + ' · ' + (KIND_LABEL[d.kind] || '') + ' · ' + d.code; b.onclick = () => watch(d.code); l.appendChild(b); }); };
   hub.on(renderList); renderList();
+  // «أيقظ أجهزة مدار»: every Madar Android device wakes, shares its screen, and the first one to answer shows here
+  let hws = null;
+  const hubLink = () => {
+    hws = new WebSocket('wss://studio.c-p.workers.dev/hub/ws?' + new URLSearchParams({ id: 'tv-' + me.code, name: 'التلفاز · ' + (me.name || me.code), kind: 'tv', app: 'tv' }));
+    hws.onmessage = e => { try { const d = JSON.parse(e.data); if (d.type === 'msg' && d.msg?.type === 'shared' && d.msg.code && view.style.display !== 'block') { toast('🟢 ' + (d.msg.name || 'جهاز') + ' استيقظ'); watch(String(d.msg.code)); } } catch {} };
+    hws.onclose = () => setTimeout(hubLink, 3000);
+  };
+  hubLink();
+  $('#wake').onclick = () => { if (hws?.readyState !== 1) return toast('غير متصل بالمركز بعد'); hws.send(JSON.stringify({ op: 'send', to: 'kind:sys', msg: { type: 'wake', share: true } })); toast('⏻ أُرسل الإيقاظ… تظهر الشاشة هنا'); };
   const h = (location.hash.match(/^#(?:m|d)?(\d{6})$/) || [])[1]; if (h) watch(h);
 </script>
 </body>
