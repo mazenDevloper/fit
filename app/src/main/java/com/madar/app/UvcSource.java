@@ -26,7 +26,25 @@ final class UvcSource {
     volatile boolean running;
     private long t0, last;
     private final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(512 * 1024);
-    volatile long minFrameMs = 33;   // 30 fps: enough, lighter for the tablet and the viewer
+    volatile long minFrameMs = 33;
+    // the smooth path: the card's picture drawn into the hardware H.264 encoder's surface (no JPEG to the page)
+    private HwEncoder enc;
+    boolean startHw(int bps, HwEncoder.Sink sink) {
+        stopHw();
+        ICameraHelper h = helper; if (h == null || !running) return false;
+        try {
+            Size sz = h.getPreviewSize(); if (sz == null) return false;
+            enc = new HwEncoder(sz.width, sz.height, Math.max(24, sz.fps > 0 ? sz.fps : 30), bps, sink);
+            h.addSurface(enc.surface(), false);
+            return true;
+        } catch (Exception e) { if (enc != null) enc.stop(); enc = null; return false; }
+    }
+    void stopHw() {
+        HwEncoder e = enc; enc = null; if (e == null) return;
+        try { if (helper != null) helper.removeSurface(e.surface()); } catch (Exception ignored) { }
+        e.stop();
+    }
+    void hwKey() { HwEncoder e = enc; if (e != null) e.requestKey(); }   // 30 fps: enough, lighter for the tablet and the viewer
 
     UvcSource(Context c, Sink s) { ctx = c.getApplicationContext(); sink = s; }
 
@@ -69,6 +87,7 @@ final class UvcSource {
     private final IFrameCallback frameCb = new IFrameCallback() {
         @Override public void onFrame(ByteBuffer frame) {
             long now = SystemClock.uptimeMillis();
+            if (enc != null) return;   // the encoder has the picture now
             if (now - last < minFrameMs) return; last = now;
             int n = frame.remaining(); if (n < 100) return;
             byte[] b = new byte[n]; frame.get(b);
@@ -114,6 +133,7 @@ final class UvcSource {
     }
 
     void stop() {
+        stopHw();
         running = false;
         try { if (rec != null) { rec.stop(); rec.release(); } } catch (Exception ignored) { } rec = null;
         ICameraHelper h = helper; helper = null;

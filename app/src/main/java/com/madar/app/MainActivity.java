@@ -515,6 +515,18 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
                     js("window.__madarCapture&&__madarCapture('" + ("started".equals(st) ? "started" : "denied".equals(st) || "error".equals(st) ? "denied" : "stopped") + "')"); updatePip(); }); }
             });
             uvc.start(); }); }
+        // the smooth path (hardware H.264 to the headset): pieces arrive in the page as "MDR"+5 (flag byte + Annex B)
+        @JavascriptInterface public boolean hwStart(int bps) {
+            if (!binary()) return false;
+            HwEncoder.Sink sink = (d, len, key, ts) -> {
+                byte[] m = new byte[len + 1]; m[0] = (byte) (key ? 1 : 0); System.arraycopy(d, 0, m, 1, len);
+                postBytes(5, m, m.length, ts);
+            };
+            if (uvc != null && uvc.running) return uvc.startHw(bps, sink);
+            return CaptureService.startHw(bps, sink);
+        }
+        @JavascriptInterface public void hwStop() { if (uvc != null) uvc.stopHw(); CaptureService.stopHw(); }
+        @JavascriptInterface public void hwKey() { if (uvc != null) uvc.hwKey(); CaptureService.hwKey(); }
         @JavascriptInterface public void stopUvc() { runOnUiThread(() -> { if (uvc != null) { uvc.stop(); uvc = null; } }); }
         @JavascriptInterface public void setRemoteOnly(boolean on) {
             ControlService.remoteOnly = on;

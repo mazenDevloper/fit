@@ -58,6 +58,25 @@ public class CaptureService extends Service {
     private Handler handler;
     private int width, height, dpi;
     private FramePump pump;
+    // the smooth path: the capture goes straight into the hardware H.264 encoder (no JPEG pictures)
+    private HwEncoder enc;
+    static boolean startHw(int bps, HwEncoder.Sink sink) { CaptureService s = self; if (s == null || s.handler == null) return false; s.handler.post(() -> s.hwOn(bps, sink)); return true; }
+    static void stopHw() { CaptureService s = self; if (s != null && s.handler != null) s.handler.post(s::hwOff); }
+    static void hwKey() { CaptureService s = self; HwEncoder e = s == null ? null : s.enc; if (e != null) e.requestKey(); }
+    private void hwOn(int bps, HwEncoder.Sink sink) {
+        hwOff();
+        if (!running || display == null) return;
+        try { enc = new HwEncoder(width, height, Math.max(24, fps), bps, sink); display.setSurface(enc.surface()); }
+        catch (Exception e) { if (enc != null) enc.stop(); enc = null; try { display.setSurface(reader.getSurface()); } catch (Exception ignored) { } }
+    }
+    private void hwOff() {
+        HwEncoder e = enc; enc = null;
+        if (e == null) return;
+        try { if (display != null && reader != null) display.setSurface(reader.getSurface()); } catch (Exception ignored) { }
+        e.stop();
+    }
+    /** after a resize: an encoder in use is rebuilt at the new size */
+    private void hwAgain() { HwEncoder e = enc; if (e == null) return; HwEncoder.Sink sk = e.sink; int br = e.bitrate; enc = null; e.stop(); hwOn(br, sk); }
 
     @Override public IBinder onBind(Intent i) { return null; }
 
@@ -164,6 +183,7 @@ public class CaptureService extends Service {
             display.resize(width, height, dpi);
             display.setSurface(reader.getSurface());
             old.close();
+            hwAgain();
         });
     }
 
@@ -184,6 +204,7 @@ public class CaptureService extends Service {
         display.resize(width, height, dpi);
         display.setSurface(reader.getSurface());
         old.close();
+        hwAgain();
     }
 
     // ---- Tablet sound: what apps play (videos, games) is captured and sent with the picture (Android 10+). ----
@@ -263,6 +284,7 @@ public class CaptureService extends Service {
         boolean was = running;
         running = false;
         self = null;
+        { HwEncoder e = enc; enc = null; if (e != null) e.stop(); }
         stopAudio();
         try { if (wake != null && wake.isHeld()) wake.release(); } catch (Exception ignored) { }
         wake = null;
