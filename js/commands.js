@@ -26,6 +26,7 @@ const vol = (a, d, mute) => { const w = V(a); if (!w?.setVolume) return a.toast(
 const seek = (a, s) => { const v = V(a)?.video; if (v && isFinite(v.duration)) v.currentTime = Math.max(0, Math.min(v.duration - 0.5, v.currentTime + s)); };
 const play = (a, on) => { const w = V(a); if (!w?.video) return; if (on) { w.userPaused = false; w.video.play().catch(() => {}); } else { w.userPaused = true; w.video.pause(); } };
 const env = (a, k) => { saveSettings({ environment: k }); a.renderEnvChoices?.(); a.toast('البيئة: ' + (ENVS[k]?.label || k), 1500); };
+const folder = (a, f) => { const L = a.launcher; if (!L) return; if (!L.group.visible) L.open(); L.folder = f; L.page = 0; L.panel.redraw(); };
 const devByWord = t => { const d = pairedDevices(), n = norm(t); return d.find(x => n.includes(norm(x.name))) || d.find(x => (/تابلت/.test(n) && x.kind === 'tablet') || (/(تلفاز|تلفزيون)/.test(n) && x.kind === 'tv') || (/(لابتوب|كمبيوتر)/.test(n) && x.kind === 'computer')); };
 
 // ---------------------------------------------------------------- YouTube by voice
@@ -100,13 +101,14 @@ export const COMMANDS = [
   ['env_real', 'البيئة', 'الواقع (الكاميرا)', ['الواقع', 'الغرفه الحقيقيه', 'شيل البيئه'], a => env(a, 'passthrough')],
   ['env_dim', 'البيئة', 'غرفة خافتة', ['خافت', 'خفف الاضاءه', 'عتم'], a => env(a, 'dim')],
   ['env_space', 'البيئة', 'الفضاء', ['الفضاء', 'النجوم'], a => env(a, 'space')],
-  ['env_named', 'البيئة', 'بيئة بالاسم (المكتبة، صالة النيون، المشتري…)', ['بيئه', 'خذني الى', 'انقلني الى', 'روح'], (a, x, t) => { const n = norm(t); const k = ENV_ORDER.find(k => ENVS[k]?.label && n.includes(norm(ENVS[k].label))); if (k) env(a, k); else a.gallery?.open('rooms'); }],
+  ['env_named', 'البيئة', 'بيئة بالاسم (المكتبة، صالة النيون، المشتري…)', ['بيئه', 'خذني الى', 'انقلني الى', 'خذني', 'ودني', 'انقلني', 'روح'], (a, x, t) => { const n = norm(t); const have = new Set(stem(n).split(' ')), score = k => norm(ENVS[k]?.label || '').split(/[\s·]+/).filter(w => w.length > 2 && have.has(stemW(w))).length;
+      const k = ENV_ORDER.filter(k => score(k) > 0).sort((x, y) => score(y) - score(x) || ENVS[x].label.length - ENVS[y].label.length)[0]; if (k) env(a, k); else a.gallery?.open('rooms'); }],
   ['env_library', 'البيئة', 'مكتبة البيئات والغرف', ['مكتبه البيئات', 'المكتبات', 'البيئات', 'الغرف'], a => a.gallery?.open('rooms')],
   ['immersion', 'البيئة', 'الانغماس (نسبة مئوية أو زد/قلل)', ['الانغماس', 'انغماس'], (a, x, t) => { const p = a.extras?.portal, n = num(t), w = norm(t); if (!p) return; p.set(n != null ? n / 100 : /(زد|كامل|اكثر)/.test(w) ? Math.min(1, (p.level || 0) + 0.25) : /(قلل|خفف|اقل)/.test(w) ? Math.max(0, (p.level || 0) - 0.25) : 0.5); }],
   ['glass', 'البيئة', 'شفافية الزجاج (أكثر / أقل)', ['الزجاج', 'شفافيه'], (a, x, t) => { a.smartBar?.select?.('glass'); a.smartBar?.step?.(/(اقل|شفاف|خفف)/.test(norm(t)) ? -2 : 2); }],
   ['sharpness', 'البيئة', 'الحدة (أكثر / أقل)', ['الحده', 'اوضح', 'حده'], (a, x, t) => { const d = /(اقل|خفف|نعم)/.test(norm(t)) ? -0.1 : 0.1; saveSettings({ sharpen: Math.max(0, Math.min(1.5, settings.sharpen + d)) }); a.renderer.applySettings(); a.toast('الحدة ' + Math.round(settings.sharpen * 100) + '%', 1500); }],
   ['scan_room', 'البيئة', 'تعرّف على الغرفة (مسح)', ['امسح الغرفه', 'مسح الغرفه', 'تعرف على الغرفه'], a => a.room?.scan()],
-  ['makkah', 'البيئة', 'مكة المكرمة مباشر', ['مكه', 'الحرم', 'الكعبه'], a => a.openMakkah?.()],
+  ['makkah', 'البيئة', 'مكة المكرمة مباشر', ['مكه', 'لمكه', 'خذني لمكه', 'الحرم', 'للحرم', 'الكعبه'], a => a.openMakkah?.()],
   ['lying', 'البيئة', 'وضع الاستلقاء (النوافذ فوقك)', ['استلقاء', 'مستلقي', 'فوقي', 'السقف'], a => a.plus?.toggleLying()],
   ['travel', 'البيئة', 'وضع السفر (في السيارة أو الطائرة)', ['وضع السفر', 'انا في الطائره', 'انا مسافر'], a => a.extras?.toggleTravel()],
   ['focus', 'البيئة', 'وضع التركيز (يخفت ما حولك)', ['وضع التركيز', 'ركزني'], a => a.extras?.toggleFocus()],
@@ -134,20 +136,21 @@ export const COMMANDS = [
   ['games', 'المواقع', 'الألعاب', ['العاب', 'الالعاب', 'لعبه'], a => a.openGames?.()],
   // ---- sport
   ['matches', 'الرياضة', 'مباريات اليوم وفرقي', ['المباريات', 'مباريات', 'مباراه اليوم'], a => a.openMatches?.()],
+  ['sports_mode', 'الرياضة', 'الوضع الرياضي: البث المباشر + لوحة النتائج، ويبقى عند كل دخول (تشغيل / إيقاف)', ['الوضع الرياضي', 'وضع رياضي', 'وضع الرياضه', 'الرياضي', 'وضع الكوره', 'وضع الكره'], (a, x, t) => { const w = norm(t), off = /(اطفي|اوقف|وقف|الغ|اقفل|اغلق|بدون|سكر)/.test(w), on = /(شغل|فعل|افتح|ابي|ادخل)/.test(w); saveSettings({ sportsMode: off ? false : on ? true : !settings.sportsMode }); a.toast(settings.sportsMode ? '⚽ الوضع الرياضي يعمل' : 'أُوقف الوضع الرياضي', 1800); }],
   ['match_mode', 'الرياضة', 'وضع المباراة: البث + لوحة النتائج', ['وضع المباراه', 'المباراه الكبيره'], a => a.plus?.matchMode()],
   ['island', 'الرياضة', 'جزيرة المباريات (إظهار / إخفاء)', ['الجزيره', 'جزيره المباريات'], a => tog(a, 'island', 'جزيرة المباريات')],
   ['goals_all', 'الرياضة', 'أهداف كل المباريات أو فرقي فقط', ['كل الاهداف', 'اهداف فرقي'], a => tog(a, 'allGoals', 'أهداف كل المباريات', !settings.allGoals)],
   // ---- quran & reading
   ['quran', 'القرآن', 'المصحف', ['المصحف', 'القران'], a => a.openReader('quran')],
-  ['surah', 'القرآن', 'سورة بالاسم', ['سوره'], (a, x) => a.openSurah(x)],
+  ['surah', 'القرآن', 'سورة بالاسم (وتبدأ التلاوة لو قلت اقرأ / شغّل / اسمع)', ['سوره', 'اقرا سوره', 'شغل سوره', 'افتح سوره', 'اسمع سوره'], (a, x, t) => { a.openSurah(x); if (/(اقرا|شغل|اسمع|رتل|تلاوه)/.test(norm(t))) setTimeout(() => { const r = READER(a); if (r && !r.recite?.playing) r.togglePlay?.(); }, 2500); }],
   ['kursi', 'القرآن', 'آية الكرسي', ['ايه الكرسي'], a => { a.openReader('quran'); setTimeout(() => READER(a)?.goToKey?.('2:255'), 1200); }],
-  ['recite', 'القرآن', 'شغّل / أوقف التلاوة', ['اقرا', 'التلاوه', 'رتل'], a => READER(a)?.togglePlay?.()],
-  ['page_next', 'القرآن', 'الصفحة التالية', ['الصفحه التاليه', 'التاليه', 'اقلب الصفحه'], a => READER(a)?.next?.()],
+  ['recite', 'القرآن', 'شغّل / أوقف التلاوة', ['اقرا', 'التلاوه', 'رتل', 'شغل التلاوه', 'اوقف التلاوه', 'وقف التلاوه'], a => READER(a)?.togglePlay?.()],
+  ['page_next', 'القرآن', 'الصفحة التالية', ['الصفحه التاليه', 'التاليه', 'اقلب الصفحه', 'قلب الصفحه', 'الصفحه الجايه'], a => READER(a)?.next?.()],
   ['page_prev', 'القرآن', 'الصفحة السابقة', ['الصفحه السابقه', 'السابقه'], a => READER(a)?.prev?.()],
   ['verse', 'القرآن', 'آية اليوم', ['ايه اليوم'], a => a.extras?.widget('verse')],
   ['shelf', 'القرآن', 'رف الكتب', ['رف الكتب', 'كتبي'], a => a.openShelf()],
   // ---- fitness
-  ['coach', 'الرياضة', 'المدرب الرياضي', ['تمرين', 'المدرب', 'سكوات', 'رياضه'], a => a.openCoach('train')],
+  ['coach', 'الرياضة', 'وضع التمارين: المدرب الرياضي', ['وضع التمارين', 'التمارين', 'تمارين', 'تمرين', 'اتمرن', 'المدرب', 'سكوات', 'اسوي رياضه', 'العب رياضه', 'تدريب', 'لياقه', 'ضغط', 'بطن'], a => a.openCoach('train')],
   ['boxing', 'الرياضة', 'الملاكمة', ['ملاكمه', 'الملاكمه', 'بوكس'], a => a.openCoach('box')],
   ['treadmill', 'الرياضة', 'جهاز المشي', ['جهاز المشي', 'تريدميل'], a => a.openCoach('tread')],
   ['eyes', 'الرياضة', 'تمارين العين والرقبة', ['تمارين العين', 'تمارين الرقبه', 'عيني تعبت', 'رقبتي'], a => a.openCoach('eyes')],
@@ -156,7 +159,7 @@ export const COMMANDS = [
   ['weather', 'الأدوات', 'الطقس', ['الطقس', 'الجو', 'الحراره'], a => a.extras?.widget('weather')],
   ['timer', 'الأدوات', 'مؤقت بالدقائق', ['مؤقت', 'نبهني بعد', 'عداد'], (a, x, t) => { const w = a.windows.open({ kind: 'widget', type: 'timer', data: { mode: 'timer' } }); const n = num(t); if (n && w) w.timerSet(n); }],
   ['stopwatch', 'الأدوات', 'ساعة إيقاف', ['ساعه ايقاف', 'ستوب واتش'], a => a.windows.open({ kind: 'widget', type: 'timer', data: { mode: 'watch' } })],
-  ['note', 'الأدوات', 'ملاحظة (بصوتك)', ['ملاحظه', 'دون', 'سجل ملاحظه'], (a, x) => { const w = a.windows.open({ kind: 'widget', type: 'note', data: { text: x || '' } }); if (!x && w) a.extras?.dictateInto(w); }],
+  ['note', 'الأدوات', 'ملاحظة (بصوتك)', ['ملاحظه', 'دون', 'سجل ملاحظه'], (a, x) => { x = (x || '').replace(/^(لاصقه|جديده)\s*/, '').replace(/^(اكتب|سجل|دون)?\s*(فيها|فيه)?\s*/, '').trim(); const w = a.windows.open({ kind: 'widget', type: 'note', data: { text: x } }); if (!x && w) a.extras?.dictateInto(w); }],
   ['today', 'الأدوات', 'يومك: المباريات والصلاة والتذكيرات', ['يومي', 'جدولي', 'وش عندي اليوم'], a => a.extras?.widget('today')],
   ['photos', 'الأدوات', 'إطار الصور', ['اطار الصور', 'صوري'], a => a.extras?.widget('photos')],
   ['nowplaying', 'الأدوات', 'يُعرض الآن', ['يعرض الان', 'المشغل'], a => a.extras?.widget('nowplaying')],
@@ -166,7 +169,7 @@ export const COMMANDS = [
   ['save_scene', 'المساحات', 'احفظ ترتيب النوافذ كمشهد', ['احفظ المشهد', 'احفظ الترتيب'], (a, x) => a.extras?.saveScene(x || undefined)],
   ['open_scene', 'المساحات', 'افتح مشهداً محفوظاً', ['افتح المشهد', 'المشاهد'], (a, x) => { if (x) a.extras?.openScene(x); else a.extras?.widget('scenes'); }],
   ['next_space', 'المساحات', 'المساحة التالية (الصباح، العمل، السهرة)', ['المساحه التاليه', 'غير المساحه'], a => a.plus?.nextSpace()],
-  ['screenshot', 'المساحات', 'لقطة للمشهد', ['لقطه شاشه', 'صور المشهد', 'سكرين شوت'], a => a.extras?.shot()],
+  ['screenshot', 'المساحات', 'لقطة للمشهد', ['لقطه شاشه', 'لقطه للمشهد', 'لقطه', 'صور المشهد', 'سكرين شوت'], a => a.extras?.shot()],
   ['share_space', 'المساحات', 'شارك مساحتي', ['شارك مساحتي', 'شارك المساحه'], a => a.extras?.shareSpace()],
   // ---- vision & draw
   ['look', 'الذكاء', 'ما هذا الذي أمامي؟ (يرى بالكاميرا)', ['ما هذا', 'شو هذا', 'ماذا امامي', 'اقرا هذا', 'ترجم هذا'], (a, x, t) => a.extras?.lookAndAsk(t)],
@@ -185,6 +188,41 @@ export const COMMANDS = [
   ['lead_watch', 'الفيديو', 'قُد المشاهدة (الكل يتبعك)', ['قد المشاهده'], a => a.together?.leadNow()],
   ['models', 'البيئة', 'المجسمات ثلاثية الأبعاد', ['المجسمات', 'مجسم'], a => a.gallery?.open('models')],
   ['dashboard', 'الأدوات', 'لوحة السيارة من DriveCast', ['لوحه السياره', 'لوحه درايف'], a => a.extras?.widget('dcdash')],
+  // ---- the Home View folders
+  ['widgets', 'القوائم', 'الأدوات المصغّرة (الساعة، الطقس، المؤقت، الملاحظة، آية اليوم…)', ['الادوات المصغره', 'الاداه المصغره', 'المصغره', 'المصغرات', 'الودجات', 'الويدجت', 'الويدجات', 'ودجت', 'ودجات', 'الادوات الصغيره'], a => folder(a, 'widgets')],
+  ['tools', 'القوائم', 'أدوات الإعداد (المعايرة، العدستين، الإيماءات…)', ['ادوات الاعداد', 'الاعدادات', 'اعدادات'], a => folder(a, 'tools')],
+  ['screens', 'الأجهزة', 'شاشات أجهزتي (HDMI، التابلت، التي في بوكس)', ['شاشات اجهزتي', 'شاشات الاجهزه'], a => folder(a, 'screens')],
+  ['nx_folder', 'القوائم', 'المستوى التالي (لافتة اليوم، الشريط الزجاجي، التوهج…)', ['المستوي التالي', 'الميزات الجديده'], a => folder(a, 'nx')],
+  ['dc_folder', 'القوائم', 'مجلد DriveCast (مكتبتي، اللوحة، الريموت)', ['مجلد درايف', 'درايف كاست'], a => folder(a, 'dc')],
+  ['apps', 'القوائم', 'التطبيقات (يوتيوب، شاهد، نتفليكس…)', ['التطبيقات', 'تطبيقات'], a => a.launcher?.openApps ? a.launcher.openApps() : a.toggleLauncher()],
+  ['verse_w', 'الأدوات', 'آية اليوم', ['ايه اليوم'], a => a.extras?.widget('verse')],
+  ['scenes_w', 'المساحات', 'المشاهد المحفوظة', ['المشاهد', 'مشاهدي'], a => a.extras?.widget('scenes')],
+  // ---- the next level
+  ['sign', 'المستوى التالي', 'لافتة اليوم بخط عربي مجسّم', ['لافته اليوم', 'اللافته'], a => a.nx?.toggleSign()],
+  ['dock', 'المستوى التالي', 'الشريط الزجاجي أسفل نظرك', ['الشريط الزجاجي', 'الدوك'], a => a.nx?.toggleDock()],
+  ['glow', 'المستوى التالي', 'التوهّج الزجاجي والإطار السينمائي', ['التوهج', 'توهج'], a => a.nx?.toggleGlow()],
+  ['real_room', 'المستوى التالي', 'غرفة حقيقية ثلاثية الأبعاد حولك', ['غرفه حقيقيه', 'مكان حقيقي'], a => a.nx?.splat ? a.nx.closeSplat() : a.nx?.sampleSplat()],
+  ['physics', 'المستوى التالي', 'رمي النوافذ', ['رمي النوافذ', 'الرمي'], a => a.nx?.togglePhysics()],
+  ['gestures', 'المستوى التالي', 'الإيماءات بدون لمس 👍 ✌️ ✋', ['الايماءات', 'ايماءات'], a => a.nx?.toggleGestures()],
+  ['gesture_guide', 'القوائم', 'دليل الإيماءات (كيف أتحكم)', ['دليل الايماءات', 'كيف اتحكم', 'كيف استخدم'], a => a.windows.open({ kind: 'panel', panel: a.controls?.pad?.id ? 'pad' : 'guide' })],
+  // ---- iPhone and the room
+  ['iphone_photos', 'الأجهزة', 'صور وفيديوهات الآيفون', ['صور الايفون', 'معرض الصور', 'الاستوديو'], a => window.MadarIOS?.send('pickMedia', { spatial: false })],
+  ['spatial_video', 'الأجهزة', 'فيديو مكاني صوّرته بالآيفون', ['فيديو مكاني', 'الفيديو المكاني'], a => window.MadarIOS?.send('pickMedia', { spatial: true })],
+  ['new_room', 'البيئة', 'غرفة جديدة: انسَ مكان النوافذ', ['غرفه جديده', 'ابدا من جديد'], a => window.MadarIOS?.send('resetWorld', { forget: true })],
+  ['update', 'الإعدادات', 'تحديث التطبيق', ['حدث التطبيق', 'تحديث التطبيق', 'تحديث مدار'], a => window.MadarIOS?.send('update')],
+  ['lens', 'الإعدادات', 'ضبط العدستين', ['ضبط العدستين', 'العدسات'], a => a.lensAdjust?.open()],
+  ['headset', 'الإعدادات', 'نظارة جديدة (معالج)', ['نظاره جديده'], a => a.plus?.headsetWizard()],
+  ['learn_remote', 'الإعدادات', 'تعلّم أزرار الريموت', ['تعلم ازرار الريموت', 'علم الريموت', 'ازرار الريموت'], a => a.remote?.startLearn()],
+  ['reset_pos', 'النوافذ', 'ارجع لمكاني (إلغاء التحرك)', ['مكاني', 'ارجع لمكاني'], a => a.controls?.reset()],
+  ['walk', 'الإعدادات', 'المشي (التحرك بخطواتك)', ['المشي', 'وضع المشي'], a => a.toggleWalk?.()],
+  ['eye_track', 'الإعدادات', 'تتبع العين', ['تتبع العين'], a => a.toggleEyeTrack?.()],
+  ['lite', 'الإعدادات', 'الوضع الخفيف (توفير البطارية)', ['الوضع الخفيف', 'وفر البطاريه', 'البطاريه'], a => tog(a, 'lite', 'الوضع الخفيف', !settings.lite)],
+  ['prayers_bar', 'الإعدادات', 'شريط الصلوات', ['شريط الصلوات', 'الصلوات', 'مواقيت الصلاه'], a => tog(a, 'prayerBar', 'شريط الصلوات')],
+  ['look_scroll', 'الإعدادات', 'التمرير بالنظر', ['التمرير بالنظر'], a => tog(a, 'lookScroll', 'التمرير بالنظر')],
+  ['spatial_audio', 'الإعدادات', 'الصوت المكاني', ['الصوت المكاني'], a => tog(a, 'spatialAudio', 'الصوت المكاني')],
+  ['finger_mouse', 'الإعدادات', 'الإصبع فأرة', ['الاصبع فاره', 'الماوس بالاصبع'], a => tog(a, 'handDwell', 'الإصبع فأرة', !settings.handDwell)],
+  ['stabilizer', 'الإعدادات', 'المثبّت (يثبّت الصورة)', ['المثبت', 'ثبت الصوره'], a => tog(a, 'stabilizer', 'المثبّت', !settings.stabilizer)],
+  ['mic_together', 'الفيديو', 'المايكروفون في «شاهد معاً»', ['المايكروفون', 'المايك'], a => a.together?.toggleMic()],
   ['sounds', 'الإعدادات', 'أصوات النقر', ['الاصوات', 'اصوات النقر'], a => tog(a, 'sounds', 'الأصوات')],
   ['cool', 'الإعدادات', 'تبريد الآيفون', ['التبريد', 'الجهاز حار', 'برد الجهاز'], a => { tog(a, 'coolMax', 'التبريد الأقصى', !settings.coolMax); a.renderer.resize(); }],
   ['gaze', 'الإعدادات', 'النقر بالنظر', ['النقر بالنظر', 'النظر'], a => tog(a, 'dwell', 'النقر بالنظر', !settings.dwell)],
@@ -198,18 +236,27 @@ const LIST = COMMANDS.map(([id, group, desc, says, run]) => ({ id, group, desc, 
 export const byId = id => LIST.find(c => c.id === id);
 // the best command for these words: a known phrase inside the sentence wins (the longest one); else most shared words
 const WEAK = new Set(['play', 'pause', 'home', 'search_none']);
+// «وافتح» «فالساعه» «الساعه/ساعه» «للتلفاز»: the same word
+const stemW = w => w.replace(/^[وف](?=\S{3,})/, '').replace(/^(ال|لل)(?=\S{2,})/, '');
+const stem = s => s.split(' ').map(stemW).join(' ');
 export function match(text) {
   const t = norm(text), words = new Set(t.split(' '));
+  // the stemmed sentence, and where each stemmed word starts in the original
+  const W = t.split(' '), map2 = {}; let T2 = '', o = 0;
+  W.forEach((w, k) => { map2[T2.length + (k ? 1 : 0)] = k; T2 += (k ? ' ' : '') + stemW(w); });
+  const starts = W.map((w, k) => W.slice(0, k).join(' ').length + (k ? 1 : 0));
   let best = null;
   for (const c of LIST) for (const s of c.says) {
     let score = 0;
-    const i = (' ' + t).indexOf(' ' + s);
+    let i = (' ' + t).indexOf(' ' + s), loose = false;
+    if (i < 0) { const j = (' ' + T2).indexOf(' ' + stem(s)); if (j >= 0 && map2[j] != null) { loose = map2[j]; i = starts[loose]; } }
     if (i >= 0) {
-      score = 1 + s.length / 40 - i / 40;
+      score = 1 + s.length / 40 - i / 400 + (i === 0 ? 0.1 : 0) - (loose !== false ? 0.03 : 0);
       if (WEAK.has(c.id) && t.slice(i + s.length).trim().split(' ').length > 1) score = 0.5;   // «شغل سورة…» is not «play»
+      if (c.id === 'surah' && t.slice(i + s.length).trim()) score += 0.4;   // «… سورة الكهف»: the surah's name decides
       if (c.id === 'youtube' && t.replace(s, '').trim().split(' ').length > 1) score = 3;     // «… في اليوتيوب»: a YouTube request, all of it
     } else { const sw = s.split(' '); const hit = sw.filter(w => words.has(w) || [...words].some(x => x.length > 3 && (x.startsWith(w) || w.startsWith(x)))).length; score = sw.length > 1 ? hit / sw.length * 0.8 : 0; }
-    if (score > (best?.score || 0)) best = { cmd: c, score, arg: i >= 0 ? t.slice(i + s.length).trim() : '' };
+    if (score > (best?.score || 0)) best = { cmd: c, score, arg: i < 0 ? '' : loose !== false ? W.slice(loose + s.split(' ').length).join(' ') : t.slice(i + s.length).trim() };
     if (c.id === 'youtube' && score === 3) best.arg = t;
   }
   return best;
@@ -221,9 +268,11 @@ export function plan(text) {
   const steps = [];
   for (const p of parts) {
     const m = match(p);
+    if (m && m.cmd.id === 'recite' && steps.at(-1)?.cmd.id === 'surah') { steps.at(-1).text += ' واقرا'; continue; }   // «سورة الكهف واقرأ»
+    if (m && m.cmd.id === 'search' && steps.at(-1)?.cmd.id === 'youtube') { steps.at(-1).text = 'يوتيوب ' + m.arg; continue; }   // «افتح يوتيوب وابحث عن…»
     if (m && m.score >= 1 && !(steps.length && steps.at(-1).cmd.id === 'youtube' && m.cmd.id !== 'youtube' && m.score < 1.1 && !/^(كبر|صغر|قرب|ابعد|اغلق|سكر|ثبت)/.test(p))) steps.push({ ...m, text: p });
     else if (steps.length) { const l = steps.at(-1); l.text += ' و ' + p; l.arg = (l.arg + ' ' + p).trim(); }
-    else return null;
+    // else: talk before the request («انا تعبان اليوم و…») is left out
   }
   return steps.length ? steps : null;
 }
