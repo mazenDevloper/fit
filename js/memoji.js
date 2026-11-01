@@ -85,6 +85,24 @@ function strands(kind = 'hair') {
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(kind === 'hair' ? 6 : 10, kind === 'hair' ? 2 : 10); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   texCache.set(kind, t); return t;
 }
+let HAIR_N = null;
+function hairNormal() {
+  if (HAIR_N) return HAIR_N;
+  const N = 512, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d');
+  x.fillStyle = '#808080'; x.fillRect(0, 0, N, N);
+  let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 1800; i++) {   // strands as raised lines (a height map)
+    const sx = rnd() * N, sy = rnd() * N, len = 30 + rnd() * 90, l = 140 + rnd() * 115;
+    x.strokeStyle = `rgba(${l},${l},${l},0.55)`; x.lineWidth = 1.5 + rnd() * 2.5;
+    x.beginPath(); x.moveTo(sx, sy); x.quadraticCurveTo(sx + (rnd() - 0.5) * 14, sy + len / 2, sx + (rnd() - 0.5) * 8, sy + len); x.stroke();
+  }
+  for (let i = 0; i < 260; i++) { const l = 60 + rnd() * 40; x.fillStyle = `rgba(${l},${l},${l},0.35)`; x.beginPath(); x.ellipse(rnd() * N, rnd() * N, 3 + rnd() * 6, 18 + rnd() * 40, 0, 0, 7); x.fill(); }   // clumps' gaps
+  const src = x.getImageData(0, 0, N, N).data, out = x.createImageData(N, N), H = (i, j) => src[(((j + N) % N) * N + ((i + N) % N)) * 4] / 255;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const dx = (H(i + 1, j) - H(i - 1, j)) * 3, dy = (H(i, j + 1) - H(i, j - 1)) * 3, l = Math.hypot(dx, dy, 1), k = (j * N + i) * 4; out.data[k] = (-dx / l * 0.5 + 0.5) * 255; out.data[k + 1] = (-dy / l * 0.5 + 0.5) * 255; out.data[k + 2] = (1 / l * 0.5 + 0.5) * 255; out.data[k + 3] = 255; }
+  x.putImageData(out, 0, 0);
+  HAIR_N = new THREE.CanvasTexture(c); HAIR_N.wrapS = HAIR_N.wrapT = THREE.RepeatWrapping; HAIR_N.repeat.set(7, 2.5); HAIR_N.anisotropy = 4;
+  return HAIR_N;
+}
 function irisTex(hex) {
   const k = 'iris' + hex; if (texCache.has(k)) return texCache.get(k);
   const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), m = 128;
@@ -92,7 +110,8 @@ function irisTex(hex) {
   let g = x.createRadialGradient(m, m, 10, m, m, 128); g.addColorStop(0, '#' + lite.getHexString()); g.addColorStop(0.55, '#' + base.getHexString()); g.addColorStop(0.86, '#' + dark.getHexString()); g.addColorStop(1, '#120a06');
   x.fillStyle = g; x.beginPath(); x.arc(m, m, 128, 0, 7); x.fill();
   for (let i = 0; i < 140; i++) { const a = i / 140 * Math.PI * 2 + Math.sin(i) * 0.05; x.strokeStyle = `rgba(255,235,200,${0.06 + (i % 5) * 0.025})`; x.lineWidth = 1.2; x.beginPath(); x.moveTo(m + Math.cos(a) * 36, m + Math.sin(a) * 36); x.lineTo(m + Math.cos(a) * 112, m + Math.sin(a) * 112); x.stroke(); }
-  x.fillStyle = '#070403'; x.beginPath(); x.arc(m, m, 46, 0, 7); x.fill();
+  x.fillStyle = '#060302'; x.beginPath(); x.arc(m, m, 62, 0, 7); x.fill();   // a big pupil
+  g = x.createRadialGradient(m, m, 60, m, m, 70); g.addColorStop(0, 'rgba(6,3,2,1)'); g.addColorStop(1, 'rgba(6,3,2,0)'); x.fillStyle = g; x.beginPath(); x.arc(m, m, 70, 0, 7); x.fill();
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; texCache.set(k, t); return t;
 }
 
@@ -146,7 +165,7 @@ function faceParams(cfg) {
     blush: cfg.blush ?? 0.6,
   };
 }
-const EYE = { x: 0.31, y: -0.04, w: 0.175, up: 0.088, low: 0.058 };
+const EYE = { x: 0.31, y: -0.04, w: 0.17, up: 0.082, low: 0.056 };
 const eyeUp = (t) => EYE.y + EYE.up * Math.pow(Math.max(0, 1 - t * t), 0.7) * (1 - 0.12 * t);
 const eyeLow = (t) => EYE.y - EYE.low * Math.pow(Math.max(0, 1 - t * t), 0.85);
 // inside the almond of an eye? (> 0 inside, in face units)
@@ -163,6 +182,13 @@ function face(P, x, y, talk = 0, blink = 0) {
     d += 0.015 * g2(x, y, s * EYE.x, 0.21, 0.16, 0.05);       // brow
     d += 0.04 * g2(x, y, s * 0.42, -0.32, 0.15, 0.13);        // cheeks
     d += 0.03 * P.nose[1] * g2(x, y, s * 0.07 * P.nose[1], -0.33, 0.04, 0.035);   // nostril wings
+    if (!P.noEyes) {
+      const t = (Math.abs(x) - EYE.x) / EYE.w, tc = Math.max(-1.2, Math.min(1.2, t)), inside = 1 - ss(0.9, 1.25, Math.abs(t));
+      const yu = eyeUp(Math.max(-1, Math.min(1, tc))), yl = eyeLow(Math.max(-1, Math.min(1, tc)));
+      d += 0.016 * inside * g2(0, y, 0, yu + 0.024, 1, 0.02);     // the upper lid's skin over the eye
+      d -= 0.008 * inside * g2(0, y, 0, yu + 0.062, 1, 0.022);    // the fold (crease) above it
+      d += 0.006 * inside * g2(0, y, 0, yl - 0.016, 1, 0.014);    // the lower lid's soft rim
+    }
   }
   // a small button nose: almost no bridge, a round tip
   d += 0.024 * Math.exp(-(x * x) / (2 * 0.05 * 0.05)) * ss(0.05, -0.22, y) * ss(-0.38, -0.27, y);
@@ -170,8 +196,11 @@ function face(P, x, y, talk = 0, blink = 0) {
   d -= 0.012 * g2(x, y, 0, -0.37, 0.06, 0.02);              // under the nose
   // soft lips
   const ym = mouthY(P, x), yl = mouthLow(P, x, talk), inX = Math.max(0, 1 - (x / (P.mw * 1.3)) ** 2);
-  d += 0.012 * g2(0, y, 0, ym + 0.02, 1, 0.016) * inX;      // upper lip
-  d += 0.022 * g2(0, y, 0, yl - 0.026, 1, 0.022) * inX;     // lower lip
+  // the upper lip with its cupid's bow (two little peaks), a fuller lower lip, a groove above the bow (philtrum)
+  const bow = 0.012 * (g2(x, 0, -0.035, 0, 0.022, 1) + g2(x, 0, 0.035, 0, 0.022, 1)) - 0.006 * g2(x, 0, 0, 0, 0.015, 1);
+  d += 0.016 * g2(0, y, 0, ym + 0.022 + bow * 0.6, 1, 0.017 + bow * 0.5) * inX;     // upper lip
+  d += 0.03 * g2(0, y, 0, yl - 0.03, 1, 0.026) * Math.max(0, 1 - (x / (P.mw * 1.1)) ** 2);   // lower lip
+  d -= 0.008 * g2(x, y, 0, ym + 0.085, 0.022, 0.04);       // philtrum
   if (P.open > 0.001) d -= 0.01 * ss(0, 0.04, P.mw - Math.abs(x)) * g2(0, y, 0, (ym + yl) / 2, 1, 0.05);
   else d -= 0.012 * g2(0, y, 0, ym, 1, 0.007) * ss(0, 0.03, P.mw * 1.1 - Math.abs(x));
   d += 0.022 * g2(x, y, 0, -0.98, 0.16, 0.09);              // chin
@@ -201,20 +230,36 @@ function paint(P, x, y, uz, lipC) {
   for (const s of [-1, 1]) {
     const bl = f * P.blush * g2(x, y, s * 0.43, -0.37, 0.12, 0.1); r *= 1 + 0.32 * bl; gC *= 1 - 0.1 * bl; b *= 1 - 0.02 * bl;   // blush
     k -= f * 0.08 * g2(x, y, s * EYE.x, EYE.y + EYE.up + 0.04, 0.12, 0.02);   // the lid crease
-    k -= f * 0.35 * g2(x, y, s * 0.045, -0.35, 0.02, 0.012);                // nostrils
+    k -= f * 0.6 * g2(x, y, s * 0.048, -0.345, 0.024, 0.013);               // nostrils
   }
   k -= f * 0.07 * g2(x, y, 0, -0.37, 0.07, 0.02);
   { const warm = f * 0.5 * g2(x, y, 0, -0.29, 0.07, 0.06); r *= 1 + 0.12 * warm; gC *= 1 - 0.03 * warm; }   // the nose tip
   { const lift = f * (0.06 * g2(x, y, 0, 0.42, 0.3, 0.2) + 0.04 * g2(Math.abs(x), y, 0.36, -0.2, 0.1, 0.06)); k += lift; }   // forehead, cheekbones
   k -= 0.08 * (1 - ss(0.0, 0.6, uz));                                // the sides and back a touch darker
   const ym = mouthY(P, x), yl = mouthLow(P, x), inX = Math.max(0, 1 - (x / (P.mw * 1.3)) ** 2);
-  const lip = f * inX * Math.max(g2(0, y, 0, ym + 0.02, 1, 0.02), g2(0, y, 0, yl - 0.026, 1, 0.026));
-  const mix = (a, c) => a * (1 - lip * 0.7) + c * lip * 0.7;
+  const upper = g2(0, y, 0, ym + 0.022, 1, 0.019), lower = g2(0, y, 0, yl - 0.03, 1, 0.028);
+  const lip = f * inX * Math.max(upper, lower); k -= f * inX * upper * 0.08;
+  const mix = (a, c) => a * (1 - lip * 0.88) + c * lip * 0.88;
   r = mix(r, lipC.r); gC = mix(gC, lipC.g); b = mix(b, lipC.b);
   if (P.open > 0) { const inside = f * ss(-0.01, 0.01, ym - y) * ss(-0.01, 0.01, y - yl) * ss(0, 0.03, P.mw - Math.abs(x)); r = r * (1 - inside) + 0.22 * inside; gC = gC * (1 - inside) + 0.04 * inside; b = b * (1 - inside) + 0.05 * inside; }
-  else k -= f * 0.18 * g2(0, y, 0, ym, 1, 0.006) * inX;          // the line between the lips
+  else k -= f * 0.38 * g2(0, y, 0, ym, 1, 0.007) * inX;          // the line between the lips
   k -= 0.18 * ss(-0.95, -1.18, y);                                  // under the jaw
-  return [Math.max(0, r * k), Math.max(0, gC * k), Math.max(0, b * k)];
+  for (const s of [-1, 1]) {
+    const t = (s * x - EYE.x) / EYE.w, inside = 1 - ss(0.85, 1.3, Math.abs(t)), tc = Math.max(-1, Math.min(1, t));
+    k -= f * inside * 0.1 * g2(0, y, 0, eyeUp(tc) + 0.062, 1, 0.022);       // the fold's shadow
+    k -= f * inside * 0.08 * g2(0, y, 0, eyeUp(tc) + 0.012, 1, 0.012);      // the lid's edge
+    k -= f * inside * 0.035 * g2(0, y, 0, eyeLow(tc) - 0.06, 1, 0.03);      // under the eye
+    k -= f * 0.12 * g2(x, y, s * 0.075, -0.22, 0.03, 0.1);                  // the sides of the nose
+    k -= f * 0.14 * g2(x, y, s * 0.105, -0.33, 0.025, 0.04);                // around the nostril wings
+    k -= f * 0.14 * g2(x, y, s * P.mw * 1.12, mouthY(P, P.mw), 0.025, 0.025); // the mouth corners
+  }
+  k += f * 0.1 * g2(x, y, 0, -0.28, 0.03, 0.025);                    // the light on the nose tip
+  k -= f * 0.16 * g2(x, y, 0, -0.39, 0.05, 0.014);                   // the shadow under the nose
+  { const yl0 = mouthLow(P, 0); k += f * 0.07 * g2(x, y, 0, yl0 - 0.03, 0.06, 0.01); k -= f * 0.15 * g2(0, y, 0, yl0 - 0.075, 1, 0.016) * inX; }   // lower lip shine, its shadow
+  if (P.hairFront != null) k -= f * 0.16 * g2(0, y, 0, P.hairFront - 0.04, 1, 0.045) * (1 - ss(0.5, 0.75, Math.abs(x)));   // the hair's shadow on the forehead
+  // skin is not grey in shadow: light passes under it and comes back warm (subsurface) - darken red less
+  const sh = 1 - Math.min(1, k);
+  return [Math.max(0, r * (1 - sh * 0.62)), Math.max(0, gC * (1 - sh * 1.08)), Math.max(0, b * (1 - sh * 1.18))];
 }
 // a smooth sphere turned into the head (or into a layer over it: hair, beard, hat) - dist > 0 where the layer is
 function surface(P, { seg = [176, 144], grow = 0, dist = null, lumps = null, talk = false, paintC = null, hole = null, edge = 0.016 } = {}) {
@@ -241,7 +286,8 @@ function surface(P, { seg = [176, 144], grow = 0, dist = null, lumps = null, tal
 export function build(cfg = DEFAULT, { env = null, lite = false } = {}) {
   cfg = { ...DEFAULT, ...cfg };
   const G = new THREE.Group(), P = { ...faceParams(cfg), q: lite ? 0.5 : 1 }, skin = shadeOf(cfg.skin, cfg.shade);
-  const lipC = new THREE.Color(skin).lerp(new THREE.Color('#c4655c'), 0.45); lipC.r /= new THREE.Color(skin).r || 1; lipC.g /= new THREE.Color(skin).g || 1; lipC.b /= new THREE.Color(skin).b || 1;
+  const lipC = new THREE.Color(skin).lerp(new THREE.Color('#9a4a44'), 0.5); lipC.r /= new THREE.Color(skin).r || 1; lipC.g /= new THREE.Color(skin).g || 1; lipC.b /= new THREE.Color(skin).b || 1;
+  P.hairFront = ['cap_back', 'cap', 'beanie'].includes(cfg.head) ? 0.5 : ['kumma', 'massar'].includes(cfg.head) ? 0.6 : cfg.hair === 'bald' ? null : cfg.hair === 'buzz' ? 0.55 : 0.44;
   const SK = skinMat(skin, env);
   const inMouth = (x, y, uz) => P.open > 0 && uz > 0.4 && Math.abs(x) < P.mw * 0.97 && y < mouthY(P, x) - 0.004 && y > mouthLow(P, x) + 0.004;
   // the eyes are almond openings in the skin with the eyeballs behind (that is how the lids frame them)
@@ -270,15 +316,23 @@ export function build(cfg = DEFAULT, { env = null, lite = false } = {}) {
   // eyes: behind each almond opening a white ball (wide, so it fills the corners), a big textured iris, a glint,
   // and the dark line of lashes along the top edge; a blink closes the opening with the lid's own skin
   const eyes = new THREE.Group(); G.add(eyes); G.userData.lids = [];
-  const white = plain('#fbf8f2', env, { roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.15 });
+  const white = plain('#ece6de', env, { roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.15, vertexColors: true });
+  const cornea = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.05, roughness: 0.02, clearcoat: 1, clearcoatRoughness: 0, envMap: env, envMapIntensity: 0.9, depthWrite: false });
   const irisM = new THREE.MeshPhysicalMaterial({ map: irisTex(cfg.eyes), roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08, envMap: env, envMapIntensity: 0.5 });
   const lashM = plain(cfg.lashes ? '#0e0907' : '#24170f', env, { roughness: 0.7 });
   for (const s of [-1, 1]) {
     const c = on(s * EYE.x, EYE.y), eg = new THREE.Group();
     eg.position.copy(c.p).add(c.n.clone().multiplyScalar(-0.162)); eg.lookAt(eg.position.clone().add(new THREE.Vector3(s * 0.06, 0, 1))); eyes.add(eg);
-    const w = new THREE.Mesh(new THREE.SphereGeometry(0.15, 48, 32), white); w.scale.set(1.38, 1.0, 1); eg.add(w);
-    const ir = new THREE.Mesh(new THREE.CircleGeometry(0.092, 48), irisM); ir.position.set(0, -0.002, 0.149); eg.add(ir);
-    const gl = new THREE.Mesh(new THREE.SphereGeometry(0.014, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff })); gl.position.set(-0.026, 0.026, 0.152); eg.add(gl);
+    // the white: shaded by the upper lid at the top, a little pink in the corners
+    const wg = new THREE.SphereGeometry(0.15, 48, 32), wp = wg.attributes.position, wc = new Float32Array(wp.count * 3);
+    for (let i = 0; i < wp.count; i++) { const yy = wp.getY(i) / 0.15, xx = Math.abs(wp.getX(i) / 0.15); const sh = 1 - 0.38 * ss(0.05, 0.75, yy) - 0.12 * ss(0.5, 0.95, xx); wc.set([sh * (1 + 0.06 * ss(0.6, 0.95, xx)), sh * (1 - 0.05 * ss(0.6, 0.95, xx)), sh * (1 - 0.06 * ss(0.6, 0.95, xx))], i * 3); }
+    wg.setAttribute('color', new THREE.BufferAttribute(wc, 3));
+    const w = new THREE.Mesh(wg, white); w.scale.set(1.38, 1.0, 1); eg.add(w);
+    const ir = new THREE.Mesh(new THREE.CircleGeometry(0.1, 48), irisM); ir.position.set(0, -0.004, 0.149); eg.add(ir);
+    // the cornea: a clear dome over the iris that catches the room (the eye's wet shine)
+    const co = new THREE.Mesh(new THREE.SphereGeometry(0.11, 40, 24, 0, Math.PI * 2, 0, 0.75), cornea); co.rotation.x = Math.PI / 2; co.position.set(0, -0.004, 0.073); eg.add(co);
+    const gl = new THREE.Mesh(new THREE.SphereGeometry(0.017, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff })); gl.position.set(-0.03, 0.03, 0.158); eg.add(gl);
+    const gl2 = new THREE.Mesh(new THREE.SphereGeometry(0.007, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })); gl2.position.set(0.035, -0.035, 0.156); eg.add(gl2);
     // the lash line: along the upper edge of the almond, a touch thicker and lifted at the outer corner
     const pts = []; for (let i = 0; i <= 16; i++) { const t = -1.02 + 2.08 * i / 16, x = s * (EYE.x + t * EYE.w), y = eyeUp(Math.min(1, t)) + (t > 0.85 ? (t - 0.85) * 0.15 : 0), h = on(x, y); pts.push(h.p.add(h.n.multiplyScalar(0.006))); }
     const lash = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, cfg.lashes ? 0.014 : 0.0095, 8, false), lashM); G.add(lash);
@@ -333,7 +387,7 @@ export function build(cfg = DEFAULT, { env = null, lite = false } = {}) {
   }
 
   // hair: grown from a hairline (high at the forehead, above the ears, low behind), with volume for the longer styles
-  const hm = hairMat(cfg.hairColor, env, ['buzz', 'short', 'wavy', 'side'].includes(cfg.hair) ? 'dots' : 'hair', { roughness: 0.85, sheen: 1, sheenRoughness: 0.35 });
+  const hm = hairMat(cfg.hairColor, env, ['buzz', 'short', 'wavy', 'side'].includes(cfg.hair) ? 'dots' : 'hair', { roughness: 0.8, sheen: 1, sheenRoughness: 0.35, normalMap: hairNormal(), normalScale: new THREE.Vector2(cfg.hair === 'buzz' ? 0.35 : 0.8, cfg.hair === 'buzz' ? 0.35 : 0.8) });
   const hairline = (x, y, uz, front = 0.44) => {
     const f = ss(0.25, 0.75, uz), ear = ss(0.62, 0.8, Math.abs(x)) * ss(-0.35, 0.05, uz) * (1 - ss(0.3, 0.6, uz));
     const line = front * f + -0.5 * (1 - f);
@@ -344,13 +398,13 @@ export function build(cfg = DEFAULT, { env = null, lite = false } = {}) {
   else if (cfg.hair === 'short' || cfg.hair === 'wavy' || cfg.hair === 'side') {
     // one sculpted mass: lifted into a swoop over the forehead, with deep grooves between the chunks
     const kind = cfg.hair, big = kind === 'wavy' ? 1 : kind === 'side' ? 0.85 : 0.45;
-    layer((x, y, uz) => hairline(x, y, uz, 0.44) + (kind === 'side' ? 0.04 * Math.sin(x * 4) : (kind === 'short' ? 0.008 : 0.03) * Math.cos(x * 9) * ss(0.5, 0.9, uz)), hm, 0.08, (x, y, uz, u) => {
+    layer((x, y, uz) => hairline(x, y, uz, 0.44) + (kind === 'side' ? 0.04 * Math.sin(x * 4) : (kind === 'short' ? 0.008 : 0.03) * Math.cos(x * 9) * ss(0.5, 0.9, uz) + 0.012 * Math.sin(x * 37 + Math.sin(x * 11) * 2) * ss(0.4, 0.8, uz)), hm, 0.08, (x, y, uz, u) => {
       const az = Math.atan2(u.x, u.z), top = ss(0.3, 1.0, y), front = ss(-0.1, 0.7, uz);
       const swoop = 0.2 * big * top * front * (kind === 'side' ? 0.6 + 0.4 * ss(-0.6, 0.6, x) : 1);
       const groove = (kind === 'short' ? 0.012 : 0.035) * big * Math.pow(Math.abs(Math.sin(az * (kind === 'side' ? 5 : 6) + y * (kind === 'side' ? 6 : 2.5))), 0.6) * top;
       // a full, wide mass (wider than the face at the temples), flat-ish on top like a fresh cut
       const sides = 0.05 * ss(0.4, 0.8, Math.abs(x)) * ss(-0.2, 0.5, y);
-      return swoop + groove + noise(u, 0.006) + 0.05 * top + sides;
+      return swoop + groove + noise(u, 0.016) + 0.05 * top + sides;
     }, [220, 180]);
   } else if (cfg.hair === 'curly') {
     layer((x, y, uz) => hairline(x, y, uz, 0.4), hm, 0.05);
