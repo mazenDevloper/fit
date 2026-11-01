@@ -261,7 +261,7 @@ export class ScreenHost {
     });
   }
   accept(conn) {
-    if (conn.metadata?.fast) { conn.on('open', () => { if (fastSender.ok && this.stream && !this.controlOnly && window.MadarAndroid) fastSender.add(conn); else conn.close(); }); return; }
+    if (conn.metadata?.fast) { conn.on('open', () => { if (fastSender.ok && this.stream && !this.controlOnly && window.MadarAndroid) fastSender.add(conn, !!this.hdmi); else conn.close(); }); return; }
     conn.on('open', () => {
       this.viewers.add(conn); this.status();
       conn.send({ type: 'links', links: loadLinks() });
@@ -457,11 +457,12 @@ export function preferH264(sdp) {
 // strong 5 GHz network. Now the tablet's hardware encoder reads the screen / HDMI card directly and its H.264 pieces
 // go to the iPhone as they are, where the hardware decoder shows them (WebCodecs). Sound stays on the WebRTC call.
 // Pieces: 16-byte header ['H', flags(1=key), idx u16, count u16, 0, 0, seq u32, ts u32] + up to 16 000 bytes.
-const CHUNK = 16000, FAST_BPS = 6000000;
+const CHUNK = 16000, FAST_BPS = 6000000, HDMI_BPS = 12000000;   // the HDMI card: sport / TV, more detail
 class FastSender {
   constructor() { this.conns = new Set(); this.seq = 0; this.needKey = true; this.on = false; }
   get ok() { return !!window.MadarAndroid?.hwStart; }
-  add(conn) {
+  add(conn, hdmi) {
+    this.bps = hdmi ? HDMI_BPS : FAST_BPS;
     this.conns.add(conn);
     conn.on('close', () => { this.conns.delete(conn); if (!this.conns.size) this.stop(); });
     conn.on('data', d => { if (d && d.byteLength === 1) this.key(); });   // the viewer lost its place: a key frame
@@ -470,7 +471,7 @@ class FastSender {
   start() {
     const A = window.MadarAndroid; if (!A?.hwStart) return;
     window.__madarH264 = (u, ts) => this.frame(u, ts);
-    if (!this.on) { let ok = false; try { ok = A.hwStart(FAST_BPS); } catch {} this.on = ok; }
+    if (!this.on) { let ok = false; try { ok = A.hwStart(this.bps || FAST_BPS); } catch {} this.on = ok; }
     this.needKey = true; this.key();
   }
   key() { try { window.MadarAndroid?.hwKey?.(); } catch {} }
@@ -556,15 +557,28 @@ export class FastReceiver {
     try { this.dec.decode(new EncodedVideoChunk({ type: key ? 'key' : 'delta', timestamp: ts * 1000, data })); }
     catch { this.waitKey = true; this.ask(); }
   }
+  // Wi-Fi delivers pictures in bursts: they wait a moment (~70 ms) and are shown at the pace they were captured,
+  // so the motion is even instead of fast-slow-fast. If the queue grows the clock catches up (never a growing delay).
   show(f) {
+    this.last = performance.now();
+    (this.q ||= []).push(f);
+    if (this.q.length > 5) { this.q.shift().close(); this.base = null; }   // too far behind: drop the oldest, resync
+    if (!this.raf) { const tick = () => { this.raf = requestAnimationFrame(tick); this.paint(); }; this.raf = requestAnimationFrame(tick); }
+  }
+  paint() {
+    const q = this.q; if (!q?.length) return;
+    const now = performance.now(), ts = q[0].timestamp / 1000;
+    if (this.base == null) this.base = now - ts + 70;
+    let f = null;
+    while (q.length && this.base + q[0].timestamp / 1000 <= now) { f?.close(); f = q.shift(); }
+    if (!f) { if (this.base + ts - now > 250) this.base = now - ts; return; }   // the clock drifted: resync
     const w = f.displayWidth, h = f.displayHeight;
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     try { this.ctx.drawImage(f, 0, 0, w, h); } catch {}
     f.close();
-    this.last = performance.now();
     if (!this.started) { this.started = true; this.onFirst?.(this.track); }
   }
-  close() { clearInterval(this.watch); try { this.dec?.close(); } catch {} try { this.conn.close(); } catch {} try { this.track.stop(); } catch {} }
+  close() { clearInterval(this.watch); cancelAnimationFrame(this.raf); (this.q || []).forEach(f => { try { f.close(); } catch {} }); this.q = []; try { this.dec?.close(); } catch {} try { this.conn.close(); } catch {} try { this.track.stop(); } catch {} }
 }
 
 // ---------- Phone side ----------
