@@ -89,7 +89,7 @@ export const COMMANDS = [
   ['captions', 'الفيديو', 'الترجمة النصية الحية', ['الترجمه', 'ترجمه نصيه', 'ترجمه فوريه', 'ترجم الكلام'], (a, x, t) => a.extras?.captions.toggle(/(انجليز)/.test(norm(t)) ? 'en-US' : undefined)],
   ['together', 'الفيديو', 'شاهد معاً مع أهلك', ['شاهد معا', 'مشاهده جماعيه', 'نشاهد سوا'], a => a.together?.toggle()],
   // ---- screens & devices
-  ['hdmi', 'الأجهزة', 'اعرض شاشة التابلت / HDMI', ['hdmi', 'اتش دي ام اي', 'الرسيفر', 'القطعه', 'شاشه التابلت', 'اعرض التابلت'], (a, x, t) => { const d = devByWord(t) || pairedDevices().find(x => x.kind === 'tablet') || pairedDevices()[0]; if (d) a.connectMirror(d.code); else a.launcher?.open(); }],
+  ['hdmi', 'الأجهزة', 'اعرض شاشة التابلت / HDMI', ['hdmi', 'اتش دي ام اي', 'الرسيفر', 'القطعه', 'شاشه التابلت', 'اعرض التابلت'], (a, x, t) => { const d = devByWord(t) || pairedDevices().find(x => x.kind === 'tablet') || pairedDevices()[0]; if (!d) return folder(a, 'screens'); a.hub?.op({ op: 'send', to: 'sys-' + d.code, msg: { type: 'wake', share: true } }); a.toast('📺 يفتح شاشة ' + (d.name || 'التابلت') + '…', 2500); a.connectMirror(d.code); }],
   ['show_device', 'الأجهزة', 'اعرض شاشة جهاز بالاسم', ['اعرض شاشه', 'افتح شاشه', 'شاشه الجهاز'], (a, x, t) => { const d = devByWord(t); if (!d) return a.toast('لم أعرف أي جهاز', 1800); if (d.kind === 'tv') a.showOnDevice(d.code, settings.mirrorCode); else a.connectMirror(d.code); }],
   ['wake', 'الأجهزة', 'أيقظ أجهزتي (تفتح شاشاتها هنا)', ['ايقظ', 'صحي الاجهزه', 'شغل الاجهزه', 'ايقاظ'], a => { a.hub?.op({ op: 'send', to: 'kind:sys', msg: { type: 'wake', share: true } }); a.toast('⏻ أُرسل الإيقاظ', 1800); }],
   ['iphone', 'الأجهزة', 'اعرض شاشة الآيفون', ['شاشه الايفون', 'الايفون', 'ايفوني'], a => a.iphone?.pick()],
