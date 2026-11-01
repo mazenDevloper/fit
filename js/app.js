@@ -44,10 +44,11 @@ import { SmartBar } from './smartbar.js';
 import * as CMD from './commands.js';
 import * as BRAIN from './brain.js';
 import { HeadGestures } from './headgest.js';
+import { MemojiActor } from './memojiactor.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '152';
+export const APP_VERSION = '153';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -135,7 +136,8 @@ class App {
     this.extras = new Extras(this);
     this.remote = new Remote(this);
     this.version = APP_VERSION;
-    this.headGest = new HeadGestures(this);   // nod = نعم, shake = لا on a notification
+    this.headGest = new HeadGestures(this);
+    this.memojiActor = new MemojiActor(this);   // your 3D Memoji beside the welcome card and the answers   // nod = نعم, shake = لا on a notification
     this.smartBar = new SmartBar(this);   // «الشريط الذكي» below your view: select an item, slide left / right
     this.welcome = new Welcome(this);     // «مرحباً»: greeting + date + prayer + match + devices; shared clipboard; prayer pause
     this.together = new Together(this);   // «شاهد معاً»: voices + the same video at the same second (LiveKit)
@@ -1332,6 +1334,7 @@ class App {
   // an answer: on screen (a notification) and aloud
   say(text, q) {
     this.notify({ icon: '✨', title: q ? '«' + q.slice(0, 40) + '»' : 'مدار', body: text });
+    setTimeout(() => this.memojiActor?.show(this.notifier?.mesh, 6000, -1), 50);   // your Memoji says it
     try { const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-SA'; u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {}
     this.extras?.logAnswer?.(q || '', text); this.log('مدار: ' + (q ? q + ' → ' : '') + text);
   }
@@ -1375,6 +1378,7 @@ class App {
     if (settings.viewMode === 'desktop' && settings.eyeTrack) this.gaze.update(this.camVideo, now);
     this.controls.update(dt);
     this.headGest?.update(now);
+    this.memojiActor?.update(now);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
     this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.together?.update(now); this.welcome?.update(now); this.smartBar?.update(now); this.remote?.pollPads(now);

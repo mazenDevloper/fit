@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ميموجي مدار</title>
+<script type="importmap">{ "imports": { "three": "./lib/three/three.module.js", "three/addons/": "./lib/three/addons/" } }</script>
+<style>
+:root{--bg:#ffffff;--fg:#111111;--fg2:#8e8e93;--line:#e5e5ea;--chip:#f2f2f7;--accent:#0a84ff;--sel:#c7c7cc;--card:#f6f6f8;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--fg:#fff;--fg2:#8e8e93;--line:#2c2c2e;--chip:#1c1c1e;--sel:#636366;--card:#141416;color-scheme:dark}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.35 -apple-system,system-ui,"SF Arabic","Geeza Pro",sans-serif;height:100%}
+body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left))}
+.round{width:52px;height:52px;border-radius:50%;border:0;display:grid;place-items:center;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+#x{background:var(--chip);color:var(--fg)}
+#ok{background:var(--accent);color:#fff}
+#stage{height:min(42vh,360px);display:flex;justify-content:center;touch-action:none}
+#stage canvas{width:min(42vh,360px)!important;height:100%!important}
+#tabs{display:flex;gap:26px;overflow-x:auto;padding:6px 20px 12px;border-bottom:1px solid var(--line);scrollbar-width:none;scroll-snap-type:x proximity}
+#tabs::-webkit-scrollbar{display:none}
+#tabs button{flex:none;background:none;border:0;font:600 19px/1 inherit;font-family:inherit;color:var(--fg2);padding:8px 0;cursor:pointer;scroll-snap-align:center}
+#tabs button.on{color:var(--accent)}
+#panel{flex:1;overflow-y:auto;padding:14px 16px 30px}
+.chips{display:flex;gap:10px;justify-content:center;margin-bottom:14px}
+.chips button{border:0;background:none;font:600 17px inherit;font-family:inherit;color:var(--fg2);padding:8px 16px;border-radius:22px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.chips button.on{background:var(--bg);color:var(--fg);box-shadow:0 2px 12px rgba(0,0,0,.12)}
+.chips i{width:18px;height:18px;border-radius:50%;display:inline-block}
+.sw{display:flex;gap:14px;overflow-x:auto;padding:6px 4px 12px;scrollbar-width:none}
+.sw::-webkit-scrollbar{display:none}
+.sw button{flex:none;width:58px;height:58px;border-radius:50%;border:0;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.sw button.on{box-shadow:0 0 0 4px var(--bg),0 0 0 7px var(--sel)}
+.slider{position:relative;height:56px;border-radius:28px;margin:6px 4px 18px}
+.slider input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0}
+.slider .knob{position:absolute;top:2px;width:52px;height:52px;border-radius:50%;border:5px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none;transform:translateX(50%)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.grid button{background:var(--card);border:3px solid transparent;border-radius:22px;aspect-ratio:1;padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;color:var(--fg2);font:600 13px inherit;font-family:inherit}
+.grid button.on{border-color:var(--sel)}
+.grid img{width:92%;height:auto;display:block}
+.grid span{margin-top:-6px;margin-bottom:6px}
+h3{font-size:15px;color:var(--fg2);font-weight:600;margin:18px 4px 10px}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(30,30,32,.92);color:#fff;padding:10px 18px;border-radius:20px;font-weight:600;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast.show{opacity:1}
+@media (min-width:760px){.grid{grid-template-columns:repeat(4,1fr)}#panel{max-width:760px;margin:0 auto;width:100%}}
+</style>
+</head>
+<body>
+<header><button id="x" class="round" aria-label="إلغاء">✕</button><button id="ok" class="round" aria-label="حفظ">✓</button></header>
+<div id="stage" aria-label="معاينة الميموجي — اسحب لتدويره"></div>
+<nav id="tabs"></nav>
+<main id="panel"></main>
+<div id="toast" role="status"></div>
+<script type="module">
+import * as THREE from 'three';
+import * as M from './js/memoji.js';
+
+const O = M.OPTIONS;
+let cfg = M.load().cfg;
+const saved = JSON.stringify(cfg);
+// ---- the live head
+const stage = document.getElementById('stage');
+const R = new THREE.WebGLRenderer({ antialias: true, alpha: true }); R.outputColorSpace = THREE.SRGBColorSpace; R.setPixelRatio(Math.min(2, devicePixelRatio));
+stage.appendChild(R.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50); cam.position.set(0, 0.15, 6.4);
+let F = new M.Floating(cfg); scene.add(F.group);
+const size = () => { const h = stage.clientHeight; R.setSize(h, h, false); cam.aspect = 1; cam.updateProjectionMatrix(); };
+addEventListener('resize', size); size();
+let yaw = 0, drag = null, talkUntil = 0;
+stage.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: yaw }; stage.setPointerCapture(e.pointerId); });
+stage.addEventListener('pointermove', e => { if (drag) yaw = drag.y + (e.clientX - drag.x) * 0.012; });
+stage.addEventListener('pointerup', () => { drag = null; });
+stage.addEventListener('dblclick', () => { talkUntil = performance.now() + 1500; });
+(function loop(now) {
+  if (!drag) yaw *= 0.94;
+  F.update(now, null, now < talkUntil);
+  F.group.rotation.y = yaw + Math.sin(now / 2600) * 0.12;
+  R.render(scene, cam); requestAnimationFrame(loop);
+})(performance.now());
+let rbT; const rebuild = () => { clearTimeout(rbT); rbT = setTimeout(() => F.rebuild({ ...cfg }), 30); };
+
+// ---- the editor
+const TABS = [
+  ['skin', 'البشرة'], ['hair', 'تسريحة الشعر'], ['brows', 'الحواجب'], ['eyes', 'العيون'], ['nose', 'الأنف'], ['mouth', 'الفم'],
+  ['ears', 'الأذنان'], ['facial', 'شعر الوجه'], ['eyewear', 'النظارات'], ['head', 'غطاء الرأس'],
+];
+let tab = 'skin', sub = 'frame';
+const tabs = document.getElementById('tabs'), panel = document.getElementById('panel');
+tabs.innerHTML = TABS.map(([k, n]) => `<button data-k="${k}">${n}</button>`).join('');
+tabs.onclick = e => { const b = e.target.closest('button'); if (!b) return; tab = b.dataset.k; draw(); b.scrollIntoView({ inline: 'center', behavior: 'smooth' }); };
+
+const swatches = (key, list) => `<div class="sw">${list.map(c => `<button data-set="${key}" data-v="${c}" style="background:${c}" class="${cfg[key] === c ? 'on' : ''}" aria-label="${c}"></button>`).join('')}</div>`;
+const slider = (key, from, to, v) => `<div class="slider" style="background:linear-gradient(to left, ${from}, ${to})"><input type="range" min="0" max="1" step="0.01" value="${v}" data-slide="${key}" aria-label="الدرجة"><div class="knob" style="right:calc(${v * 100}% - 26px);background:${M_shade(cfg.skin, v)}"></div></div>`;
+function M_shade(hex, v) { const c = new THREE.Color(hex); c.offsetHSL(0, 0, (v - 0.5) * 0.22); return '#' + c.getHexString(); }
+const grid = (key, opts, val = o => o) => `<div class="grid" data-grid="${key}">${opts.map(([k, n]) => `<button data-set="${key}" data-v="${k}" class="${cfg[key] === val(k) ? 'on' : ''}"><img alt="" data-thumb="${key}:${k}"><span>${n}</span></button>`).join('')}</div>`;
+
+function draw() {
+  [...tabs.children].forEach(b => b.classList.toggle('on', b.dataset.k === tab));
+  let h = '';
+  if (tab === 'skin') h = swatches('skin', O.skinColors) + slider('shade', M_shade(cfg.skin, 0), M_shade(cfg.skin, 1), cfg.shade);
+  if (tab === 'hair') h = swatches('hairColor', O.hairColors) + grid('hair', O.hair);
+  if (tab === 'brows') h = swatches('browColor', O.hairColors) + grid('brows', O.brows);
+  if (tab === 'eyes') h = swatches('eyes', O.eyeColors) + grid('lashes', [[false, 'بدون رموش'], [true, 'رموش']]);
+  if (tab === 'nose') h = grid('nose', O.nose);
+  if (tab === 'mouth') h = grid('mouth', O.mouth);
+  if (tab === 'ears') h = grid('ears', O.ears) + '<h3>الإكسسوارات</h3>' + grid('earring', O.earring);
+  if (tab === 'facial') h = swatches('facialColor', O.hairColors) + grid('facial', O.facial);
+  if (tab === 'eyewear') {
+    h = `<div class="chips"><button data-sub="frame" class="${sub === 'frame' ? 'on' : ''}"><i style="background:${cfg.frame}"></i>الإطار</button><button data-sub="lens" class="${sub === 'lens' ? 'on' : ''}"><i style="background:${cfg.lens}"></i>العدسات</button></div>`;
+    h += sub === 'frame' ? swatches('frame', O.frameColors) : swatches('lens', O.lensColors) + `<div class="slider" style="background:linear-gradient(to left, ${cfg.lens}22, ${cfg.lens})"><input type="range" min="0" max="0.9" step="0.01" value="${cfg.lensOp}" data-slide="lensOp" aria-label="لون العدسات"><div class="knob" style="right:calc(${cfg.lensOp / 0.9 * 100}% - 26px);background:${cfg.lens}"></div></div>`;
+    h += grid('eyewear', O.eyewear);
+  }
+  if (tab === 'head') h = swatches('headColor', O.hatColors) + grid('head', O.head);
+  panel.innerHTML = h;
+  thumbs();
+}
+panel.addEventListener('click', e => {
+  const s = e.target.closest('[data-sub]'); if (s) { sub = s.dataset.sub; draw(); return; }
+  const b = e.target.closest('[data-set]'); if (!b) return;
+  let v = b.dataset.v; if (v === 'true' || v === 'false') v = v === 'true';
+  cfg[b.dataset.set] = v;
+  if (b.dataset.set === 'eyewear' && v !== 'none' && cfg.lensOp === 0 && sub === 'lens') cfg.lensOp = 0.35;
+  rebuild(); draw();
+});
+panel.addEventListener('input', e => { const k = e.target.dataset.slide; if (!k) return; cfg[k] = +e.target.value; rebuild(); const kn = e.target.nextElementSibling; const max = +e.target.max; kn.style.right = `calc(${cfg[k] / max * 100}% - 26px)`; if (k === 'shade') kn.style.background = M_shade(cfg.skin, cfg[k]); });
+
+// ---- option pictures: each option on your own face, drawn one after another
+let thumbJob = 0;
+function thumbs() {
+  const job = ++thumbJob, imgs = [...panel.querySelectorAll('img[data-thumb]')];
+  let i = 0;
+  const next = () => {
+    if (job !== thumbJob || i >= imgs.length) return;
+    const im = imgs[i++], [key, k] = im.dataset.thumb.split(':');
+    let v = k; if (v === 'true' || v === 'false') v = v === 'true';
+    const c = { ...cfg, [key]: v };
+    if (key === 'hair') c.head = 'none';   // the hair shown without the cap over it
+    if (key === 'eyewear' && v !== 'none') c.lensOp = Math.max(c.lensOp, 0.25);
+    im.src = M.snapshot(c, 220);
+    setTimeout(next, 0);
+  };
+  next();
+}
+
+// ---- done / cancel
+const toast = t => { const el = document.getElementById('toast'); el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 1800); };
+document.getElementById('ok').onclick = () => {
+  M.save(cfg, M.snapshot(cfg, 512));
+  try { window.parent?.postMessage({ type: 'madar-memoji', cfg }, '*'); } catch {}
+  toast('✓ حُفظ الميموجي — يظهر في مدار');
+  setTimeout(() => { if (history.length > 1 && document.referrer) history.back(); }, 900);
+};
+document.getElementById('x').onclick = () => { cfg = JSON.parse(saved); rebuild(); draw(); toast('أُلغيت التغييرات'); setTimeout(() => { if (history.length > 1 && document.referrer) history.back(); }, 700); };
+draw();
+</script>
+</body>
+</html>

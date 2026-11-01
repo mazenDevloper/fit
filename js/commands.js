@@ -196,6 +196,8 @@ export const COMMANDS = [
   // ---- vision & draw
   ['look', 'الذكاء', 'ما هذا الذي أمامي؟ (يرى بالكاميرا)', ['ما هذا', 'شو هذا', 'ماذا امامي', 'اقرا هذا', 'ترجم هذا'], (a, x, t) => a.extras?.lookAndAsk(t)],
   ['ask_window', 'الذكاء', 'اسأل عن النافذة التي تنظر إليها («من هذا اللاعب؟»، «ماذا يحدث في هذا الفيديو؟»)', ['اسال عن النافذه', 'عن هذا الفيديو', 'عن هذي النافذه'], (a, x, t) => a.extras?.askWindow(t)],
+  ['memoji_edit', 'الأدوات', 'صمّم الميموجي (وجهك ثلاثي الأبعاد: البشرة، الشعر، اللحية، النظارات، الكمة والمصر…)', ['الميموجي', 'ميموجي', 'صمم الميموجي', 'عدل الميموجي', 'شكلي', 'افاتار'], a => a.windows.open({ kind: 'web', url: new URL('memoji.html', location.href).href, title: 'ميموجي', direct: true })],
+  ['memoji_show', 'الأدوات', 'اعرض الميموجي أمامك', ['اعرض الميموجي', 'وريني الميموجي'], a => { const w = a.controls?.pointedWindow?.() || a.windows.windows.at(-1); a.memojiActor?.show(w?.panel?.mesh || w?.content || a.welcome?.card || a.notifier?.mesh, 15000); }],
   ['draw', 'الذكاء', 'الرسم في الهواء', ['ارسم', 'الرسم'], a => a.extras?.sketch.toggle()],
   ['orb', 'الذكاء', 'كرة المساعد العائمة', ['كره المساعد', 'المساعد العائم'], a => { const on = !settings.orb; saveSettings({ orb: on }); a.extras?.orb.show(on); }],
   // ---- settings
