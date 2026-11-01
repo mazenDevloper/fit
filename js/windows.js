@@ -1,7 +1,7 @@
 // Spatial windows (video, image, web, info panels) and 3D model volumes, plus the manager that places and saves them.
 import * as THREE from 'three';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, TEXT_SCALE, canvasTexture, blip, audioContext } from './ui.js';
+import { CanvasPanel, panelGlass, IconButton, makeBar, glass, text, icon, roundRect, roundedRectGeometry, radialTexture, COLORS, FONT, TEXT_SCALE, canvasTexture, blip, audioContext } from './ui.js';
 import { material, label as vLabel, glassNumerals } from './vos.js';
 import { loadModelFromFiles, loadModelFromUrl, normalize } from './models.js';
 import { getItem, importFiles } from './db.js';
@@ -236,7 +236,7 @@ class SpatialWindow {
     this.content = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.mat);
     this.content.userData.interact = { type: 'surface', window: this, click: hit => { const hidden = (this.chromeA ?? 1) < 0.5; this.seenAt = performance.now(); return hidden && this.video ? true : this.onContentClick(hit); }, hover: () => true };   // a pinch on the picture first brings the controls back
     this.group.add(this.content);
-    this.frame = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x7c818e, transparent: true, opacity: 0.4, depthWrite: false }));
+    this.frame = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ map: frameGlass(), transparent: true, depthWrite: false, toneMapped: false }));
     this.frame.position.z = -0.006;
     // The frame margin around the content is a grab handle too.
     this.frame.userData.interact = { type: 'drag', window: this, hover: () => true };
@@ -570,7 +570,7 @@ class SpatialWindow {
     if (this.volPop?.mesh.parent) { this.group.remove(this.volPop.mesh); this.mgr.refreshTargets?.(); return; }
     if (this.vol == null) this.vol = 1;
     if (!this.volPop) this.volPop = new CanvasPanel(0.62, 0.1, (ctx, W, H, p) => {
-      glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2); ctx.fillStyle = 'rgba(14,18,28,0.55)'; roundRect(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2); ctx.fill();
+      panelGlass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
       const muted = this.isMuted(), v = muted ? 0 : (this.vol ?? 1), b = H * 0.8;
       const btn = (id, ic, cx, act) => { const hv = p.isHover(id); ctx.beginPath(); ctx.arc(cx, H / 2, b / 2, 0, 7); ctx.fillStyle = hv ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'; ctx.fill(); icon(ctx, ic, cx, H / 2, b * 0.55); p.region(cx - b / 2, 0, b, H, () => { blip('tap', settings.sounds); act(); this.pokeVolume(); }, id); };
       btn('mu', muted ? 'mute' : 'sound', H * 0.6, () => this.setVolume(this.vol || 0.6, !muted));
@@ -1191,6 +1191,16 @@ function hasAlpha(c) {
   } catch { return false; }
 }
 
+// The window's glass frame (around the picture): one Liquid Glass texture drawn once and shared by every window -
+// the lit rim and the corner shine show in the margin, nothing is redrawn per frame
+let FRAME_TEX = null;
+function frameGlass() {
+  if (FRAME_TEX) return FRAME_TEX;
+  const { ctx, texture } = canvasTexture(512, 320);
+  material(ctx, 0, 0, 512, 320, 40, { tint: ['rgba(150,154,170,0.55)', 'rgba(100,104,122,0.48)'] });
+  texture.needsUpdate = true; FRAME_TEX = texture; return texture;
+}
+
 // Info panels drawn on canvas: welcome, gesture guide, clock.
 export class PanelWindow extends SpatialWindow {
   constructor(mgr, { panel }) {
@@ -1257,10 +1267,7 @@ export class PanelWindow extends SpatialWindow {
       glassNumerals(ctx, now.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), W / 2, H * 0.6, H * 0.56, { tall: 1.55 });
       texture.needsUpdate = true; return;
     }
-    const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, 'rgba(96,100,114,0.92)'); g.addColorStop(1, 'rgba(78,82,96,0.92)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, 0, W, H * 0.02);
+    panelGlass(ctx, 0, 0, W, H, H * 0.06);   // the window's own corners round it; Liquid Glass inside
     if (k === 'matches') { drawMatches(ctx, W, H, this.mgr.app.sports); this.drawnV = this.mgr.app.sports?.version; texture.needsUpdate = true; return; }
     if (k === 'scoreboard') { drawBoard(ctx, W, H, this.mgr.app.sports); this.drawnV = this.mgr.app.sports?.version; this.drawnAt = performance.now(); texture.needsUpdate = true; return; }
     if (k === 'store') { this.drawStore(ctx, W, H); texture.needsUpdate = true; return; }

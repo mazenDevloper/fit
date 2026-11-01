@@ -4,7 +4,7 @@
 // immersion) + widgets you place in the room (weather, timer, sticky note, photo frame, now playing, verse of the
 // day, scenes, assistant history, usage) + the thermal guard (ten measures that keep the iPhone cool).
 import * as THREE from 'three';
-import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
+import { CanvasPanel, panelGlass, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
 import { SYS, SF, widgetBg, label, glassNumerals, clockFace, ring } from './vos.js';
 import { settings, saveSettings, loadLayout, pairedDevices } from './config.js';
 import { registerKind, spatialize } from './windows.js';
@@ -387,7 +387,7 @@ class PalmUI {
       p.region(0, 0, W, H, () => this.act('home'), 'h');
     }, { pxPerM: 1400 });
     this.status = new CanvasPanel(0.26, 0.075, (ctx, W, H, p) => {
-      roundRect(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2); ctx.fillStyle = p.isHover('s') ? 'rgba(80,90,120,0.95)' : 'rgba(30,34,46,0.88)'; ctx.fill();
+      panelGlass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2, p.isHover('s'));
       const d = new Date(), b = this.app.control?.battery;
       text(ctx, `${d.getHours() % 12 || 12}:${p2(d.getMinutes())}` + (b ? '   🔋' + Math.round(b.level * 100) + '%' : '') + '   ⌃', W / 2, H / 2 + 1, H * 0.38, { weight: 800, dir: 'ltr' });
       p.region(0, 0, W, H, () => this.act('cc'), 's');
@@ -436,7 +436,7 @@ class Captions {
     this.ex = ex; this.app = ex.app; this.on = false; this.lines = []; this.interim = '';
     this.panel = new CanvasPanel(0.95, 0.15, (ctx, W, H) => {
       if (!this.on) return;
-      roundRect(ctx, 0, 0, W, H, 26); ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fill();
+      panelGlass(ctx, 0, 0, W, H, 26);
       const all = [...this.lines.slice(-2), ...(this.interim ? [{ t: this.interim, dim: true }] : [])].slice(-2);
       if (!all.length) text(ctx, '🎧 أستمع… (' + (settings.capLang === 'en-US' ? 'English → عربي' : 'عربي') + ')', W / 2, H / 2, H * 0.24, { color: COLORS.dim });
       all.forEach((l, i) => text(ctx, l.t, W / 2, H * (all.length === 1 ? 0.5 : 0.3 + i * 0.42), H * 0.25, { weight: 700, color: l.dim ? '#c9cfdb' : '#fff', maxWidth: W - 40, fit: true, dir: 'auto' }));

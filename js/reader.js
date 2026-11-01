@@ -7,7 +7,7 @@
 // The line under your gaze (or finger) is softly highlighted; pinch the page and swipe to turn it.
 import * as THREE from 'three';
 import { setElementVolume } from './windows.js';
-import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
+import { CanvasPanel, panelGlass, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
 import * as Q from './quran.js';
 import { openBook, BOOK_KINDS } from './books.js';
@@ -701,7 +701,7 @@ export class ReaderWindow {
     this.side[side].redraw();
   }
   drawTafsir(side, ctx, W, H, p) {
-    roundRect(ctx, 0, 0, W, H, 40); ctx.fillStyle = settings.readerNight ? 'rgba(10,14,24,0.9)' : 'rgba(18,24,34,0.86)'; ctx.fill();
+    panelGlass(ctx, 0, 0, W, H, 40);
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(214,180,110,0.55)'; ctx.stroke();
     const T = Q.TAFSIRS.find(t => t.id === this.tafsir[side]) || Q.TAFSIRS[0];
     // title chip: tap to choose another book
@@ -766,7 +766,7 @@ export class ReaderWindow {
   }
   // ---- controls
   drawCtrl(ctx, W, H, p) {
-    roundRect(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2); ctx.fillStyle = 'rgba(14,18,28,0.82)'; ctx.fill();
+    panelGlass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
     glass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2);
     if (!this.book) { text(ctx, 'جاري فتح الكتاب…', W / 2, H / 2, H * 0.32, { weight: 700 }); return; }
     const playing = this.book.quran ? (this.recite.playing || this.recite.state === 'wait') : this.speaker?.playing;
@@ -838,7 +838,7 @@ export class ReaderWindow {
   closeMenu() { this.menuOpen = null; this.group.remove(this.menu.mesh); this.mgr.refreshTargets?.(); this.ctrl.redraw(); }
   drawMenu(ctx, W, H, p) {
     const kind = this.menuOpen; if (!kind) return;
-    roundRect(ctx, 0, 0, W, H, 44); ctx.fillStyle = 'rgba(12,16,26,0.94)'; ctx.fill(); glass(ctx, 0, 0, W, H, 44);
+    panelGlass(ctx, 0, 0, W, H, 44);
     const close = () => { const hv = p.isHover('x'); ctx.beginPath(); ctx.arc(64, 56, 32, 0, 7); ctx.fillStyle = hv ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.08)'; ctx.fill(); icon(ctx, 'close', 64, 56, 28); p.region(24, 16, 80, 80, () => { blip('close', settings.sounds); this.closeMenu(); }, 'x'); };
     const grid = (items, cols, rows, onPick, isOn, title, sub) => {
       text(ctx, title, W - 50, 58, 38, { align: 'right', weight: 800 });

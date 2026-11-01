@@ -5,7 +5,7 @@
 // or with the coach's rhythm. Air boxing, eye & neck exercises and the treadmill are in train.js.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { CanvasPanel, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
+import { CanvasPanel, panelGlass, IconButton, makeBar, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings, deviceIdentity } from './config.js';
 import { FRONT, BACK } from './musclemap.js';
 import { PoseCam, CAM } from './posecam.js';
@@ -650,7 +650,7 @@ export class CoachWindow {
   tip(t) { if (performance.now() - (this.tipAt || 0) < 5000) return; this.tipAt = performance.now(); this.tipText = t; say(t, { cut: false }); }
   // ---- drawing
   drawMain(ctx, W, H, p) {
-    roundRect(ctx, 0, 0, W, H, 50); ctx.fillStyle = 'rgba(12,16,26,0.86)'; ctx.fill(); glass(ctx, 0, 0, W, H, 50);
+    panelGlass(ctx, 0, 0, W, H, 50);
     // modes
     const mw = (W - 60) / MODES.length;
     MODES.forEach(([k, l, ic], i) => {
@@ -695,7 +695,7 @@ export class CoachWindow {
     });
   }
   drawMap(ctx, W, H, p) {
-    roundRect(ctx, 0, 0, W, H, 50); ctx.fillStyle = 'rgba(12,16,26,0.82)'; ctx.fill(); glass(ctx, 0, 0, W, H, 50);
+    panelGlass(ctx, 0, 0, W, H, 50);
     text(ctx, 'العضلات العاملة', W / 2, 108, 26, { weight: 800 });
     // «الرسم التشريحي»: the detailed anatomical drawing (Wikimedia Commons, CC BY-SA 3.0) instead of the tap map
     { const hv = p.isHover('ana'); roundRect(ctx, 24, 24, 200, 54, 27); ctx.fillStyle = this.anatomy ? 'rgba(255,150,80,0.9)' : hv ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'; ctx.fill();
@@ -729,7 +729,7 @@ export class CoachWindow {
   }
   openMenu() { if (this.menu.mesh.parent) { this.group.remove(this.menu.mesh); if (this.pickMuscle) { this.pickMuscle = null; this.map.redraw(); } } else { this.group.add(this.menu.mesh); this.menu.redraw(); } this.mgr.refreshTargets?.(); }
   drawMenu(ctx, W, H, p) {
-    roundRect(ctx, 0, 0, W, H, 46); ctx.fillStyle = 'rgba(12,16,26,0.95)'; ctx.fill(); glass(ctx, 0, 0, W, H, 46);
+    panelGlass(ctx, 0, 0, W, H, 46);
     const pm = this.pickMuscle;
     text(ctx, pm ? 'تمارين ' + MUSCLE_AR[pm] : 'اختر تمريناً', W - 50, 60, 38, { align: 'right', weight: 800 });
     text(ctx, pm ? 'الأساسية أولاً · اضغط «الكل» لكل التمارين' : settings.hasBand !== false ? 'وزن الجسم والحبل المطاطي' : 'وزن الجسم', W - 50, 104, 24, { align: 'right', color: COLORS.dim });

@@ -1,7 +1,7 @@
 // visionOS 27-style system pieces: the three-panel Control Center (opened by looking up at the chevron,
 // from the launcher or by voice) and notifications that grow when you look at them.
 import * as THREE from 'three';
-import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
+import { CanvasPanel, panelGlass, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
 import { ENVS, ENV_ORDER, envKey } from './envs.js';
 
@@ -63,7 +63,7 @@ export class ControlCenter {
     if (now - (this.tick || 0) > 1000) { this.tick = now; this.status.redraw(); }   // the clock and countdowns
   }
   frame(ctx, W, H, title) {
-    roundRect(ctx, 0, 0, W, H, 56); ctx.fillStyle = 'rgba(14,16,24,0.6)'; ctx.fill();
+    panelGlass(ctx, 0, 0, W, H, 56);
     glass(ctx, 0, 0, W, H, 56);
     text(ctx, title, W - 46, 58, 32, { align: 'right', weight: 800, color: COLORS.dim });
   }
@@ -140,7 +140,7 @@ export class LookUp {
     this.app = app;
     this.panel = new CanvasPanel(0.11, 0.07, (ctx, W, H, p) => {
       const hov = p.isHover('cc');
-      roundRect(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2); ctx.fillStyle = hov ? 'rgba(255,255,255,0.55)' : 'rgba(30,34,46,0.6)'; ctx.fill();
+      panelGlass(ctx, 2, 2, W - 4, H - 4, (H - 4) / 2, hov);
       ctx.strokeStyle = '#fff'; ctx.lineWidth = H * 0.09; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(W * 0.32, H * 0.62); ctx.lineTo(W / 2, H * 0.38); ctx.lineTo(W * 0.68, H * 0.62); ctx.stroke();
       p.region(0, 0, W, H, () => { blip('tap', settings.sounds); this.app.control.open(); this.mesh.visible = false; }, 'cc');

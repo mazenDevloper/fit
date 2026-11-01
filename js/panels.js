@@ -1,6 +1,6 @@
 // System panels: the Launcher (home), in-headset calibration, and head-locked toasts.
 import * as THREE from 'three';
-import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip, canvasTexture } from './ui.js';
+import { CanvasPanel, panelGlass, glass, text, icon, roundRect, COLORS, blip, canvasTexture } from './ui.js';
 import { appIcon, floatLabel, material, OS_NAME } from './vos.js';
 import { slotNow } from './plus.js';
 import { settings, saveSettings, VIEWER_PRESETS, applyPreset, pairedDevices, KIND_LABEL } from './config.js';
@@ -80,7 +80,7 @@ export class Launcher {
   turnPage(d) { const n = this.pages || 1; if (n < 2) return false; this.page = (this.page + d + n) % n; blip('tap', settings.sounds); this.panel.redraw(); return true; }
 
   draw(ctx, W, H, p) {
-    if (!this.vision) { roundRect(ctx, 0, 0, W, H, 70); ctx.fillStyle = 'rgba(14,16,24,0.55)'; ctx.fill(); glass(ctx, 0, 0, W, H, 70); }
+    if (!this.vision) panelGlass(ctx, 0, 0, W, H, 70);
     if (this.vision) {
       // the visionOS tab bar: a small glass pill on the left with one icon per tab
       const TI = { apps: 'grid', devices: 'video', library: 'stack', links: 'globe', settings: 'sliders' };
@@ -470,8 +470,7 @@ export class Calibration {
   }
   close() { this.group.visible = false; }
   draw(ctx, W, H, p) {
-    roundRect(ctx, 0, 0, W, H, 60); ctx.fillStyle = 'rgba(14,16,24,0.55)'; ctx.fill();
-    glass(ctx, 0, 0, W, H, 60);
+    panelGlass(ctx, 0, 0, W, H, 60);
     text(ctx, 'معايرة النظارة', W - 60, 72, 50, { align: 'right', weight: 750 });
     text(ctx, 'عدّل حتى تبدو الشبكة خلف اللوحة مستقيمة وواضحة بعين واحدة وبالعينين', W - 60, 124, 25, { align: 'right', color: COLORS.dim });
     // Preset button

@@ -44,6 +44,11 @@ export function roundRect(ctx, x, y, w, h, r) {
 
 // visionOS 27 glass (vos.js): translucent grey, lit top edge and rim
 export function glass(ctx, x, y, w, h, r, hi = false) { material(ctx, x, y, w, h, r, { hi }); }
+// a panel that carries text (menus, settings, coach, reader bars): the same glossy Liquid Glass, a deeper tint so text
+// stays readable over a bright room
+export function panelGlass(ctx, x, y, w, h, r, hi = false) {
+  material(ctx, x, y, w, h, r, { tint: hi ? ['rgba(120,124,146,0.82)', 'rgba(70,74,92,0.78)'] : ['rgba(78,82,100,0.74)', 'rgba(36,38,50,0.70)'] });
+}
 
 export const TEXT_SCALE = 1.22;   // all spatial UI text larger (it was hard to read in the headset)
 export function text(ctx, str, x, y, size, opts = {}) {

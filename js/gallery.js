@@ -10,7 +10,7 @@
 import { FURNITURE, FURN_COLORS } from './furniture.js';
 import * as THREE from 'three';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { CanvasPanel, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
+import { CanvasPanel, panelGlass, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
 import { ENVS } from './envs.js';
 import { listItems, getItem } from './db.js';
@@ -147,8 +147,7 @@ export class Gallery {
 
   // ---- drawing
   draw(ctx, W, H, p) {
-    roundRect(ctx, 0, 0, W, H, 60); ctx.fillStyle = 'rgba(14,16,24,0.86)'; ctx.fill();
-    glass(ctx, 0, 0, W, H, 60);
+    panelGlass(ctx, 0, 0, W, H, 60);
     // close
     const hc = p.isHover('x'); ctx.beginPath(); ctx.arc(76, 66, 34, 0, 7); ctx.fillStyle = hc ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.08)'; ctx.fill();
     icon(ctx, 'close', 76, 66, 30); p.region(36, 26, 80, 80, () => { blip('close', settings.sounds); this.close(); }, 'x');
