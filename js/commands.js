@@ -4,6 +4,7 @@
 // the assistant on the server WITH this whole list and what is on screen now, and it answers with the commands to run.
 import { settings, saveSettings, pairedDevices } from './config.js';
 import { ENVS, ENV_ORDER, envKey } from './envs.js';
+import { RECITERS } from './quran.js';
 
 // ---------------------------------------------------------------- Arabic, the way people speak it
 export function norm(s) {
@@ -142,7 +143,7 @@ export const COMMANDS = [
   ['goals_all', 'الرياضة', 'أهداف كل المباريات أو فرقي فقط', ['كل الاهداف', 'اهداف فرقي'], a => tog(a, 'allGoals', 'أهداف كل المباريات', !settings.allGoals)],
   // ---- quran & reading
   ['quran', 'القرآن', 'المصحف', ['المصحف', 'القران'], a => a.openReader('quran')],
-  ['surah', 'القرآن', 'سورة بالاسم (وتبدأ التلاوة لو قلت اقرأ / شغّل / اسمع)', ['سوره', 'اقرا سوره', 'شغل سوره', 'افتح سوره', 'اسمع سوره'], (a, x, t) => { a.openSurah(x); if (/(اقرا|شغل|اسمع|رتل|تلاوه)/.test(norm(t))) setTimeout(() => { const r = READER(a); if (r && !r.recite?.playing) r.togglePlay?.(); }, 2500); }],
+  ['surah', 'القرآن', 'سورة بالاسم، وبصوت القارئ الذي تسمّيه («سورة الكوثر بصوت ياسر الدوسري»)', ['سوره', 'اقرا سوره', 'شغل سوره', 'افتح سوره', 'اسمع سوره'], (a, x, t) => { a.openSurah(x); const n = norm(t), rec = RECITERS.find(r => n.includes(norm(r.name)) || norm(r.name).split(' ').some(w => w.length > 3 && (' ' + n + ' ').includes(' ' + w + ' '))); if (rec || /(اقرا|شغل|اسمع|رتل|تلاوه|بصوت|بقراءه)/.test(n)) setTimeout(() => { const r = READER(a); if (!r?.recite) return; if (rec) r.recite.setReciter(rec.id); if (!r.recite.playing) r.togglePlay(); }, 2500); }],
   ['kursi', 'القرآن', 'آية الكرسي', ['ايه الكرسي'], a => { a.openReader('quran'); setTimeout(() => READER(a)?.goToKey?.('2:255'), 1200); }],
   ['recite', 'القرآن', 'شغّل / أوقف التلاوة', ['اقرا', 'التلاوه', 'رتل', 'شغل التلاوه', 'اوقف التلاوه', 'وقف التلاوه'], a => READER(a)?.togglePlay?.()],
   ['page_next', 'القرآن', 'الصفحة التالية', ['الصفحه التاليه', 'التاليه', 'اقلب الصفحه', 'قلب الصفحه', 'الصفحه الجايه'], a => READER(a)?.next?.()],
@@ -237,8 +238,8 @@ export const byId = id => LIST.find(c => c.id === id);
 // the best command for these words: a known phrase inside the sentence wins (the longest one); else most shared words
 const WEAK = new Set(['play', 'pause', 'home', 'search_none']);
 // «وافتح» «فالساعه» «الساعه/ساعه» «للتلفاز»: the same word
-const stemW = w => w.replace(/^[وف](?=\S{3,})/, '').replace(/^(ال|لل)(?=\S{2,})/, '');
-const stem = s => s.split(' ').map(stemW).join(' ');
+export const stemW = w => w.replace(/^[وف](?=\S{3,})/, '').replace(/^(ال|لل)(?=\S{2,})/, '');
+export const stem = s => s.split(' ').map(stemW).join(' ');
 export function match(text) {
   const t = norm(text), words = new Set(t.split(' '));
   // the stemmed sentence, and where each stemmed word starts in the original

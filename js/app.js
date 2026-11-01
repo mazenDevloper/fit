@@ -42,10 +42,11 @@ import { Together } from './together.js';
 import { Welcome } from './welcome.js';
 import { SmartBar } from './smartbar.js';
 import * as CMD from './commands.js';
+import * as BRAIN from './brain.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '146';
+export const APP_VERSION = '147';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -132,6 +133,7 @@ class App {
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.extras = new Extras(this);
     this.remote = new Remote(this);
+    this.version = APP_VERSION;
     this.smartBar = new SmartBar(this);   // «الشريط الذكي» below your view: select an item, slide left / right
     this.welcome = new Welcome(this);     // «مرحباً»: greeting + date + prayer + match + devices; shared clipboard; prayer pause
     this.together = new Together(this);   // «شاهد معاً»: voices + the same video at the same second (LiveKit)
@@ -486,7 +488,7 @@ class App {
     this.notify({ icon: '✨', title: 'مساعد مدار', body: '«' + q + '» …' });
     let r;
     try {
-      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar', device: this.hub?.me?.id, context: this.hub?.context() || '', commands: CMD.catalog(), screen: CMD.context(this) }) });
+      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar', device: this.hub?.me?.id, context: BRAIN.facts(this).join('\n') + '\nآخر ما شوهد:\n' + (this.hub?.context() || ''), commands: CMD.catalog(), screen: BRAIN.facts(this).join('\n') }) });
       r = await res.json();
     } catch (e) { this.toast('المساعد غير متاح الآن', 2500); return; }
     if (!r || (!r.say && !(r.done || []).length && !(r.madar || []).length)) { this.toast('لم أفهم: «' + q + '»', 2500); return; }
@@ -1250,7 +1252,10 @@ class App {
     t = t.trim(); if (!t) return;
     const n = CMD.norm(t);
     if (/(التلفاز|التلفزيون|الشاشه الكبيره|الصاله|السياره|الهاتف|الجوال|اهل البيت|كل الاجهزه)/.test(n) && !/(فوق|على) التلفاز|شاشه التابلت|وضع السفر/.test(n)) return this.askAssistant(t);
-    const question = /^(متي|كم|من |هل|ماذا|ليش|لماذا|كيف|اين|وين|شو |ايش|ما هي|ما هو|يا مساعد)/.test(n);
+    // a question about Madar itself (what is open, the score, the next prayer, the timer, how do I…): answered here at once
+    const ans = BRAIN.answer(this, t);
+    if (ans) { this.say(ans, t); return; }
+    const question = BRAIN.isQuestion(t);
     const steps = CMD.plan(t);
     // a question runs here only when it clearly names a command («ماذا تستطيع»، «ما هذا»)
     if (steps && (!question || (steps.length === 1 && (['help', 'look'].includes(steps[0].cmd.id) || steps[0].cmd.says.some(s => s.length >= 6 && n.includes(s)))))) {
@@ -1259,6 +1264,12 @@ class App {
       return;
     }
     this.askAssistant(t);
+  }
+  // an answer: on screen (a notification) and aloud
+  say(text, q) {
+    this.notify({ icon: '✨', title: q ? '«' + q.slice(0, 40) + '»' : 'مدار', body: text });
+    try { const u = new SpeechSynthesisUtterance(text); u.lang = 'ar-SA'; u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {}
+    this.extras?.logAnswer?.(q || '', text); this.log('مدار: ' + (q ? q + ' → ' : '') + text);
   }
   showCommands() { this.windows.open({ kind: 'web', url: new URL('commands.html', location.href).href, title: 'ماذا أقول لمدار' }); }
 
