@@ -516,14 +516,17 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
             });
             uvc.start(); }); }
         // the smooth path (hardware H.264 to the headset): pieces arrive in the page as "MDR"+5 (flag byte + Annex B)
-        @JavascriptInterface public boolean hwStart(int bps) {
+        @JavascriptInterface public boolean hwStart(int bps) { return hwStartCodec(bps, false); }
+        /** H.265 when every viewer can decode it (half the bits: smoother on Wi-Fi); H.264 otherwise / if the tablet has none */
+        @JavascriptInterface public boolean hevcEncoder() { return HwEncoder.hardware(android.media.MediaFormat.MIMETYPE_VIDEO_HEVC); }
+        @JavascriptInterface public boolean hwStartCodec(int bps, boolean hevc) {
             if (!binary()) return false;
             HwEncoder.Sink sink = (d, len, key, ts) -> {
                 byte[] m = new byte[len + 1]; m[0] = (byte) (key ? 1 : 0); System.arraycopy(d, 0, m, 1, len);
                 postBytes(5, m, m.length, ts);
             };
-            if (uvc != null && uvc.running) return uvc.startHw(bps, sink);
-            return CaptureService.startHw(bps, sink);
+            if (uvc != null && uvc.running) return uvc.startHw(bps, sink, hevc);
+            return CaptureService.startHw(bps, sink, hevc);
         }
         @JavascriptInterface public void hwStop() { if (uvc != null) uvc.stopHw(); CaptureService.stopHw(); }
         @JavascriptInterface public void hwKey() { if (uvc != null) uvc.hwKey(); CaptureService.hwKey(); }

@@ -29,12 +29,13 @@ final class UvcSource {
     volatile long minFrameMs = 33;
     // the smooth path: the card's picture drawn into the hardware H.264 encoder's surface (no JPEG to the page)
     private HwEncoder enc;
-    boolean startHw(int bps, HwEncoder.Sink sink) {
+    boolean startHw(int bps, HwEncoder.Sink sink) { return startHw(bps, sink, false); }
+    boolean startHw(int bps, HwEncoder.Sink sink, boolean hevc) {
         stopHw();
         ICameraHelper h = helper; if (h == null || !running) return false;
         try {
             Size sz = h.getPreviewSize(); if (sz == null) return false;
-            enc = new HwEncoder(sz.width, sz.height, Math.max(24, sz.fps > 0 ? sz.fps : 30), bps, sink);
+            enc = new HwEncoder(sz.width, sz.height, Math.max(24, sz.fps > 0 ? sz.fps : 30), bps, sink, hevc);
             h.addSurface(enc.surface(), false);
             return true;
         } catch (Exception e) { if (enc != null) enc.stop(); enc = null; return false; }

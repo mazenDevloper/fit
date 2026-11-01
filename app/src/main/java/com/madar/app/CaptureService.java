@@ -60,13 +60,14 @@ public class CaptureService extends Service {
     private FramePump pump;
     // the smooth path: the capture goes straight into the hardware H.264 encoder (no JPEG pictures)
     private HwEncoder enc;
-    static boolean startHw(int bps, HwEncoder.Sink sink) { CaptureService s = self; if (s == null || s.handler == null) return false; s.handler.post(() -> s.hwOn(bps, sink)); return true; }
+    static boolean startHw(int bps, HwEncoder.Sink sink) { return startHw(bps, sink, false); }
+    static boolean startHw(int bps, HwEncoder.Sink sink, boolean hevc) { CaptureService s = self; if (s == null || s.handler == null) return false; s.handler.post(() -> s.hwOn(bps, sink, hevc)); return true; }
     static void stopHw() { CaptureService s = self; if (s != null && s.handler != null) s.handler.post(s::hwOff); }
     static void hwKey() { CaptureService s = self; HwEncoder e = s == null ? null : s.enc; if (e != null) e.requestKey(); }
-    private void hwOn(int bps, HwEncoder.Sink sink) {
+    private void hwOn(int bps, HwEncoder.Sink sink, boolean hevc) {
         hwOff();
         if (!running || display == null) return;
-        try { enc = new HwEncoder(width, height, Math.max(24, fps), bps, sink); display.setSurface(enc.surface()); }
+        try { enc = new HwEncoder(width, height, Math.max(24, fps), bps, sink, hevc); display.setSurface(enc.surface()); }
         catch (Exception e) { if (enc != null) enc.stop(); enc = null; try { display.setSurface(reader.getSurface()); } catch (Exception ignored) { } }
     }
     private void hwOff() {
@@ -76,7 +77,7 @@ public class CaptureService extends Service {
         e.stop();
     }
     /** after a resize: an encoder in use is rebuilt at the new size */
-    private void hwAgain() { HwEncoder e = enc; if (e == null) return; HwEncoder.Sink sk = e.sink; int br = e.bitrate; enc = null; e.stop(); hwOn(br, sk); }
+    private void hwAgain() { HwEncoder e = enc; if (e == null) return; HwEncoder.Sink sk = e.sink; int br = e.hevc ? e.bitrate * 10 / 6 : e.bitrate; boolean hv = e.hevc; enc = null; e.stop(); hwOn(br, sk, hv); }
 
     @Override public IBinder onBind(Intent i) { return null; }
 

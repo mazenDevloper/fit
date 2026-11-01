@@ -21,6 +21,8 @@ final class HwEncoder {
     interface Sink { void onNal(byte[] data, int len, boolean key, long ptsMs); }
 
     final Sink sink; final int width, height, bitrate;
+    /** H.265 (HEVC): about half the bits of H.264 for the same picture - asked for when every viewer can decode it */
+    final boolean hevc;
     private final MediaCodec codec;
     private final Surface input;
     private final HandlerThread thread;
@@ -28,17 +30,34 @@ final class HwEncoder {
     private volatile boolean running = true;
     private final long t0 = System.nanoTime();
 
-    HwEncoder(int w, int h, int fps, int bps, Sink s) throws Exception {
-        sink = s; bitrate = bps;
+    HwEncoder(int w, int h, int fps, int bps, Sink s) throws Exception { this(w, h, fps, bps, s, false); }
+
+    HwEncoder(int w, int h, int fps, int bps, Sink s, boolean wantHevc) throws Exception {
+        sink = s;
         width = Math.max(16, w & ~1); height = Math.max(16, h & ~1);
-        thread = new HandlerThread("madar-h264", android.os.Process.THREAD_PRIORITY_DISPLAY); thread.start();
-        MediaCodec c = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-        try { c.configure(format(width, height, fps, bps, true), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); }
-        catch (Exception first) {
-            // some encoders refuse the profile / latency keys, or sizes that are not multiples of 16
-            c.release(); c = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-            c.configure(format(width & ~15, height & ~15, fps, bps, false), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+        thread = new HandlerThread("madar-h26x", android.os.Process.THREAD_PRIORITY_DISPLAY); thread.start();
+        MediaCodec c = null;
+        boolean hv = false;
+        // H.265 only on a hardware encoder (a software one is too slow for a live screen); anything wrong → H.264
+        if (wantHevc && hardware(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
+            int hb = Math.max(1_500_000, bps * 6 / 10);   // ~60 % of the H.264 rate looks the same
+            try {
+                c = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_HEVC);
+                try { c.configure(format(MediaFormat.MIMETYPE_VIDEO_HEVC, width, height, fps, hb, true), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); }
+                catch (Exception first) { c.release(); c = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_HEVC); c.configure(format(MediaFormat.MIMETYPE_VIDEO_HEVC, width & ~15, height & ~15, fps, hb, false), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); }
+                hv = true; bps = hb;
+            } catch (Exception e) { if (c != null) try { c.release(); } catch (Exception ignored) { } c = null; }
         }
+        if (c == null) {
+            c = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+            try { c.configure(format(MediaFormat.MIMETYPE_VIDEO_AVC, width, height, fps, bps, true), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); }
+            catch (Exception first) {
+                // some encoders refuse the profile / latency keys, or sizes that are not multiples of 16
+                c.release(); c = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+                c.configure(format(MediaFormat.MIMETYPE_VIDEO_AVC, width & ~15, height & ~15, fps, bps, false), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            }
+        }
+        hevc = hv; bitrate = bps;
         codec = c;
         input = codec.createInputSurface();
         codec.setCallback(new MediaCodec.Callback() {
@@ -68,8 +87,23 @@ final class HwEncoder {
         codec.start();
     }
 
-    private static MediaFormat format(int w, int h, int fps, int bps, boolean extras) {
-        MediaFormat f = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h);
+    /** a hardware encoder for this type exists (Android 10+ says so; before that: not a Google/software one) */
+    static boolean hardware(String mime) {
+        try {
+            for (MediaCodecInfo i : new android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).getCodecInfos()) {
+                if (!i.isEncoder()) continue;
+                boolean has = false;
+                for (String t : i.getSupportedTypes()) if (t.equalsIgnoreCase(mime)) has = true;
+                if (!has) continue;
+                if (Build.VERSION.SDK_INT >= 29) { if (i.isHardwareAccelerated()) return true; }
+                else { String n = i.getName().toLowerCase(); if (!n.startsWith("omx.google.") && !n.startsWith("c2.android.")) return true; }
+            }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    private static MediaFormat format(String mime, int w, int h, int fps, int bps, boolean extras) {
+        MediaFormat f = MediaFormat.createVideoFormat(mime, w, h);
         f.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         f.setInteger(MediaFormat.KEY_BIT_RATE, bps);
         f.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
@@ -79,8 +113,13 @@ final class HwEncoder {
         // a still screen keeps sending (the viewer never thinks the picture froze)
         f.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L);
         if (extras) {
-            f.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);   // no B-frames: decode = show order, lowest delay
-            f.setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel41);
+            if (MediaFormat.MIMETYPE_VIDEO_AVC.equals(mime)) {
+                f.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);   // no B-frames: decode = show order, lowest delay
+                f.setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel41);
+            } else {
+                f.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain);
+                if (Build.VERSION.SDK_INT >= 29) f.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);   // show order = decode order
+            }
             f.setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR);
             if (Build.VERSION.SDK_INT >= 23) f.setInteger(MediaFormat.KEY_PRIORITY, 0);   // real time
             if (Build.VERSION.SDK_INT >= 30) f.setInteger(MediaFormat.KEY_LATENCY, 1);
