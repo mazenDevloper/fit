@@ -41,10 +41,11 @@ import { NextLevel } from './nextlevel.js';
 import { Together } from './together.js';
 import { Welcome } from './welcome.js';
 import { SmartBar } from './smartbar.js';
+import * as CMD from './commands.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '143';
+export const APP_VERSION = '144';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -485,10 +486,10 @@ class App {
     this.notify({ icon: '✨', title: 'مساعد مدار', body: '«' + q + '» …' });
     let r;
     try {
-      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar', device: this.hub?.me?.id, context: this.hub?.context() || '' }) });
+      const res = await fetch('https://studio.c-p.workers.dev/ask', { method: 'POST', body: JSON.stringify({ q, history: this.aiHist || [], app: 'madar', device: this.hub?.me?.id, context: this.hub?.context() || '', commands: CMD.catalog(), screen: CMD.context(this) }) });
       r = await res.json();
     } catch (e) { this.toast('المساعد غير متاح الآن', 2500); return; }
-    if (!r || (!r.say && !(r.done || []).length)) { this.toast('لم أفهم: «' + q + '»', 2500); return; }
+    if (!r || (!r.say && !(r.done || []).length && !(r.madar || []).length)) { this.toast('لم أفهم: «' + q + '»', 2500); return; }
     this.aiHist = [...(this.aiHist || []), { role: 'user', content: q }, { role: 'assistant', content: r.say }].slice(-8);
     this.extras?.logAnswer(q, r.say);
     this.notifier.cur = null; this.notifier.queue = [];
@@ -502,6 +503,8 @@ class App {
         netflix: () => this.windows.open({ kind: 'web', url: 'https://www.netflix.com', title: 'Netflix' }), makkah: () => this.openMakkah?.(), games: () => this.openGames(), keyboard: () => this.windows.open({ kind: 'keyboard' }) })[v]?.();
     };
     if (a.type && a.type !== 'none') run();
+    // the steps the assistant planned with Madar's own commands, in order (a short pause lets each window open)
+    (r.madar || []).forEach((c, i) => setTimeout(() => CMD.run(this, c.id, c.arg || '', c.arg || q), i * 450));
     this.notify({ icon: '✨', title: 'مساعد مدار', body: r.say, actions: a.type === 'open_matches' ? [] : [['المباريات', () => this.openMatches()]] });
     try { const u = new SpeechSynthesisUtterance(r.say); u.lang = 'ar-SA'; u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {}
     this.log('المساعد: ' + q + ' → ' + r.say);
@@ -1240,70 +1243,24 @@ class App {
     if (w) { w.send({ type: 'text', value: t }); this.toast('✍️ كُتب في الصفحة', 2000); return; }
     this.windows.openKeyboard(t);
   }
+  // Every spoken sentence goes through «مساعد مدار» (commands.js): a known phrase anywhere in it runs at once (offline);
+  // several steps, a question, another device, or wording it doesn't know go to the assistant with the full list of
+  // Madar's commands and what is on screen, and it answers with the steps to run.
   voiceCommand(t) {
-    t = t.trim();
-    // anything about another device (the TV, the car, the phone, the people at home) goes to the assistant: it sees
-    // every device and what it plays, understands any wording and carries the command out there
-    if (/التلفاز|التلفزيون|الشاشة الكبيرة|الصالة|السيارة|الهاتف|الجوال|التابلت|أهل البيت|اهل البيت|كل الأجهزة|كل الاجهزة/.test(t)) { this.askAssistant(t); return; }
-    if (this.extras?.voice(t)) { this.toast('🎙 ' + t, 1500); this.log('أمر صوتي: ' + t); return; }
-    const has = (...w) => w.some(x => t.includes(x));
-    const after = (...w) => { for (const x of w) { const i = t.indexOf(x); if (i >= 0) return t.slice(i + x.length).trim(); } return ''; };
-    const pointed = () => this.controls.pointedWindow() || [...this.windows.windows].reverse().find(w => w.kind !== 'keyboard');
-    // a question (or «يا مساعد …»): the assistant answers from the live situation and can act
-    if (/^(متى|كم|من |هل|ماذا|ماذا|ما |شو|كيف|أين|وين|ليش|لماذا|اي |أي )|النتيجة|سجّل|سجل الهدف|يا مساعد|المساعد/.test(t)) { this.askAssistant(t); return; }
-    if (has('امسح الغرفة', 'مسح الغرفة', 'تعرف على الغرفة')) { this.room.scan(); return; }
-    if (has('على التلفاز', 'فوق التلفاز')) { const w = pointed(); if (w?.onTv) w.onTv(); return; }
-    if (has('السينما')) { const w = pointed(); if (w) { this.windows.cinema = this.windows.cinema === w ? null : w; } return; }
-    const devices = pairedDevices();
-    const dev = devices.find(d => t.includes(d.name)) || devices.find(d => (has('تابلت', 'التابلت') && d.kind === 'tablet') || (has('لابتوب', 'كمبيوتر') && d.kind === 'computer') || (has('تلفاز', 'التلفزيون', 'التلفاز') && d.kind === 'tv'));
-    if (has('اكتب', 'أكتب')) { const x = after('اكتب', 'أكتب'); if (x) this.dictate(x); else this.listen('dictate'); return; }
-    if (has('ابحث عن', 'إبحث عن', 'بحث عن')) { const q = after('ابحث عن', 'إبحث عن', 'بحث عن'); if (q) this.windows.open({ kind: 'web', url: 'https://www.google.com/search?q=' + encodeURIComponent(q), title: q }); }
-    else if (dev && has('شاشة', 'اعرض', 'افتح')) { if (dev.kind === 'tv') this.showOnDevice(dev.code, settings.mirrorCode); else this.connectMirror(dev.code); }
-    else if (has('مباريات', 'المباريات', 'مباراة')) this.openMatches?.();
-    else if (has('ارفع الصوت', 'علي الصوت', 'علّي الصوت', 'زد الصوت', 'زيد الصوت', 'خفض الصوت', 'اخفض الصوت', 'وطي الصوت', 'قلل الصوت', 'اكتم', 'كتم الصوت', 'شغل الصوت', 'الغ الكتم', 'ألغ الكتم')) {
-      // the volume of the window you look at (or the recitation)
-      const up = has('ارفع', 'علي', 'علّي', 'زد', 'زيد'), down = has('خفض', 'اخفض', 'وطي', 'قلل'), mute = has('اكتم', 'كتم الصوت') && !has('الغ', 'ألغ');
-      const w = [this.controls.pointedWindow(), ...[...this.windows.windows].reverse()].find(x => x?.setVolume || x?.kind === 'reader');
-      if (w?.setVolume) { if (mute) w.setVolume(w.vol ?? 1, true); else if (up || down) w.stepVolume(up ? 0.2 : -0.2); else w.setVolume(w.vol || 0.6, false); w.toggleVolume?.(); if (!w.volPop?.mesh.parent) w.toggleVolume?.(); }
-      else if (w?.kind === 'reader' && w.recite) { const v = mute ? 0 : Math.max(0, Math.min(1, (settings.reciteVolume ?? 1) + (up ? 0.25 : down ? -0.25 : 0.5))); saveSettings({ reciteVolume: v }); setElementVolume(w.recite.audio, v); this.toast('🔊 التلاوة ' + Math.round(v * 100) + '%', 1500); }
+    t = t.trim(); if (!t) return;
+    const n = CMD.norm(t);
+    if (/(التلفاز|التلفزيون|الشاشه الكبيره|الصاله|السياره|الهاتف|الجوال|اهل البيت|كل الاجهزه)/.test(n) && !/(فوق|على) التلفاز|شاشه التابلت|وضع السفر/.test(n)) return this.askAssistant(t);
+    if (/ (ثم|وبعدين|بعدها|وبعد) /.test(' ' + n + ' ')) return this.askAssistant(t);
+    const m = CMD.match(t), question = /^(متي|كم|من |هل|ماذا|ليش|لماذا|كيف|اين|وين|شو |ايش|ما هي|ما هو|يا مساعد)/.test(n) && m?.cmd.id !== 'help' && m?.cmd.id !== 'look';
+    const strong = m && m.score >= 1 && (!question || m.cmd.says.some(s => s.length >= 6 && n.includes(s)));
+    if (strong || (!question && m && m.score >= 0.75)) {
+      CMD.run(this, m.cmd.id, m.arg, t);
+      this.toast('🎙 ' + m.cmd.desc, 1800); this.log('أمر صوتي: ' + t + ' → ' + m.cmd.id);
+      return;
     }
-    else if (has('كبر', 'كبّر', 'تكبير')) pointed()?.scaleBy?.(1.25);
-    else if (has('صغر', 'صغّر', 'تصغير')) pointed()?.scaleBy?.(1 / 1.25);
-    else if (has('ثبت', 'ثبّت', 'تثبيت')) { const w = pointed(); if (w) { w.headLock = !w.headLock; } }
-    else if (has('أغلق الكل', 'اغلق الكل', 'إغلاق الكل')) this.windows.closeAll();
-    else if (has('أغلق', 'اغلق', 'سكر')) { const w = pointed(); if (w) this.windows.close(w); }
-    else if (has('قائمة', 'القائمه', 'الرئيسية')) this.toggleLauncher();
-    else if (has('تمركز', 'منتصف', 'أمامي')) this.recenter();
-    else if (has('ترتيب', 'رتب')) this.windows.arrange();
-    else if (has('cplay', 'سي بلاي', 'كبلاي')) this.openCplay();
-    else if (has('كيبورد', 'لوحة المفاتيح')) this.windows.open({ kind: 'keyboard' });
-    else if (has('رف الكتب', 'كتبي', 'المكتبة الخاصة')) this.openShelf();
-    else if (has('ملاكمة', 'الملاكمة')) this.openCoach('box');
-    else if (has('جهاز المشي', 'المشي على الجهاز', 'تريدميل')) this.openCoach('tread');
-    else if (has('تمارين العين', 'تمارين الرقبة', 'عيني', 'رقبتي')) this.openCoach('eyes');
-    else if (has('تمرين', 'المدرب', 'رياضة', 'سكوات')) this.openCoach('train');
-    else if (has('آية الكرسي')) { const r = this.openReader('quran'); setTimeout(() => this.windows.windows.find(x => x.kind === 'reader')?.goToKey?.('2:255'), 1200); }
-    else if (has('سورة')) this.openSurah(after('سورة'));
-    else if (has('المصحف', 'القرآن', 'القران', 'اقرأ', 'إقرأ')) { const w = this.windows.windows.find(x => x.kind === 'reader'); if (w && has('اقرأ', 'إقرأ', 'تلاوة')) w.togglePlay(); else this.openReader('quran'); }
-    else if (has('الصفحة التالية', 'التالية', 'قلب الصفحة')) this.windows.windows.find(x => x.kind === 'reader')?.next();
-    else if (has('الصفحة السابقة', 'السابقة')) this.windows.windows.find(x => x.kind === 'reader')?.prev();
-    else if (has('مركز التحكم', 'التحكم')) this.control.open();
-    else if (has('المكتبات', 'مكتبة البيئات', 'البيئات')) this.gallery.open('rooms');
-    else if (has('المجسمات')) this.gallery.open('models');
-    else if (has('الآيفون', 'الايفون', 'آيفون', 'ايفون')) this.iphone.pick();
-    else if (has('ساعة', 'الساعه')) this.windows.open({ kind: 'panel', panel: 'clock' });
-    else if (has('مكة', 'الحرم', 'الكعبة')) this.openMakkah?.();
-    else if (has('بيئة', 'البيئه')) this.cycleEnvironment();
-    else if (has('معايرة', 'المعايره')) this.calibration.open();
-    else if (has('خروج', 'اخرج')) this.exit();
-    else if (has('أوقف', 'اوقف', 'إيقاف', 'ايقاف', 'شغل', 'تشغيل')) {
-      const v = this.windows.windows.filter(w => w.kind === 'video');
-      v.forEach(w => (has('شغل', 'تشغيل') ? (w.userPaused = false, w.video.play().catch(() => {})) : (w.userPaused = true, w.video.pause())));
-    }
-    else { this.askAssistant(t); return; }   // not a known command: the assistant takes it
-    this.toast('🎙 ' + t, 1800);
-    this.log('أمر صوتي: ' + t);
+    this.askAssistant(t);
   }
+  showCommands() { this.windows.open({ kind: 'web', url: new URL('commands.html', location.href).href, title: 'ماذا أقول لمدار' }); }
 
 
   // ---------- Frame loop ----------

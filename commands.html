@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ماذا أقول لمدار</title>
+<script type="importmap">{ "imports": { "three": "./lib/three/three.module.js", "three/addons/": "./lib/three/addons/" } }</script>
+<style>
+:root{color-scheme:dark;--bg:#0b0d14;--glass:rgba(255,255,255,.08);--line:rgba(255,255,255,.14);--l2:rgba(235,235,245,.62);--blue:#0a84ff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(120% 80% at 50% 0,#1b2240,#0b0d14 60%);color:#fff;font:17px/1.5 -apple-system,system-ui,"SF Arabic","Geeza Pro",sans-serif;padding:20px 16px 40px}
+h1{font-size:30px;margin:4px 0 2px}
+p.sub{color:var(--l2);margin:0 0 16px}
+input{width:100%;font:inherit;padding:12px 16px;border-radius:14px;border:1px solid var(--line);background:var(--glass);color:#fff;outline:none;margin-bottom:18px}
+input:focus{border-color:var(--blue)}
+h2{font-size:15px;color:var(--l2);font-weight:600;margin:22px 4px 8px}
+.g{background:var(--glass);border:1px solid var(--line);border-radius:20px;overflow:hidden;backdrop-filter:blur(30px)}
+.r{display:flex;gap:12px;align-items:baseline;padding:12px 16px;border-top:1px solid rgba(255,255,255,.06)}
+.r:first-child{border-top:0}
+.n{color:var(--l2);font-size:13px;min-width:26px;font-variant-numeric:tabular-nums}
+.d{font-weight:600}
+.e{color:var(--l2);font-size:15px}
+.e b{color:#9fd0ff;font-weight:500}
+.tip{margin-top:22px;color:var(--l2);font-size:15px}
+</style>
+</head>
+<body>
+<h1>ماذا أقول لمدار</h1>
+<p class="sub">قل «يا مدار» ثم أياً من هذا بكلماتك — أو اطلب عدة أشياء معاً: «افتح يوتيوب ثم كبّره وخفّف الإضاءة».</p>
+<input id="q" placeholder="ابحث في الأوامر…" autocomplete="off">
+<div id="list"></div>
+<p class="tip">لا تحتاج للكلمات نفسها: ما لا يعرفه مدار مباشرةً يحلّله المساعد ويختار الأوامر المناسبة بالترتيب، ويجيب على الأسئلة («متى مباراة فريقي؟»).</p>
+<script type="module">
+import { COMMANDS, norm } from './js/commands.js';
+const list = document.getElementById('list'), q = document.getElementById('q');
+function draw() {
+  const f = norm(q.value), groups = new Map(); let i = 0;
+  for (const [id, g, desc, says] of COMMANDS) { i++; if (f && !norm(desc + ' ' + says.join(' ')).includes(f)) continue; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([i, desc, says]); }
+  list.innerHTML = [...groups].map(([g, rows]) => `<h2>${g}</h2><div class="g">${rows.map(([n, d, s]) => `<div class="r"><span class="n">${n}</span><div><div class="d">${d}</div><div class="e">«<b>${s.slice(0, 3).join('</b>» · «<b>')}</b>»</div></div></div>`).join('')}</div>`).join('') || '<p class="sub">لا شيء</p>';
+}
+q.oninput = draw; draw();
+</script>
+</body>
+</html>
