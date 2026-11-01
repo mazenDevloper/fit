@@ -12,6 +12,7 @@ export const VIEWER_PRESETS = {
 };
 
 export const DEFAULTS = {
+  ytView: true, googleClientId: '',
   preset: 'myglasses',
   lensSep: 70,          // mm between lens centres
   screenToLens: 40,     // mm, sets the field of view (smaller = bigger image)

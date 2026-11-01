@@ -1338,13 +1338,15 @@ export function youtubeId(url) {
 }
 
 export class WebWindow extends SpatialWindow {
-  constructor(mgr, { url, title = '', direct = false, aspect = 0, start = 0 }) {
+  constructor(mgr, { url, title = '', direct = false, aspect = 0, start = 0, view = '' }) {
     super(mgr, 'web');
+    this.viewMode = view;
     this.url = url; this.title = title; this.start = +start || 0;
     mgr.app.log('فتح موقع: ' + url);
     this.canCurve = false;
     this.aspect = aspect > 0.5 && aspect < 3.3 ? aspect : 16 / 10; this.pageH = Math.round(1024 / this.aspect); this.canReshape = true;
     this.yt = youtubeId(url);
+    if (this.yt) setTimeout(() => this.attachView(), 0);
     this.mat.uniforms.uHas.value = 1;
     this.cv = canvasTexture(640, 400);
     const { ctx } = this.cv;
@@ -1780,6 +1782,19 @@ export class WebWindow extends SpatialWindow {
     post({ event: 'listening', id: 'madar' + this.id + '-' + eye, channel: 'widget' });
     if (eye === 0) setTimeout(() => this.ytMute(false), 900);
   }
+  // «يوتيوب مدار»: the channels and suggestions around a YouTube video (ytview.js); another video plays in the same window
+  attachView() {
+    if (!this.yt || this.ytv || settings.ytView === false || this.disposed) return;
+    import('./ytview.js').then(m => { if (!this.disposed && !this.ytv) this.ytv = new m.YTView(this, this.viewMode || 'youtube'); }).catch(e => console.warn('ytview failed ' + e.message + ' ' + e.stack));
+  }
+  ytLoad(id, title = '') {
+    if (!id) return;
+    this.yt = id; this.url = 'https://www.youtube.com/watch?v=' + id; this.title = title || this.title; this.start = 0;
+    [0, 1].forEach(e => this.cmd(e, 'loadVideoById', [id]));
+    setTimeout(() => this.cmd(1, 'mute'), 400);
+    this.ytState.playing = true; this.mgr.changed?.(); this.toolbar?.redraw?.();
+    this.mgr.app.log('يوتيوب مدار: ' + id);
+  }
   cmd(eye, func, args = []) { try { this.css[eye].f.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com'); } catch {} }
   ytToggle() { const p = !this.ytState.playing; this.ytState.playing = p; [0, 1].forEach(e => this.cmd(e, p ? 'playVideo' : 'pauseVideo')); }
   isMuted() { return this.yt ? !!this.ytState?.muted : !!this.mute; }
@@ -1827,6 +1842,7 @@ export class WebWindow extends SpatialWindow {
   userGesture() { if (this.yt && this.ytState.muted) this.ytMute(false); }
   reload() { this.css.forEach(c => { c.f.src = 'about:blank'; }); this.loadEyes(); }
   update(dt, now) {
+    this.ytv?.update(now);
     if (this.sphere) this.sphere.position.copy(this.mgr.headLocal());
     this.content.updateMatrixWorld();
     if (this.autoScroll && this.bridge && now - (this.autoAt || 0) > 120) { this.autoAt = now; this.send({ type: 'scroll', dx: 0, dy: 6, x: 512, y: this.pageH / 2 }); }
@@ -1845,7 +1861,7 @@ export class WebWindow extends SpatialWindow {
   }
   ref() { return Math.abs(this.aspect - 1.6) > 0.01 ? { url: this.url, title: this.title, aspect: +this.aspect.toFixed(3) } : { url: this.url, title: this.title }; }
   dispose() {
-    this.disposed = true; clearTimeout(this.eyeTimer);
+    this.disposed = true; clearTimeout(this.eyeTimer); this.ytv?.dispose(); this.ytv = null;
     this.mgr.webClosedAt = performance.now();
     super.dispose();
     this.tabPanel?.dispose(); this.strip?.dispose();
@@ -2098,6 +2114,8 @@ export class WindowManager {
     if (k === 'image') return this.add(new ImageWindow(this, spec), { dist: 1.9, scale: 1.25 });
     if (k === 'web') {
       // In the headset, sites open in a paired tablet's built-in browser when one is available.
+      // YouTube's home page → «يوتيوب مدار» (a video in the middle, your channels and suggestions around it)
+      if (!spec.view && settings.ytView !== false && /^https?:\/\/(m\.|www\.)?youtube\.com\/?(\?.*)?$/.test(spec.url || '')) { this.app.openYouTube?.(); return null; }
       if (!spec.direct && this.app.useBuiltinBrowser?.(spec.url)) { this.app.openBrowser(spec.url); return null; }
       // Each site runs twice (one copy per eye): the memory guard keeps the live ones within the limit.
       return this.add(new WebWindow(this, spec), { dist: 2.1, scale: 1.6 });

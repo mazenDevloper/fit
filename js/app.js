@@ -46,7 +46,7 @@ import * as BRAIN from './brain.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '149';
+export const APP_VERSION = '150';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -598,6 +598,17 @@ class App {
     const inp = $('#myTeams'); if (!inp) return;
     const show = () => { inp.value = (settings.myTeams || []).map(t => t.name).join('، '); };
     show(); this.renderTeams = show;
+    // «يوتيوب مدار»: the Google Client ID and the sign-in (a real tap here; Google opens its small window)
+    if ($('#gClient')) {
+      const gm = t => { $('#gMsg').textContent = t; };
+      $('#gClient').value = settings.googleClientId || '';
+      import('./google.js').then(G => { if (G.signedIn()) gm('✓ داخل بحساب ' + (G.account() || 'Google')); });
+      $('#gSave').addEventListener('click', () => { saveSettings({ googleClientId: $('#gClient').value.trim() }); gm('حُفظ'); });
+      $('#gSign').addEventListener('click', async () => {
+        if ($('#gClient').value.trim() !== (settings.googleClientId || '')) saveSettings({ googleClientId: $('#gClient').value.trim() });
+        try { const G = await import('./google.js'); await G.signIn(); gm('✓ داخل بحساب ' + (G.account() || 'Google')); } catch (e) { gm(e.message); }
+      });
+    }
     $('#teamsSave').addEventListener('click', () => {
       const names = inp.value.split(/[،,]/).map(s => s.trim()).filter(Boolean).slice(0, 30);
       saveSettings({ myTeams: names.map(n => ({ name: n, country: '' })) });
@@ -631,9 +642,24 @@ class App {
     const near = this.devices ? [...this.devices.nearby.keys()] : [];
     return l.find(d => near.includes(d.code)) || l.find(d => d.code === settings.browserCode) || l[0];
   }
+  browserOnline() {
+    const d = this.browserDevice(); if (!d) return false;
+    if (this.devices?.nearby?.has(d.code)) return true;
+    return (this.hub?.others?.() || []).some(o => o.id === 'sys-' + d.code || o.id === 'madar-' + d.code);
+  }
+  // «يوتيوب مدار» / «DriveCast مدار»: start from what you were watching (DriveCast's «تابع»), else your channels / popular
+  async openYouTube(mode = 'youtube') {
+    let v = null;
+    try { const L = await (await fetch('https://studio.c-p.workers.dev/hub/library')).json(); v = (L.continue || [])[0] || (L.saved || [])[0]; } catch {}
+    if (!v) try { const G = await import('./google.js'); if (G.signedIn()) v = (await G.liked())[0] || (await G.popular())[0]; } catch {}
+    if (!v) { if (mode === 'drivecast') return this.openCplay(); return this.windows.open({ kind: 'web', url: 'https://m.youtube.com/?app=m', title: 'YouTube', view: 'site' }); }
+    return this.windows.open({ kind: 'web', url: 'https://www.youtube.com/watch?v=' + v.id, title: v.title || 'YouTube', view: mode, start: v.t || 0 });
+  }
   useBuiltinBrowser(url) {
     if (window.MadarIOS) return false;   // the iPhone app opens every site with full control already
     if (settings.builtinBrowser === false || settings.viewMode !== 'sbs' || !this.browserDevice()) return false;
+    // the tablet only while it is on and reachable now; otherwise the site opens in Madar itself
+    if (!this.browserOnline()) return false;
     try { return /^https?:/i.test(url) && !new URL(url).hostname.endsWith('mazendevloper.github.io'); } catch { return false; }
   }
   async openBrowser(url = '', attempt = 0, onReady = null) {
