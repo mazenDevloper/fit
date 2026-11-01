@@ -296,9 +296,12 @@ class SpatialWindow {
     for (const v of [u.uL.value, u.uR.value]) { v.y += v.w * (1 - f) / 2; v.w *= f; }   // (x, y, width, height)
     this.setAspect(ta);
   }
-  cycleSize() {
-    const o = ['normal', 'wide', 'ultra'], before = this.aspect;
-    this.sizeMode = o[(o.indexOf(this.sizeMode || 'normal') + 1) % o.length];
+  cycleSize() { const o = ['normal', 'wide', 'ultra']; this.setSize(o[(o.indexOf(this.sizeMode || 'normal') + 1) % o.length]); }
+  // «الترا وايد» / «عريض» / «عادي»: straight to that size
+  setSize(mode) {
+    if (!SIZE_AR[mode]) return;
+    const before = this.aspect;
+    this.sizeMode = mode;
     this.applySize(this.natAspect || this.aspect);
     if (before && this.aspect) this.group.scale.multiplyScalar(Math.sqrt(this.aspect / before));   // wider, a little lower: stays in view
     this.mgr.changed?.();

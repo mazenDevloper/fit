@@ -79,7 +79,33 @@ export class Launcher {
   }
   turnPage(d) { const n = this.pages || 1; if (n < 2) return false; this.page = (this.page + d + n) % n; blip('tap', settings.sounds); this.panel.redraw(); return true; }
 
+  cycleSize() { const o = ['normal', 'wide', 'ultra']; this.setSize(o[(o.indexOf(this.sizeMode || 'normal') + 1) % o.length]); }
+  // «الترا وايد / عريض / عادي» for the Home View itself: a wider glass with more icons in each row, same icon size
+  setSize(mode) {
+    const F = { normal: 1, wide: 1.6, ultra: 2.4 }[mode]; if (!F || mode === (this.sizeMode || 'normal')) return;
+    if (!this.dens) this.dens = this.panel.w / this.panel.widthM;   // the normal panel's pixels per metre
+    this.sizeMode = mode; this.widthF = F;
+    const old = this.panel, vis = this.group.visible;
+    this.panel = new CanvasPanel(1.3 * F, 0.84, (ctx, W, H, p) => this.draw(ctx, W, H, p), { pxPerM: 1300, maxPx: 4096 });
+    this.panel.mesh.material.depthTest = false; this.panel.mesh.renderOrder = 900;
+    this.group.remove(old.mesh); old.mesh.geometry.dispose(); old.mesh.material.map?.dispose(); old.mesh.material.dispose();
+    this.group.add(this.panel.mesh); this.group.visible = vis;
+    this.app.interaction?.setTargets?.();
+    this.app.toast('القائمة: ' + { normal: 'عادي', wide: 'عريضة', ultra: 'عريضة جداً' }[mode], 1200);
+  }
   draw(ctx, W, H, p) {
+    // a wide Home View is drawn at the normal panel's scale (same icons and text), just with more room
+    const k = this.dens && this.sizeMode && this.sizeMode !== 'normal' ? (W / this.panel.widthM) / this.dens : 1;
+    if (Math.abs(k - 1) > 0.01) {
+      const reg = p.region;
+      p.region = (x, y, w, h, a, id) => reg.call(p, x * k, y * k, w * k, h * k, a, id);
+      ctx.save(); ctx.scale(k, k);
+      try { this.drawHome(ctx, W / k, H / k, p); } finally { ctx.restore(); p.region = reg; }
+      return;
+    }
+    this.drawHome(ctx, W, H, p);
+  }
+  drawHome(ctx, W, H, p) {
     if (!this.vision) panelGlass(ctx, 0, 0, W, H, 70);
     if (this.vision) {
       // the visionOS tab bar: a small glass pill on the left with one icon per tab
@@ -236,7 +262,7 @@ export class Launcher {
       if (!this.folder) this.allApps = list.slice();   // the phone remote's «التطبيقات» tab lists these
       if (this.folder) list.unshift(['chevR', 'رجوع', 'الشاشة الرئيسية', () => { this.folder = null; this.page = 0; this.panel.redraw(); }]);
       if (this.vision) {
-        const ROWS = [4, 5, 4], per = 13, pages = Math.ceil(list.length / per);
+        const n5 = Math.round(5 * (this.widthF || 1)), ROWS = [n5 - 1, n5, n5 - 1], per = ROWS[0] + ROWS[1] + ROWS[2], pages = Math.ceil(list.length / per);
         this.pages = pages; this.page = Math.min(this.page, pages - 1);
         const r = 76, gx = 232, gy = 222, top0 = 150;
         let i = 0;
@@ -334,7 +360,7 @@ export class Launcher {
         ['exit', 'الخروج', 'الرئيسية', () => { this.close(); a.exit(); }],
       ];
       if (this.vision) {
-        const ROWS = [4, 5, 4], per = 13, pages = Math.ceil(list.length / per);
+        const n5 = Math.round(5 * (this.widthF || 1)), ROWS = [n5 - 1, n5, n5 - 1], per = ROWS[0] + ROWS[1] + ROWS[2], pages = Math.ceil(list.length / per);
         this.pages = pages; this.page = Math.min(this.page, pages - 1);
         const r = 76, gx = 232, gy = 222, top0 = 150;
         let i = 0;

@@ -8,7 +8,7 @@ import { ENVS, ENV_ORDER, envKey } from './envs.js';
 import { redrawFrameGlass } from './windows.js';
 import { settings, saveSettings } from './config.js';
 
-const W_M = 1.15, H_M = 0.12, DIST = 1.05, Y = -0.34, FOLLOW = 0.6;   // metres; FOLLOW = how far you turn before it follows (rad)
+const W_M = 1.15, H_M = 0.12, DOT = 0.085, DIST = 1.05, Y = -0.34, FOLLOW = 0.6, IDLE = 10000;   // metres; FOLLOW = how far you turn before it follows (rad); IDLE = folds back after
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export class SmartBar {
@@ -24,8 +24,22 @@ export class SmartBar {
       scrollBy: dx => this.slide(dx), click: hit => P.onClick(hit), hover: (on, hit) => P.onHover(on, hit),
     };
     app.windows.root.add(this.mesh);   // the room's frame (same as the windows), so it stays put as you look around
+    // folded: one small glass circle; looked at + pinched (or OK) it opens - the glass grows wider and taller into the bar
+    this.dot = new CanvasPanel(DOT, DOT, (ctx, W, H, p) => {
+      material(ctx, 2, 2, W - 4, H - 4, (W - 4) / 2);
+      const hov = p.isHover('dot'); if (hov) { ctx.beginPath(); ctx.arc(W / 2, H / 2, W / 2 - 3, 0, 7); ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fill(); }
+      icon(ctx, 'sliders', W / 2, H / 2, W * 0.42, '#fff');
+      p.region(0, 0, W, H, () => this.expand(), 'dot');
+    }, { pxPerM: 1800 });
+    this.dot.mesh.material.depthTest = false; this.dot.mesh.renderOrder = 956;
+    app.windows.root.add(this.dot.mesh);
+    const hv = this.mesh.userData.interact.hover;
+    this.mesh.userData.interact.hover = (on, hit) => { if (on) this.usedAt = performance.now(); hv(on, hit); };
+    this.expanded = false; this.k = 0; this.usedAt = 0;
   }
-  get targets() { return this.mesh.visible ? [this.mesh] : []; }
+  get targets() { return !this.mesh.parent ? [] : this.expanded ? (this.mesh.visible ? [this.mesh] : []) : (this.dot.mesh.visible ? [this.dot.mesh] : []); }
+  expand() { if (this.expanded) return; this.expanded = true; this.usedAt = performance.now(); blip('open', settings.sounds); this.dirty = true; this.app.interaction?.setTargets(); }
+  fold() { if (!this.expanded) return; this.expanded = false; this.active = null; this.app.interaction?.setTargets(); }
   get on() { return settings.smartBar !== false; }
 
   // ---- what the bar holds now
@@ -65,14 +79,14 @@ export class SmartBar {
 
   // ---- input: select, then slide
   select(id) {
-    blip('tap', settings.sounds);
+    blip('tap', settings.sounds); this.usedAt = performance.now();
     this.active = this.active === id ? null : id; this.activeAt = performance.now(); this.acc = 0;
     if (this.active) this.app.toast('↔ مرّر يميناً لزيادة «' + (this.list.find(x => x.id === id)?.name || '') + '» ويساراً لإنقاصها', 2200);
     this.panel.redraw();
   }
   step(d) {
     const it = (this.list || []).find(x => x.id === this.active); if (!it) return false;
-    it.step(d); this.activeAt = performance.now(); blip('tap', settings.sounds);
+    it.step(d); this.activeAt = this.usedAt = performance.now(); blip('tap', settings.sounds);
     this.list = this.items(); this.panel.redraw(); return true;
   }
   // a pinch-drag: the content follows the hand, so a hand moving right gives dx < 0 → raise
@@ -83,7 +97,7 @@ export class SmartBar {
   }
   // the remote's / controller's left-right arrows while an item is selected (for 8 s after the last use)
   takeArrow(dir) {
-    if (!this.on || !this.active || performance.now() - this.activeAt > 8000) return false;
+    if (!this.on || !this.expanded || !this.active || performance.now() - this.activeAt > 8000) return false;
     return this.step(dir);
   }
 
@@ -112,7 +126,17 @@ export class SmartBar {
 
   update(now) {
     const a = this.app, show = this.on && a.active && !a.launcher?.group.visible && !a.windows.cinema;
-    if (this.mesh.visible !== show) { this.mesh.visible = show; a.interaction?.setTargets(); }
+    // open / fold: the glass grows from the circle into the bar (wider and taller), with a soft spring-like ease
+    if (this.expanded && now - this.usedAt > IDLE && !this.panel.hover) this.fold();
+    const goal = this.expanded ? 1 : 0, prevK = this.k;
+    this.k += (goal - this.k) * Math.min(1, (now - (this.lastNow || now)) / 1000 * 9); this.lastNow = now;
+    if (Math.abs(goal - this.k) < 0.002) this.k = goal;
+    const e = 1 - Math.pow(1 - this.k, 3);
+    const barOn = show && this.k > 0.01, dotOn = show && this.k < 0.35;
+    if (this.mesh.visible !== barOn || this.dot.mesh.visible !== dotOn) { this.mesh.visible = barOn; this.dot.mesh.visible = dotOn; a.interaction?.setTargets(); }
+    this.mesh.scale.set(DOT / W_M + (1 - DOT / W_M) * e, DOT / H_M * 0.9 + (1 - DOT / H_M * 0.9) * e, 1);
+    this.mesh.material.opacity = Math.min(1, e * 1.6);
+    this.dot.mesh.material.opacity = Math.max(0, 1 - this.k * 3);
     if (!show) return;
     // fixed in the room below your view; follows only when you turn away (lazy follow, like visionOS)
     const yaw = a.windows.forwardYaw();
@@ -122,6 +146,7 @@ export class SmartBar {
     const h = a.windows.headLocal?.() || new THREE.Vector3();
     this.mesh.position.set(h.x - Math.sin(this.yaw) * DIST, h.y + Y, h.z - Math.cos(this.yaw) * DIST);
     this.mesh.lookAt(h.x, h.y + Y * 0.4, h.z);
+    this.dot.mesh.position.copy(this.mesh.position); this.dot.mesh.quaternion.copy(this.mesh.quaternion);
     if (this.active && now - this.activeAt > 12000) { this.active = null; this.dirty = true; }
     // the items follow what is open and what you point at; the values (a video's time) tick once a second
     if (now - (this.at || 0) > 1000 || this.dirty) {

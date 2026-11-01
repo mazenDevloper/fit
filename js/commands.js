@@ -8,7 +8,7 @@ import { RECITERS } from './quran.js';
 
 // ---------------------------------------------------------------- Arabic, the way people speak it
 export function norm(s) {
-  return String(s || '').replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+  return String(s || '').toLowerCase().replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
     .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[؟?!،,]|\.(?=\s|$)/g, ' ')
     .replace(/^(يا )?مدار\s*/, '').replace(/(^|\s)(لو سمحت|من فضلك|ممكن|رجاء|ابي|ابغى|ابغي|اريد|بدي|ودي|خلني|خليني|يا مدار)(?=\s|$)/g, ' ')
     .replace(/\s+/g, ' ').trim();
@@ -19,6 +19,19 @@ const num = t => { const n = norm(t), m = n.match(/\d+/); if (m) return +m[0]; c
 // ---------------------------------------------------------------- helpers over the app
 const P = a => (a._chainWin && a.windows.windows.includes(a._chainWin) ? a._chainWin : null) || a.controls?.pointedWindow?.() || [...a.windows.windows].reverse().find(w => w.kind !== 'keyboard') || null;
 const V = a => { const l = a.extras?.mediaWindows?.() || []; const p = a.controls?.pointedWindow?.(); return (p && l.includes(p) ? p : null) || l.find(w => w.video && !w.video.paused) || l[0] || null; };
+// what the sentence talks about: «كل النوافذ», «القائمة», or the window you look at
+const MENU = /(القايمه|القائمه|الرئيسيه|الشاشه الرئيسيه|التطبيقات|الهوم|المنيو)/, ALL = /((كل|جميع) (النوافذ|الشاشات)|(^|\s)الكل(\s|$))/;
+const T = (a, t = '') => {
+  const n = norm(t), L = a.launcher;
+  if (MENU.test(n) && L) return [L];
+  if (ALL.test(n)) return a.windows.windows.filter(w => w.kind !== 'keyboard');
+  const w = (a._chainWin && a.windows.windows.includes(a._chainWin) ? a._chainWin : null) || a.controls?.pointedWindow?.();
+  if (!w && L?.group.visible) return [L];   // the Home View is open and no window is looked at: the Home View
+  const p = w || P(a); return p ? [p] : [];
+};
+const each = (a, t, f) => T(a, t).forEach(x => { try { f(x); } catch {} });
+const grow = (x, f) => x.group && (x.scaleBy ? x.scaleBy(f) : x.group.scale.multiplyScalar(f));
+const SIZE = t => { const n = norm(t); return /(الترا|اولترا|عريض جدا|عريضه جدا|32)/.test(n) ? 'ultra' : /(عادي|طبيعي|الاصلي|رجع المقاس|16)/.test(n) ? 'normal' : /(عريض|عريضه|وايد سكرين|21)/.test(n) ? 'wide' : null; };
 const WEB = a => [a.controls?.pointedWindow?.(), ...[...a.windows.windows].reverse()].find(w => w?.kind === 'web') || null;
 const READER = a => a.windows.windows.find(w => w.kind === 'reader');
 const web = (a, url, title) => a.windows.open({ kind: 'web', url, title });
@@ -60,18 +73,18 @@ async function ytPlay(a, text) {
 // «arg»: the words after the phrase (a name, a number, a text)
 export const COMMANDS = [
   // ---- windows
-  ['close', 'النوافذ', 'أغلق النافذة التي تنظر إليها', ['اغلق النافذه', 'اغلق هذا', 'سكر', 'سكرها', 'سكره', 'اقفل النافذه', 'اغلقها', 'اغلقه'], a => { const w = P(a); if (w) a.windows.close(w); }],
+  ['close', 'النوافذ', 'أغلق النافذة التي تنظر إليها', ['اغلق النافذه', 'اغلق هذا', 'سكر', 'سكرها', 'سكره', 'اقفل النافذه', 'اغلقها', 'اغلقه'], (a, x, t) => { const L = T(a, t); if (L[0] === a.launcher) return a.launcher.close(); const w = L.length > 1 ? null : L[0]; if (L.length > 1) return L.forEach(v => a.windows.close(v)); if (w) a.windows.close(w); }],
   ['close_all', 'النوافذ', 'أغلق كل النوافذ', ['اغلق الكل', 'سكر الكل', 'اغلق كل النوافذ', 'نظف المكان'], a => a.windows.closeAll()],
-  ['bigger', 'النوافذ', 'كبّر النافذة', ['كبر', 'كبرها', 'كبره', 'اكبر', 'تكبير'], a => P(a)?.scaleBy?.(1.25)],
-  ['smaller', 'النوافذ', 'صغّر النافذة', ['صغر', 'صغرها', 'صغره', 'اصغر', 'تصغير'], a => P(a)?.scaleBy?.(1 / 1.25)],
-  ['closer', 'النوافذ', 'قرّب النافذة', ['قربها', 'قربه', 'قرب النافذه', 'اقرب'], a => { const w = P(a); if (w) { w.group.position.multiplyScalar(0.8); w.updateRadius?.(); a.windows.changed(); } }],
-  ['farther', 'النوافذ', 'أبعد النافذة', ['بعدها', 'بعده', 'ابعد النافذه', 'ابعدها'], a => { const w = P(a); if (w) { w.group.position.multiplyScalar(1.25); w.updateRadius?.(); a.windows.changed(); } }],
+  ['bigger', 'النوافذ', 'كبّر النافذة', ['كبر', 'كبرها', 'كبره', 'اكبر', 'تكبير'], (a, x, t) => each(a, t, v => grow(v, 1.25))],
+  ['smaller', 'النوافذ', 'صغّر النافذة', ['صغر', 'صغرها', 'صغره', 'اصغر', 'تصغير'], (a, x, t) => each(a, t, v => grow(v, 1 / 1.25))],
+  ['closer', 'النوافذ', 'قرّب النافذة', ['قربها', 'قربه', 'قرب النافذه', 'اقرب'], (a, x, t) => { each(a, t, w => { w.group.position.multiplyScalar(0.8); w.updateRadius?.(); }); a.windows.changed(); }],
+  ['farther', 'النوافذ', 'أبعد النافذة', ['بعدها', 'بعده', 'ابعد النافذه', 'ابعدها'], (a, x, t) => { each(a, t, w => { w.group.position.multiplyScalar(1.25); w.updateRadius?.(); }); a.windows.changed(); }],
   ['pin', 'النوافذ', 'ثبّت النافذة أمام عينيك (تتبع رأسك)', ['ثبت', 'ثبتها', 'ثبته', 'تثبيت', 'خليها معي', 'تتبعني'], a => { const w = P(a); if (w) { w.headLock = !w.headLock; a.toast(w.headLock ? 'النافذة تتبع رأسك' : 'النافذة ثابتة في الغرفة', 1800); } }],
   ['arrange', 'النوافذ', 'رتّب النوافذ حولك', ['رتب', 'رتب النوافذ', 'ترتيب'], a => a.windows.arrange()],
   ['recenter', 'النوافذ', 'أعد التمركز أمامك', ['تمركز', 'اعد التمركز', 'امامي', 'المنتصف', 'رجعها قدامي'], a => a.recenter()],
-  ['curve', 'النوافذ', 'اجعل النافذة منحنية / مسطحة', ['منحني', 'منحنيه', 'اجعلها منحنيه', 'مسطحه', 'مسطح'], (a, x, t) => { const w = P(a); w?.setCurved?.(!/مسطح/.test(norm(t))); }],
+  ['curve', 'النوافذ', 'اجعل النافذة منحنية / مسطحة', ['منحني', 'منحنيه', 'اجعلها منحنيه', 'مسطحه', 'مسطح'], (a, x, t) => each(a, t, w => w.setCurved?.(!/مسطح/.test(norm(t))))],
   ['view360', 'النوافذ', 'اعرض الصفحة أو الفيديو 360 حولك', ['360', 'حولي', 'كروي'], a => { const w = P(a); w?.view360?.(w.proj !== '360'); }],
-  ['size_mode', 'النوافذ', 'غيّر المقاس: عادي، عريض، عريض جداً', ['المقاس', 'عريض', 'عريض جدا', 'الترا وايد', 'سينمائي'], a => P(a)?.cycleSize?.()],
+  ['size_mode', 'النوافذ', 'المقاس للنافذة التي تنظر إليها أو القائمة أو كل النوافذ: عادي، عريض 21:9، الترا وايد 32:9', ['المقاس', 'عريض', 'عريضه', 'عريض جدا', 'الترا وايد', 'الترا', 'اولترا', 'التراوايد', 'ultra wide', 'ultrawide', 'وايد سكرين', 'سينمائي', 'رجع المقاس'], (a, x, t) => { const m = SIZE(t); each(a, t, w => m ? w.setSize?.(m) : w.cycleSize?.()); }],
   ['cinema', 'النوافذ', 'وضع السينما: نافذة واحدة فقط', ['السينما', 'وضع السينما'], a => { const w = P(a); if (w) a.windows.cinema = a.windows.cinema === w ? null : w; }],
   ['on_tv', 'النوافذ', 'ضع النافذة فوق التلفاز الحقيقي', ['على التلفاز', 'فوق التلفاز', 'على الشاشه الحقيقيه'], a => P(a)?.onTv?.()],
   ['send_window', 'الأجهزة', 'أرسل النافذة إلى جهاز آخر', ['ارسل الى', 'ارسلها', 'حولها للتلفاز', 'انقلها'], a => { const w = P(a); if (w) a.hub?.sendWindow(w); }],
@@ -228,6 +241,8 @@ export const COMMANDS = [
   ['cool', 'الإعدادات', 'تبريد الآيفون', ['التبريد', 'الجهاز حار', 'برد الجهاز'], a => { tog(a, 'coolMax', 'التبريد الأقصى', !settings.coolMax); a.renderer.resize(); }],
   ['gaze', 'الإعدادات', 'النقر بالنظر', ['النقر بالنظر', 'النظر'], a => tog(a, 'dwell', 'النقر بالنظر', !settings.dwell)],
   ['hands', 'الإعدادات', 'تتبع اليد', ['تتبع اليد', 'اليد', 'الايدي'], a => tog(a, 'handsEnabled', 'تتبع اليد', !settings.handsEnabled)],
+  ['smart_open', 'القوائم', 'افتح الشريط الذكي (الدائرة الصغيرة تتمدّد إلى الشريط)', ['افتح الشريط', 'وسع الشريط', 'الشريط الذكي افتح', 'افتح الدائره'], a => a.smartBar?.expand()],
+  ['smart_fold', 'القوائم', 'اطوِ الشريط الذكي إلى دائرة', ['اطوي الشريط', 'صغر الشريط', 'اغلق الشريط'], a => a.smartBar?.fold()],
   ['smart_bar', 'الإعدادات', 'الشريط الذكي (إظهار / إخفاء)', ['الشريط الذكي', 'الشريط'], a => tog(a, 'smartBar', 'الشريط الذكي')],
   ['clock_hud', 'الإعدادات', 'الساعة أعلى النظر', ['الساعه فوق', 'ساعه النظر'], a => tog(a, 'clock', 'الساعة')],
 ];
@@ -260,12 +275,14 @@ export function match(text) {
     if (score > (best?.score || 0)) best = { cmd: c, score, arg: i < 0 ? '' : loose !== false ? W.slice(loose + s.split(' ').length).join(' ') : t.slice(i + s.length).trim() };
     if (c.id === 'youtube' && score === 3) best.arg = t;
   }
+  // «خلّي القائمة الترا وايد» / «رجّع النافذة عادي»: a size said with a thing to apply it to is a size command
+  if ((/(الترا|اولترا|عريض|وايد سكرين|ultra)/.test(t) || (/(عادي|عاديه|طبيعي)/.test(t) && /(القايمه|النافذه|النوافذ|المقاس|الشاشه|رجع|رجعها|خليها)/.test(t))) && (!best || best.score < 2)) best = { cmd: byId('size_mode'), score: 1.6, arg: t };
   return best;
 }
 // «افتح يوتيوب ثم كبّره وقرّبه»: split at «ثم / و / بعدين»; a piece that is not a command of its own belongs to the
 // one before it («… في اليوتيوب والأجمل الأطول» stays one YouTube request). null = not all known → the assistant.
 export function plan(text) {
-  const parts = norm(text).split(/\s+(?:ثم|وبعدين|بعدين|بعدها|وبعد ذلك|و)\s+|\s+و(?!ضع|قف|طي|سط|ين)(?=\S{3,})/).map(x => x.trim()).filter(Boolean);
+  const parts = norm(text).split(/\s+(?:ثم|وبعدين|بعدين|بعدها|وبعد ذلك|و)\s+|\s+و(?!ضع|قف|طي|سط|ين|ايد)(?=\S{3,})/).map(x => x.trim()).filter(Boolean);
   const steps = [];
   for (const p of parts) {
     const m = match(p);
