@@ -96,7 +96,7 @@ const grid = (key, opts, val = o => o) => `<div class="grid" data-grid="${key}">
 function draw() {
   [...tabs.children].forEach(b => b.classList.toggle('on', b.dataset.k === tab));
   let h = '';
-  if (tab === 'skin') h = swatches('skin', O.skinColors) + slider('shade', M_shade(cfg.skin, 0), M_shade(cfg.skin, 1), cfg.shade);
+  if (tab === 'skin') h = swatches('skin', O.skinColors) + slider('shade', M_shade(cfg.skin, 0), M_shade(cfg.skin, 1), cfg.shade) + '<h3>الخدود</h3>' + `<div class="slider" style="background:linear-gradient(to left, ${M_shade(cfg.skin, cfg.shade)}, #e9877f)"><input type="range" min="0" max="1" step="0.01" value="${cfg.blush ?? 0.6}" data-slide="blush" aria-label="لون الخدود"><div class="knob" style="right:calc(${(cfg.blush ?? 0.6) * 100}% - 26px);background:#e9a29a"></div></div>`;
   if (tab === 'hair') h = swatches('hairColor', O.hairColors) + grid('hair', O.hair);
   if (tab === 'brows') h = swatches('browColor', O.hairColors) + grid('brows', O.brows);
   if (tab === 'eyes') h = swatches('eyes', O.eyeColors) + grid('lashes', [[false, 'بدون رموش'], [true, 'رموش']]);
