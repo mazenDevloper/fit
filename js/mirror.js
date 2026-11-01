@@ -466,17 +466,31 @@ class FastSender {
   get ok() { return !!window.MadarAndroid?.hwStart; }
   add(conn, hdmi) {
     this.bps = hdmi ? HDMI_BPS : FAST_BPS;
+    conn._hevc = !!conn.metadata?.hevc;
+    // H.265 only while every viewer can decode it: one that can't joins → the encoder goes back to H.264
+    if (this.on && this.hevc && !conn._hevc) this.restart(false);
     this.conns.add(conn);
     conn.on('close', () => { this.conns.delete(conn); if (!this.conns.size) this.stop(); });
-    conn.on('data', d => { if (d && d.byteLength === 1) this.key(); });   // the viewer lost its place: a key frame
+    conn.on('data', d => {
+      if (!d || d.byteLength !== 1) return;
+      // 3: the viewer's H.265 decoder failed → H.264 for everyone; otherwise it lost its place: a key frame
+      if (new Uint8Array(d.buffer || d, d.byteOffset || 0, 1)[0] === 3) { if (this.hevc) { this.restart(false); this.start(); } }
+      else this.key();
+    });
     this.start();
   }
   start() {
     const A = window.MadarAndroid; if (!A?.hwStart) return;
     window.__madarH264 = (u, ts) => this.frame(u, ts);
-    if (!this.on) { let ok = false; try { ok = A.hwStart(this.bps || FAST_BPS); } catch {} this.on = ok; }
+    if (!this.on) {
+      // H.265: about half the bits for the same picture (the 12 Mbps HDMI picture in ~7) - less Wi-Fi, fewer stutters
+      const hevc = settings.fastHevc !== false && !!A.hwStartCodec && [...this.conns].every(c => c._hevc);
+      let ok = false; try { ok = A.hwStartCodec ? A.hwStartCodec(this.bps || FAST_BPS, hevc) : A.hwStart(this.bps || FAST_BPS); } catch {}
+      this.on = ok; this.hevc = ok && hevc;
+    }
     this.needKey = true; this.key();
   }
+  restart(hevc) { try { window.MadarAndroid?.hwStop?.(); } catch {} this.on = false; this.hevc = false; if (hevc === false) this.conns.forEach(c => { c._hevc = false; }); }
   key() { try { window.MadarAndroid?.hwKey?.(); } catch {} }
   frame(u, ts) {
     const key = (u[0] & 1) === 1, data = u.subarray(1);
@@ -511,9 +525,29 @@ export async function canFast() {
     return !!r.supported;
   } catch { return false; }
 }
+// H.265 in hardware here too (iPhone: Safari decodes HEVC in WebCodecs) - then the tablet may send it
+export async function canHevc() {
+  try {
+    if (typeof VideoDecoder !== 'function') return false;
+    const r = await VideoDecoder.isConfigSupported({ codec: 'hvc1.1.6.L123.B0', optimizeForLatency: true, hardwareAcceleration: 'prefer-hardware' });
+    return !!r.supported;
+  } catch { return false; }
+}
+// «hvc1.<profile>.<compat, bit-reversed>.<tier><level>.<constraints>» from the SPS's profile_tier_level
+function hevcCodec(d, at) {
+  const b = []; let z = 0;   // the first bytes without emulation-prevention (00 00 03)
+  for (let i = at; i < d.length && b.length < 14; i++) { if (z >= 2 && d[i] === 3) { z = 0; continue; } z = d[i] === 0 ? z + 1 : 0; b.push(d[i]); }
+  if (b.length < 13) return 'hvc1.1.6.L123.B0';
+  const ptl = b.slice(1), space = ptl[0] >> 6, tier = (ptl[0] >> 5) & 1, prof = ptl[0] & 31;
+  let compat = ((ptl[1] << 24) | (ptl[2] << 16) | (ptl[3] << 8) | ptl[4]) >>> 0, rev = 0;
+  for (let k = 0; k < 32; k++) { rev = (rev << 1) | (compat & 1); compat >>>= 1; }
+  const cons = ptl.slice(5, 11); while (cons.length && cons[cons.length - 1] === 0) cons.pop();
+  return 'hvc1.' + (space ? String.fromCharCode(64 + space) : '') + prof + '.' + (rev >>> 0).toString(16) + '.' + (tier ? 'H' : 'L') + ptl[11]
+    + (cons.length ? '.' + cons.map(x => x.toString(16).toUpperCase()).join('.') : '');
+}
 export class FastReceiver {
   constructor(conn, onFirst, onStall) {
-    this.conn = conn; this.onFirst = onFirst; this.onStall = onStall; this.parts = null; this.waitKey = true; this.last = 0;
+    this.conn = conn; this.onFirst = onFirst; this.onStall = onStall; this.parts = null; this.hevcErr = 0; this.waitKey = true; this.last = 0;
     this.canvas = document.createElement('canvas'); this.canvas.width = 1280; this.canvas.height = 720;
     this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
     this.track = this.canvas.captureStream().getVideoTracks()[0];
@@ -538,8 +572,10 @@ export class FastReceiver {
   }
   // the codec string straight from the stream's own SPS (profile, constraints, level)
   codecOf(data) {
-    for (let i = 0; i + 4 < data.length; i++) if (data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 1 && (data[i + 3] & 31) === 7) {
-      const h = x => x.toString(16).padStart(2, '0'); return 'avc1.' + h(data[i + 4]) + h(data[i + 5]) + h(data[i + 6]);
+    const h = x => x.toString(16).padStart(2, '0');
+    for (let i = 0; i + 4 < data.length; i++) if (data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 1) {
+      if ((data[i + 3] & 31) === 7) return 'avc1.' + h(data[i + 4]) + h(data[i + 5]) + h(data[i + 6]);
+      if (((data[i + 3] >> 1) & 63) === 33) return hevcCodec(data, i + 5);   // H.265 SPS
     }
     return null;
   }
@@ -550,7 +586,7 @@ export class FastReceiver {
       if (codec && codec !== this.codec) {
         try { this.dec?.close(); } catch {}
         this.codec = codec;
-        this.dec = new VideoDecoder({ output: f => this.show(f), error: () => { this.waitKey = true; this.codec = null; this.ask(); } });
+        this.dec = new VideoDecoder({ output: f => this.show(f), error: () => { const hv = this.codec?.startsWith('hvc1'); this.waitKey = true; this.codec = null; if (hv && ++this.hevcErr >= 2) { try { this.conn.send(new Uint8Array([3]).buffer); } catch {} } else this.ask(); } });
         try { this.dec.configure({ codec, optimizeForLatency: true, hardwareAcceleration: 'prefer-hardware' }); } catch { this.dec.configure({ codec }); }
       }
       this.waitKey = false;
@@ -640,9 +676,9 @@ export class ScreenViewer {
       });
       conn.on('close', () => end('closed'));
       // the smooth path (Madar on an Android tablet / TV box, iPhone with hardware H.264): its own channel
-      if (this.prefix === PREFIX) canFast().then(ok => {
+      if (this.prefix === PREFIX) Promise.all([canFast(), canHevc()]).then(([ok, hevc]) => {
         if (!ok || gen !== this.gen) return;
-        const fc = peer.connect(this.prefix + code, { reliable: true, serialization: 'raw', metadata: { fast: true } });
+        const fc = peer.connect(this.prefix + code, { reliable: true, serialization: 'raw', metadata: { fast: true, hevc } });
         fc.on('open', () => {
           const rx = this.fast = new FastReceiver(fc, track => {
             if (gen !== this.gen) return;
