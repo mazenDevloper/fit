@@ -16,7 +16,7 @@ const WORDS = { 'دقيقه': 1, 'دقيقتين': 2, 'ثلاث': 3, 'خمس': 5
 const num = t => { const n = norm(t), m = n.match(/\d+/); if (m) return +m[0]; const w = Object.keys(WORDS).sort((a, b) => b.length - a.length).find(k => (' ' + n + ' ').includes(' ' + k + ' ')); return w ? WORDS[w] : null; };
 
 // ---------------------------------------------------------------- helpers over the app
-const P = a => a.controls?.pointedWindow?.() || [...a.windows.windows].reverse().find(w => w.kind !== 'keyboard') || null;
+const P = a => (a._chainWin && a.windows.windows.includes(a._chainWin) ? a._chainWin : null) || a.controls?.pointedWindow?.() || [...a.windows.windows].reverse().find(w => w.kind !== 'keyboard') || null;
 const V = a => { const l = a.extras?.mediaWindows?.() || []; const p = a.controls?.pointedWindow?.(); return (p && l.includes(p) ? p : null) || l.find(w => w.video && !w.video.paused) || l[0] || null; };
 const WEB = a => [a.controls?.pointedWindow?.(), ...[...a.windows.windows].reverse()].find(w => w?.kind === 'web') || null;
 const READER = a => a.windows.windows.find(w => w.kind === 'reader');
@@ -28,17 +28,43 @@ const play = (a, on) => { const w = V(a); if (!w?.video) return; if (on) { w.use
 const env = (a, k) => { saveSettings({ environment: k }); a.renderEnvChoices?.(); a.toast('البيئة: ' + (ENVS[k]?.label || k), 1500); };
 const devByWord = t => { const d = pairedDevices(), n = norm(t); return d.find(x => n.includes(norm(x.name))) || d.find(x => (/تابلت/.test(n) && x.kind === 'tablet') || (/(تلفاز|تلفزيون)/.test(n) && x.kind === 'tv') || (/(لابتوب|كمبيوتر)/.test(n) && x.kind === 'computer')); };
 
+// ---------------------------------------------------------------- YouTube by voice
+// «شغل سورة الكوثر بقراءة ياسر الدوسري في اليوتيوب، الأجمل الأطول»: the words that are not the request itself are
+// dropped, «الأجمل / الأفضل / الأشهر» = the most watched, «الأطول» = the longest, «الأحدث» = the newest. The server
+// reads YouTube's results and the chosen video opens and plays; if it can't, the results page opens filtered the same way.
+const YT_DROP = /(^|\s)(شغل|شغلي|افتح|اعرض|ابحث|عن|دور|على|في|من|لي|علي|اليوتيوب|يوتيوب|youtube|بقراءه|قراءه|بصوت|صوت|بتلاوه|تلاوه|القارئ|الشيخ|مقطع|فيديو|و|و?ال?اجمل|و?ال?افضل|و?ال?احلي|و?ال?اشهر|و?ال?اطول|طويل|و?ال?احدث|جديد|واحد|نسخه)(?=\s|$)/g;
+export function ytQuery(text) {
+  const n = norm(text), pick = [];
+  if (/(اجمل|افضل|احلي|اشهر)/.test(n)) pick.push('views');
+  if (/(اطول|طويل)/.test(n)) pick.push('long');
+  if (/(احدث|جديد)/.test(n)) pick.push('new');
+  let q = n; for (let k = 0; k < 3; k++) q = q.replace(YT_DROP, ' ');
+  return { q: q.replace(/\s+/g, ' ').trim(), pick };
+}
+async function ytPlay(a, text) {
+  const { q, pick } = ytQuery(text);
+  if (!q) return web(a, 'https://m.youtube.com', 'YouTube');
+  a.toast('🔎 يوتيوب: ' + q + (pick.length ? ' · ' + pick.map(p => ({ views: 'الأكثر مشاهدة', long: 'الأطول', new: 'الأحدث' })[p]).join(' و') : ''), 2500);
+  try {
+    const r = await fetch('https://studio.c-p.workers.dev/yt/find?q=' + encodeURIComponent(q) + '&pick=' + pick.join(','), { signal: AbortSignal.timeout?.(6000) }).then(x => x.json());
+    const v = r.items?.[0];
+    if (v) { a.toast('▶︎ ' + v.title, 3000); return web(a, 'https://m.youtube.com/watch?v=' + v.id, v.title); }
+  } catch {}
+  const sp = pick.includes('long') ? (pick.includes('views') ? '&sp=CAMSAhgC' : '&sp=EgIYAg%3D%3D') : pick.includes('views') ? '&sp=CAM%3D' : pick.includes('new') ? '&sp=CAI%3D' : '';
+  return web(a, 'https://m.youtube.com/results?search_query=' + encodeURIComponent(q) + sp, q);
+}
+
 // ---------------------------------------------------------------- the list: [id, group, what it does, how people say it, run]
 // «arg»: the words after the phrase (a name, a number, a text)
 export const COMMANDS = [
   // ---- windows
-  ['close', 'النوافذ', 'أغلق النافذة التي تنظر إليها', ['اغلق النافذه', 'اغلق هذا', 'سكر', 'سكرها', 'اقفل النافذه', 'اغلقها'], a => { const w = P(a); if (w) a.windows.close(w); }],
+  ['close', 'النوافذ', 'أغلق النافذة التي تنظر إليها', ['اغلق النافذه', 'اغلق هذا', 'سكر', 'سكرها', 'سكره', 'اقفل النافذه', 'اغلقها', 'اغلقه'], a => { const w = P(a); if (w) a.windows.close(w); }],
   ['close_all', 'النوافذ', 'أغلق كل النوافذ', ['اغلق الكل', 'سكر الكل', 'اغلق كل النوافذ', 'نظف المكان'], a => a.windows.closeAll()],
-  ['bigger', 'النوافذ', 'كبّر النافذة', ['كبر', 'كبرها', 'اكبر', 'تكبير'], a => P(a)?.scaleBy?.(1.25)],
-  ['smaller', 'النوافذ', 'صغّر النافذة', ['صغر', 'صغرها', 'اصغر', 'تصغير'], a => P(a)?.scaleBy?.(1 / 1.25)],
-  ['closer', 'النوافذ', 'قرّب النافذة', ['قربها', 'قرب النافذه', 'اقرب'], a => { const w = P(a); if (w) { w.group.position.multiplyScalar(0.8); w.updateRadius?.(); a.windows.changed(); } }],
-  ['farther', 'النوافذ', 'أبعد النافذة', ['بعدها', 'ابعد النافذه', 'ابعدها'], a => { const w = P(a); if (w) { w.group.position.multiplyScalar(1.25); w.updateRadius?.(); a.windows.changed(); } }],
-  ['pin', 'النوافذ', 'ثبّت النافذة أمام عينيك (تتبع رأسك)', ['ثبت', 'ثبتها', 'تثبيت', 'خليها معي', 'تتبعني'], a => { const w = P(a); if (w) { w.headLock = !w.headLock; a.toast(w.headLock ? 'النافذة تتبع رأسك' : 'النافذة ثابتة في الغرفة', 1800); } }],
+  ['bigger', 'النوافذ', 'كبّر النافذة', ['كبر', 'كبرها', 'كبره', 'اكبر', 'تكبير'], a => P(a)?.scaleBy?.(1.25)],
+  ['smaller', 'النوافذ', 'صغّر النافذة', ['صغر', 'صغرها', 'صغره', 'اصغر', 'تصغير'], a => P(a)?.scaleBy?.(1 / 1.25)],
+  ['closer', 'النوافذ', 'قرّب النافذة', ['قربها', 'قربه', 'قرب النافذه', 'اقرب'], a => { const w = P(a); if (w) { w.group.position.multiplyScalar(0.8); w.updateRadius?.(); a.windows.changed(); } }],
+  ['farther', 'النوافذ', 'أبعد النافذة', ['بعدها', 'بعده', 'ابعد النافذه', 'ابعدها'], a => { const w = P(a); if (w) { w.group.position.multiplyScalar(1.25); w.updateRadius?.(); a.windows.changed(); } }],
+  ['pin', 'النوافذ', 'ثبّت النافذة أمام عينيك (تتبع رأسك)', ['ثبت', 'ثبتها', 'ثبته', 'تثبيت', 'خليها معي', 'تتبعني'], a => { const w = P(a); if (w) { w.headLock = !w.headLock; a.toast(w.headLock ? 'النافذة تتبع رأسك' : 'النافذة ثابتة في الغرفة', 1800); } }],
   ['arrange', 'النوافذ', 'رتّب النوافذ حولك', ['رتب', 'رتب النوافذ', 'ترتيب'], a => a.windows.arrange()],
   ['recenter', 'النوافذ', 'أعد التمركز أمامك', ['تمركز', 'اعد التمركز', 'امامي', 'المنتصف', 'رجعها قدامي'], a => a.recenter()],
   ['curve', 'النوافذ', 'اجعل النافذة منحنية / مسطحة', ['منحني', 'منحنيه', 'اجعلها منحنيه', 'مسطحه', 'مسطح'], (a, x, t) => { const w = P(a); w?.setCurved?.(!/مسطح/.test(norm(t))); }],
@@ -94,7 +120,7 @@ export const COMMANDS = [
   ['help', 'القوائم', 'ماذا أستطيع أن أقول؟', ['ماذا تستطيع', 'الاوامر', 'وش اقول', 'ماذا اقول', 'مساعده'], a => a.showCommands?.()],
   // ---- web & apps
   ['search', 'المواقع', 'ابحث في جوجل', ['ابحث عن', 'دور على', 'بحث عن', 'قوقل'], (a, x) => { if (x) web(a, 'https://www.google.com/search?q=' + encodeURIComponent(x), x); }],
-  ['youtube', 'المواقع', 'يوتيوب (أو ابحث فيه)', ['يوتيوب', 'اليوتيوب'], (a, x) => web(a, x ? 'https://m.youtube.com/results?search_query=' + encodeURIComponent(x) : 'https://m.youtube.com', 'YouTube')],
+  ['youtube', 'المواقع', 'يوتيوب: يبحث ويشغّل ما طلبت («شغل سورة الكوثر بصوت ياسر الدوسري في اليوتيوب، الأجمل الأطول»)', ['يوتيوب', 'اليوتيوب'], (a, x, t) => ytPlay(a, t)],
   ['shahid', 'المواقع', 'شاهد', ['شاهد نت', 'منصه شاهد', 'افتح شاهد'], a => web(a, 'https://shahid.mbc.net', 'شاهد')],
   ['netflix', 'المواقع', 'نتفلكس', ['نتفلكس', 'نتفليكس'], a => web(a, 'https://www.netflix.com', 'Netflix')],
   ['open_site', 'المواقع', 'افتح موقعاً بالاسم أو الرابط', ['افتح موقع', 'روح لموقع', 'ادخل موقع'], (a, x) => { if (!x) return; const u = /^https?:/.test(x) ? x : /\./.test(x) ? 'https://' + x.replace(/\s/g, '') : 'https://www.google.com/search?btnI=1&q=' + encodeURIComponent(x); web(a, u, x); }],
@@ -171,23 +197,51 @@ export const COMMANDS = [
 const LIST = COMMANDS.map(([id, group, desc, says, run]) => ({ id, group, desc, says: says.map(norm), run }));
 export const byId = id => LIST.find(c => c.id === id);
 // the best command for these words: a known phrase inside the sentence wins (the longest one); else most shared words
+const WEAK = new Set(['play', 'pause', 'home', 'search_none']);
 export function match(text) {
   const t = norm(text), words = new Set(t.split(' '));
   let best = null;
   for (const c of LIST) for (const s of c.says) {
     let score = 0;
-    const i = (' ' + t + ' ').indexOf(' ' + s) >= 0 ? t.indexOf(s) : -1;
-    if (i >= 0) score = 1 + s.length / 40 - i / 40;
-    else { const sw = s.split(' '); const hit = sw.filter(w => words.has(w) || [...words].some(x => x.length > 3 && (x.startsWith(w) || w.startsWith(x)))).length; score = sw.length > 1 ? hit / sw.length * 0.8 : 0; }
+    const i = (' ' + t).indexOf(' ' + s);
+    if (i >= 0) {
+      score = 1 + s.length / 40 - i / 40;
+      if (WEAK.has(c.id) && t.slice(i + s.length).trim().split(' ').length > 1) score = 0.5;   // «شغل سورة…» is not «play»
+      if (c.id === 'youtube' && t.replace(s, '').trim().split(' ').length > 1) score = 3;     // «… في اليوتيوب»: a YouTube request, all of it
+    } else { const sw = s.split(' '); const hit = sw.filter(w => words.has(w) || [...words].some(x => x.length > 3 && (x.startsWith(w) || w.startsWith(x)))).length; score = sw.length > 1 ? hit / sw.length * 0.8 : 0; }
     if (score > (best?.score || 0)) best = { cmd: c, score, arg: i >= 0 ? t.slice(i + s.length).trim() : '' };
+    if (c.id === 'youtube' && score === 3) best.arg = t;
   }
   return best;
+}
+// «افتح يوتيوب ثم كبّره وقرّبه»: split at «ثم / و / بعدين»; a piece that is not a command of its own belongs to the
+// one before it («… في اليوتيوب والأجمل الأطول» stays one YouTube request). null = not all known → the assistant.
+export function plan(text) {
+  const parts = norm(text).split(/\s+(?:ثم|وبعدين|بعدين|بعدها|وبعد ذلك|و)\s+|\s+و(?!ضع|قف|طي|سط|ين)(?=\S{3,})/).map(x => x.trim()).filter(Boolean);
+  const steps = [];
+  for (const p of parts) {
+    const m = match(p);
+    if (m && m.score >= 1 && !(steps.length && steps.at(-1).cmd.id === 'youtube' && m.cmd.id !== 'youtube' && m.score < 1.1 && !/^(كبر|صغر|قرب|ابعد|اغلق|سكر|ثبت)/.test(p))) steps.push({ ...m, text: p });
+    else if (steps.length) { const l = steps.at(-1); l.text += ' و ' + p; l.arg = (l.arg + ' ' + p).trim(); }
+    else return null;
+  }
+  return steps.length ? steps : null;
 }
 // several things in one sentence, or a question: the assistant plans it
 export const needsBrain = t => / (ثم|وبعدين|بعدها|وبعد) /.test(' ' + norm(t) + ' ') || /^(متي|كم|من |هل|ماذا|ليش|لماذا|كيف|اين|وين|شو |ايش)/.test(norm(t)) || (norm(t).split(' ').length > 6 && / و/.test(norm(t)));
 // the list the assistant receives: id · group · what it does
 export const catalog = () => LIST.map(c => `${c.id} · ${c.desc}`).join('\n');
-export function run(app, id, arg = '', text = '') { const c = byId(id); if (!c) return false; try { c.run(app, arg, text || arg); } catch (e) { console.warn('cmd', id, e); } return true; }
+export async function run(app, id, arg = '', text = '') { const c = byId(id); if (!c) return false; try { await c.run(app, arg, text || arg); } catch (e) { console.warn('cmd', id, e); } return true; }
+// the steps in order; a window a step opens is the one the next steps act on («افتح يوتيوب ثم كبّره»)
+export async function runPlan(app, steps) {
+  for (const st of steps) {
+    const before = app.windows.windows.length;
+    await run(app, st.cmd?.id || st.id, st.arg || '', st.text || st.arg || '');
+    await new Promise(r => setTimeout(r, 450));
+    if (app.windows.windows.length > before) app._chainWin = app.windows.windows.at(-1);
+  }
+  app._chainWin = null;
+}
 // what is on screen now, for the assistant
 export function context(app) {
   const ws = app.windows.windows.map(w => `${w.kind}${w.title || w.name ? ' «' + String(w.title || w.name).slice(0, 40) + '»' : ''}${w.video ? (w.video.paused ? ' متوقف' : ' يعمل') : ''}${w === app.controls?.pointedWindow?.() ? ' (ينظر إليها)' : ''}`);

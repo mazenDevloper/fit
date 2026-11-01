@@ -45,7 +45,7 @@ import * as CMD from './commands.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '144';
+export const APP_VERSION = '145';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -504,7 +504,7 @@ class App {
     };
     if (a.type && a.type !== 'none') run();
     // the steps the assistant planned with Madar's own commands, in order (a short pause lets each window open)
-    (r.madar || []).forEach((c, i) => setTimeout(() => CMD.run(this, c.id, c.arg || '', c.arg || q), i * 450));
+    if ((r.madar || []).length) CMD.runPlan(this, r.madar.map(c => ({ id: c.id, arg: c.arg || '', text: c.arg || q })));
     this.notify({ icon: '✨', title: 'مساعد مدار', body: r.say, actions: a.type === 'open_matches' ? [] : [['المباريات', () => this.openMatches()]] });
     try { const u = new SpeechSynthesisUtterance(r.say); u.lang = 'ar-SA'; u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {}
     this.log('المساعد: ' + q + ' → ' + r.say);
@@ -1250,12 +1250,12 @@ class App {
     t = t.trim(); if (!t) return;
     const n = CMD.norm(t);
     if (/(التلفاز|التلفزيون|الشاشه الكبيره|الصاله|السياره|الهاتف|الجوال|اهل البيت|كل الاجهزه)/.test(n) && !/(فوق|على) التلفاز|شاشه التابلت|وضع السفر/.test(n)) return this.askAssistant(t);
-    if (/ (ثم|وبعدين|بعدها|وبعد) /.test(' ' + n + ' ')) return this.askAssistant(t);
-    const m = CMD.match(t), question = /^(متي|كم|من |هل|ماذا|ليش|لماذا|كيف|اين|وين|شو |ايش|ما هي|ما هو|يا مساعد)/.test(n) && m?.cmd.id !== 'help' && m?.cmd.id !== 'look';
-    const strong = m && m.score >= 1 && (!question || m.cmd.says.some(s => s.length >= 6 && n.includes(s)));
-    if (strong || (!question && m && m.score >= 0.75)) {
-      CMD.run(this, m.cmd.id, m.arg, t);
-      this.toast('🎙 ' + m.cmd.desc, 1800); this.log('أمر صوتي: ' + t + ' → ' + m.cmd.id);
+    const question = /^(متي|كم|من |هل|ماذا|ليش|لماذا|كيف|اين|وين|شو |ايش|ما هي|ما هو|يا مساعد)/.test(n);
+    const steps = CMD.plan(t);
+    // a question runs here only when it clearly names a command («ماذا تستطيع»، «ما هذا»)
+    if (steps && (!question || (steps.length === 1 && (['help', 'look'].includes(steps[0].cmd.id) || steps[0].cmd.says.some(s => s.length >= 6 && n.includes(s)))))) {
+      CMD.runPlan(this, steps);
+      this.toast('🎙 ' + steps.map(s => s.cmd.desc.split(' («')[0]).join(' ← '), 2200); this.log('أمر صوتي: ' + t + ' → ' + steps.map(s => s.cmd.id).join(' + '));
       return;
     }
     this.askAssistant(t);
