@@ -13,7 +13,7 @@ img = Image.open(io.BytesIO(urllib.request.urlopen(A['icon']).read())).convert('
 s = max(img.size); sq = Image.new('RGBA', (s, s), (0, 0, 0, 0)); sq.paste(img, ((s - img.width) // 2, (s - img.height) // 2))
 sq.resize((256, 256), Image.LANCZOS).save('icon.png'); sq.save('icon.ico', sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
 pkg = {'name': which, 'productName': A['product'], 'version': '1.0.0', 'description': A['name'], 'author': 'Mazn', 'main': 'main.js',
-       'build': {'appId': A['id'], 'productName': A['product'], 'files': ['main.js', 'app.json', 'icon.png'], 'icon': 'icon.ico',
+       'build': {'appId': A['id'], 'productName': A['product'], 'files': ['main.js', 'preload.js', 'app.json', 'icon.png'], 'icon': 'icon.ico',
                  'win': {'target': ['nsis', 'portable'], 'icon': 'icon.ico'},
                  'nsis': {'oneClick': False, 'allowToChangeInstallationDirectory': True, 'createDesktopShortcut': True, 'shortcutName': A['name'], 'artifactName': A['product'] + '-Setup.${ext}'},
                  'portable': {'artifactName': A['product'] + '-Portable.${ext}'}}}

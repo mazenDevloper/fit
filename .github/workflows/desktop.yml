@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           pip install pillow
-          mkdir build && cp app/main.js build/ && cd build && python ../app/build.py ${{ matrix.app }}
+          mkdir build && cp app/main.js app/preload.js build/ && cd build && python ../app/build.py ${{ matrix.app }}
           npm i --no-audit --no-fund -D electron@32.2.7 electron-builder@24.13.3
       - name: Build the .exe
         shell: bash
