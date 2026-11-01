@@ -224,7 +224,10 @@ export class ScreenHost {
     else {
     this.hdmi = false;
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('هذا المتصفح لا يدعم مشاركة الشاشة — استخدم Chrome أو Edge على الكمبيوتر');
-    try { this.stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true }); }
+    // a chosen Windows monitor (Madar for Windows): its own size - up to 5120×1440 for the virtual ultra-wide one
+    const D = opts.display, V = D ? { frameRate: { ideal: D.ultra ? 30 : 30, max: 60 }, width: { ideal: D.w }, height: { ideal: D.h } } : { frameRate: { ideal: 30, max: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } };
+    this.ultra = !!D?.ultra;
+    try { this.stream = await navigator.mediaDevices.getDisplayMedia({ video: V, audio: true }); }
     catch (e) { throw new Error(e.name === 'NotAllowedError' ? 'أُلغيت المشاركة أو لم يُسمح بها' : 'هذا الجهاز لا يسمح بمشاركة الشاشة من المتصفح'); }
     this.stream.getVideoTracks()[0].addEventListener('ended', () => this.stop());
     }
@@ -293,7 +296,7 @@ export class ScreenHost {
   tune(call) {
     const pc = call && call.peerConnection; if (!pc) return;
     (this.calls || (this.calls = new Set())).add(call);
-    const rate = { hdmi: 10000000, game: 6000000, low: 1200000, medium: 2500000, high: 5000000, max: 8000000 }[this.quality || 'high'];
+    const rate = this.ultra ? 16000000 : { hdmi: 10000000, game: 6000000, low: 1200000, medium: 2500000, high: 5000000, max: 8000000 }[this.quality || 'high'];   // 32:9 text needs more
     const apply = () => pc.getSenders().forEach(snd => {
       if (!snd.track || snd.track.kind !== 'video') return;
       try {

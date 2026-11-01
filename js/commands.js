@@ -156,6 +156,7 @@ export const COMMANDS = [
   // ---- sport
   ['matches', 'الرياضة', 'مباريات اليوم وفرقي', ['المباريات', 'مباريات', 'مباراه اليوم'], a => a.openMatches?.()],
   ['sports_mode', 'الرياضة', 'الوضع الرياضي: البث المباشر + لوحة النتائج، ويبقى عند كل دخول (تشغيل / إيقاف)', ['الوضع الرياضي', 'وضع رياضي', 'وضع الرياضه', 'الرياضي', 'وضع الكوره', 'وضع الكره'], (a, x, t) => { const w = norm(t), off = /(اطفي|اوقف|وقف|الغ|اقفل|اغلق|بدون|سكر)/.test(w), on = /(شغل|فعل|افتح|ابي|ادخل)/.test(w); saveSettings({ sportsMode: off ? false : on ? true : !settings.sportsMode }); a.toast(settings.sportsMode ? '⚽ الوضع الرياضي يعمل' : 'أُوقف الوضع الرياضي', 1800); }],
+  ['match_center', 'الرياضة', 'مركز المباراة: الأحداث والإحصائيات والتشكيلة ومبارياتك حول البث', ['مركز المباراه', 'تفاصيل المباراه', 'احصائيات المباراه', 'التشكيله', 'الاحصائيات'], a => a.matchCenter()],
   ['match_mode', 'الرياضة', 'وضع المباراة: البث + لوحة النتائج', ['وضع المباراه', 'المباراه الكبيره'], a => a.plus?.matchMode()],
   ['island', 'الرياضة', 'جزيرة المباريات (إظهار / إخفاء)', ['الجزيره', 'جزيره المباريات'], a => tog(a, 'island', 'جزيرة المباريات')],
   ['goals_all', 'الرياضة', 'أهداف كل المباريات أو فرقي فقط', ['كل الاهداف', 'اهداف فرقي'], a => tog(a, 'allGoals', 'أهداف كل المباريات', !settings.allGoals)],
@@ -166,6 +167,8 @@ export const COMMANDS = [
   ['recite', 'القرآن', 'شغّل / أوقف التلاوة', ['اقرا', 'التلاوه', 'رتل', 'شغل التلاوه', 'اوقف التلاوه', 'وقف التلاوه'], a => READER(a)?.togglePlay?.()],
   ['page_next', 'القرآن', 'الصفحة التالية', ['الصفحه التاليه', 'التاليه', 'اقلب الصفحه', 'قلب الصفحه', 'الصفحه الجايه'], a => READER(a)?.next?.()],
   ['page_prev', 'القرآن', 'الصفحة السابقة', ['الصفحه السابقه', 'السابقه'], a => READER(a)?.prev?.()],
+  ['hifz', 'القرآن', 'وضع الحفظ (التسميع): الكلمات مغطاة وتظهر عندما تقولها، والخطأ بالأحمر', ['وضع الحفظ', 'التسميع', 'سمع', 'تسميع', 'ابي اسمع', 'اختبرني في الحفظ'], async (a, x, t) => { let r = READER(a); if (!r) { a.openReader('quran'); for (let i = 0; i < 20 && !(r = READER(a))?.layouts?.size; i++) await new Promise(z => setTimeout(z, 300)); } if (/سوره/.test(norm(t)) && x) { a.openSurah(x); await new Promise(z => setTimeout(z, 2500)); } r?.hifzToggle(/(وقف|اوقف|انه|الغ)/.test(norm(t)) ? false : true); }],
+  ['hifz_stop', 'القرآن', 'أنهِ التسميع', ['وقف التسميع', 'انه التسميع', 'خلاص التسميع'], a => READER(a)?.hifzToggle(false)],
   ['verse', 'القرآن', 'آية اليوم', ['ايه اليوم'], a => a.extras?.widget('verse')],
   ['shelf', 'القرآن', 'رف الكتب', ['رف الكتب', 'كتبي'], a => a.openShelf()],
   // ---- fitness
@@ -192,6 +195,7 @@ export const COMMANDS = [
   ['share_space', 'المساحات', 'شارك مساحتي', ['شارك مساحتي', 'شارك المساحه'], a => a.extras?.shareSpace()],
   // ---- vision & draw
   ['look', 'الذكاء', 'ما هذا الذي أمامي؟ (يرى بالكاميرا)', ['ما هذا', 'شو هذا', 'ماذا امامي', 'اقرا هذا', 'ترجم هذا'], (a, x, t) => a.extras?.lookAndAsk(t)],
+  ['ask_window', 'الذكاء', 'اسأل عن النافذة التي تنظر إليها («من هذا اللاعب؟»، «ماذا يحدث في هذا الفيديو؟»)', ['اسال عن النافذه', 'عن هذا الفيديو', 'عن هذي النافذه'], (a, x, t) => a.extras?.askWindow(t)],
   ['draw', 'الذكاء', 'الرسم في الهواء', ['ارسم', 'الرسم'], a => a.extras?.sketch.toggle()],
   ['orb', 'الذكاء', 'كرة المساعد العائمة', ['كره المساعد', 'المساعد العائم'], a => { const on = !settings.orb; saveSettings({ orb: on }); a.extras?.orb.show(on); }],
   // ---- settings
@@ -242,10 +246,15 @@ export const COMMANDS = [
   ['finger_mouse', 'الإعدادات', 'الإصبع فأرة', ['الاصبع فاره', 'الماوس بالاصبع'], a => tog(a, 'handDwell', 'الإصبع فأرة', !settings.handDwell)],
   ['stabilizer', 'الإعدادات', 'المثبّت (يثبّت الصورة)', ['المثبت', 'ثبت الصوره'], a => tog(a, 'stabilizer', 'المثبّت', !settings.stabilizer)],
   ['mic_together', 'الفيديو', 'المايكروفون في «شاهد معاً»', ['المايكروفون', 'المايك'], a => a.together?.toggleMic()],
+  ['head_gestures', 'الإعدادات', 'الرد بالرأس على التنبيهات: إيماءة = نعم، هزّة = لا', ['الرد بالراس', 'اوامر الراس', 'ايماءه الراس'], a => tog(a, 'headGestures', 'الرد بالرأس')],
   ['sounds', 'الإعدادات', 'أصوات النقر', ['الاصوات', 'اصوات النقر'], a => tog(a, 'sounds', 'الأصوات')],
   ['cool', 'الإعدادات', 'تبريد الآيفون', ['التبريد', 'الجهاز حار', 'برد الجهاز'], a => { tog(a, 'coolMax', 'التبريد الأقصى', !settings.coolMax); a.renderer.resize(); }],
   ['gaze', 'الإعدادات', 'النقر بالنظر', ['النقر بالنظر', 'النظر'], a => tog(a, 'dwell', 'النقر بالنظر', !settings.dwell)],
   ['hands', 'الإعدادات', 'تتبع اليد', ['تتبع اليد', 'اليد', 'الايدي'], a => tog(a, 'handsEnabled', 'تتبع اليد', !settings.handsEnabled)],
+  ['routine_new', 'الروتينات', 'اصنع روتيناً: «اصنع روتين اسمه وضع السهرة: بيئة سينما ثم الزجاج أقل ثم درايف كاست»', ['اصنع روتين', 'روتين جديد'], (a, x, t) => { const r = routineNew(t); if (!r) return a.say?.('قل: اصنع روتين اسمه … ثم الخطوات'); if (!r.steps.length) return a.say?.('لم أفهم خطوات «' + r.name + '»'); saveSettings({ routines: [...routines().filter(v => norm(v.name) !== norm(r.name)), r] }); a.say?.('حفظت روتين «' + r.name + '»: ' + r.steps.join('، ثم ') + '. قل «' + r.name + '» لتشغيله'); }],
+  ['routine_del', 'الروتينات', 'احذف روتيناً بالاسم', ['احذف روتين', 'امسح روتين', 'احذف الروتين'], (a, x, t) => { const n = norm(t), r = routines().find(v => n.includes(norm(v.name))); if (!r) return a.say?.('لم أجد هذا الروتين'); saveSettings({ routines: routines().filter(v => v !== r) }); a.say?.('حذفت روتين «' + r.name + '»'); }],
+  ['routine_run', 'الروتينات', 'شغّل روتيناً بالاسم', ['شغل روتين', 'روتين'], (a, x, t) => { const r = routines().find(v => norm(t).includes(norm(v.name))); if (r) runPlan(a, r.steps.flatMap(st => plan0(st) || [])); else a.say?.('لم أجد روتيناً بهذا الاسم'); }],
+  ['routine_list', 'الروتينات', 'روتيناتي', ['روتيناتي', 'الروتينات', 'وش الروتينات'], a => a.say?.(routines().map(r => '«' + r.name + '»: ' + r.steps.join(' ثم ')).join(' · ') || 'لا روتينات بعد')],
   ['smart_open', 'القوائم', 'افتح الشريط الذكي (الدائرة الصغيرة تتمدّد إلى الشريط)', ['افتح الشريط', 'وسع الشريط', 'الشريط الذكي افتح', 'افتح الدائره'], a => a.smartBar?.expand()],
   ['smart_fold', 'القوائم', 'اطوِ الشريط الذكي إلى دائرة', ['اطوي الشريط', 'صغر الشريط', 'اغلق الشريط'], a => a.smartBar?.fold()],
   ['smart_bar', 'الإعدادات', 'الشريط الذكي (إظهار / إخفاء)', ['الشريط الذكي', 'الشريط'], a => tog(a, 'smartBar', 'الشريط الذكي')],
@@ -286,7 +295,30 @@ export function match(text) {
 }
 // «افتح يوتيوب ثم كبّره وقرّبه»: split at «ثم / و / بعدين»; a piece that is not a command of its own belongs to the
 // one before it («… في اليوتيوب والأجمل الأطول» stays one YouTube request). null = not all known → the assistant.
+// ---------------------------------------------------------------- routines: one phrase, several steps
+// «اصنع روتين اسمه وضع السهرة: خذني للسينما ثم الزجاج اقل ثم درايف كاست» - then «وضع السهرة» does all of it.
+// Each step is kept as words and understood again when it runs (so it keeps working as Madar learns more).
+const ROUTINES0 = [
+  { name: 'وضع السهرة', steps: ['بيئه سينما', 'الزجاج اقل', 'درايف كاست'] },
+  { name: 'وضع النوم', steps: ['وقف بعد 30 دقيقه', 'خافت', 'اخفض الصوت'] },
+  { name: 'وضع القراءة', steps: ['المصحف', 'وضع التركيز'] },
+];
+export const routines = () => Array.isArray(settings.routines) ? settings.routines : ROUTINES0;
+const ROUTINE_NEW = /(اصنع|انشئ|سوي|اعمل|احفظ|سجل|اضف|ضيف) (لي )?(روتين|اختصار)( جديد)?( اسمه| باسم| بأسم| اسمها)? (.+?)(?:\s*:\s*|\s+(?:يعني|يسوي|يفتح|فيه|خطواته|يشغل)\s+)(.+)/;
+export function routineNew(text) {
+  const m = norm(text).match(ROUTINE_NEW); if (!m) return null;
+  const name = m[6].trim(), body = m[7];
+  const steps = body.split(/\s+(?:ثم|وبعدين|بعدين|بعدها|و)\s+|\s+و(?!ضع|قف|طي|سط|ين|ايد)(?=\S{3,})|\s*[،,]\s*/).map(x => x.trim()).filter(x => x && (match(x)?.score || 0) >= 1);
+  return steps.length ? { name, steps } : { name, steps: [], bad: body };
+}
+function routineFor(n) { return routines().find(r => { const k = norm(r.name); return n === k || n.includes(k) || n === 'شغل ' + k; }); }
 export function plan(text) {
+  if (ROUTINE_NEW.test(norm(text))) return [{ cmd: byId('routine_new'), score: 2, arg: text, text }];
+  const r = /(احذف|امسح|الغ) (ال)?روتين/.test(norm(text)) ? null : routineFor(norm(text));
+  if (r) return r.steps.flatMap(st => plan0(st) || []).map(x => ({ ...x, routine: r.name }));
+  return plan0(text);
+}
+function plan0(text) {
   const parts = norm(text).split(/\s+(?:ثم|وبعدين|بعدين|بعدها|وبعد ذلك|و)\s+|\s+و(?!ضع|قف|طي|سط|ين|ايد)(?=\S{3,})/).map(x => x.trim()).filter(Boolean);
   const steps = [];
   for (const p of parts) {
@@ -302,7 +334,7 @@ export function plan(text) {
 // several things in one sentence, or a question: the assistant plans it
 export const needsBrain = t => / (ثم|وبعدين|بعدها|وبعد) /.test(' ' + norm(t) + ' ') || /^(متي|كم|من |هل|ماذا|ليش|لماذا|كيف|اين|وين|شو |ايش)/.test(norm(t)) || (norm(t).split(' ').length > 6 && / و/.test(norm(t)));
 // the list the assistant receives: id · group · what it does
-export const catalog = () => LIST.map(c => `${c.id} · ${c.desc}`).join('\n');
+export const catalog = () => LIST.map(c => `${c.id} · ${c.desc}`).join('\n') + '\nروتينات المستخدم (شغّلها بالأمر routine_run وarg = الاسم): ' + routines().map(r => r.name).join('، ');
 export async function run(app, id, arg = '', text = '') { const c = byId(id); if (!c) return false; try { await c.run(app, arg, text || arg); } catch (e) { console.warn('cmd', id, e); } return true; }
 // the steps in order; a window a step opens is the one the next steps act on («افتح يوتيوب ثم كبّره»)
 export async function runPlan(app, steps) {

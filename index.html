@@ -237,6 +237,12 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
     <div id="mirHost">
       <p class="hint" style="margin-top:0">على الكمبيوتر أو تطبيق مدار للأندرويد: اضغط «شارك شاشة هذا الجهاز». يُستخدم رقم الجهاز الثابت دائماً، فلا تحتاج رمزاً جديداً كل مرة. أبقِ مدار مفتوحاً أثناء المشاركة.</p>
       <button id="mirStart" class="add" type="button">شارك شاشة هذا الجهاز</button>
+      <div id="winDisp" hidden style="margin-top:10px">
+        <p class="hint" style="margin:0 0 8px">🖥 شاشة ويندوز في مدار: <b>مرآة</b> = شاشتك كما هي · <b>ممتدة ألترا وايد</b> = شاشة ثانية 32:9 تسحب إليها البرامج وتظهر منحنية أمامك</p>
+        <div class="row2"><button id="winMirror" class="add" type="button">مرآة الشاشة</button><button id="winExtend" class="add" type="button">ممتدة ألترا وايد</button></div>
+        <select id="winScreens" style="margin-top:8px;width:100%"></select>
+        <p id="winMsg" class="hint" aria-live="polite"></p>
+      </div>
       <button id="mirRemoteOnly" class="ghost" type="button" style="margin-top:8px;width:100%" hidden>🎛 تحكم فقط (بدون مشاركة الشاشة) — للتي في بوكس عبر HDMI</button>
       <div id="mirHdmiBox" style="margin-top:10px">
         <button id="mirHdmi" class="add" type="button">🎮 بث جهاز HDMI (بلايستيشن · تي في بوكس · رسيفر)</button>

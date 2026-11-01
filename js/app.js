@@ -43,10 +43,11 @@ import { Welcome } from './welcome.js';
 import { SmartBar } from './smartbar.js';
 import * as CMD from './commands.js';
 import * as BRAIN from './brain.js';
+import { HeadGestures } from './headgest.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '150';
+export const APP_VERSION = '151';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -134,6 +135,7 @@ class App {
     this.extras = new Extras(this);
     this.remote = new Remote(this);
     this.version = APP_VERSION;
+    this.headGest = new HeadGestures(this);   // nod = نعم, shake = لا on a notification
     this.smartBar = new SmartBar(this);   // «الشريط الذكي» below your view: select an item, slide left / right
     this.welcome = new Welcome(this);     // «مرحباً»: greeting + date + prayer + match + devices; shared clipboard; prayer pause
     this.together = new Together(this);   // «شاهد معاً»: voices + the same video at the same second (LiveKit)
@@ -571,6 +573,28 @@ class App {
       catch (e) { $('#mirStatus').textContent = ''; alertBox(e.message || 'لم تبدأ المشاركة'); }
     });
     $('#mirStop').addEventListener('click', () => this.host.stop());
+    // Madar for Windows: mirror the real screen, or extend to a virtual ultra-wide one (Virtual Display Driver)
+    if (window.MadarWin && $('#winDisp')) {
+      const box = $('#winDisp'), sel = $('#winScreens'), msg = t => { $('#winMsg').innerHTML = t; };
+      box.hidden = false;
+      const list = async () => { const d = await window.MadarWin.displays(); sel.innerHTML = d.map(x => `<option value="${x.id}">${x.label} · ${x.w}×${x.h}${x.primary ? ' · الرئيسية' : ''}${x.ultra ? ' · ألترا وايد' : ''}</option>`).join(''); return d; };
+      list();
+      const go = async d => {
+        if (!d) return;
+        await window.MadarWin.choose(d.id);
+        if (this.host.stream) this.host.stop();
+        try { await this.host.start({ display: d }); msg('تُعرض ' + d.label + ' (' + d.w + '×' + d.h + ') — افتح مدار على الآيفون وأدخل الرمز'); }
+        catch (e) { msg(e.message || 'لم تبدأ'); }
+      };
+      $('#winMirror').addEventListener('click', async () => { const d = await list(); go(d.find(x => x.id === sel.value) || d.find(x => x.primary) || d[0]); });
+      $('#winExtend').addEventListener('click', async () => {
+        const d = await list(), u = d.find(x => x.ultra && !x.primary);
+        if (u) { sel.value = u.id; return go(u); }
+        msg('لا توجد شاشة ألترا وايد بعد. مرة واحدة: <a href="#" id="winVdd" style="color:#7cc4ff">ثبّت Virtual Display Driver</a> (مجاني) ثم من <a href="#" id="winSet" style="color:#7cc4ff">إعدادات العرض</a> اجعل الشاشة الجديدة «تمديد» بدقة 5120×1440، ثم اضغط «ممتدة» مرة أخرى');
+        $('#winVdd')?.addEventListener('click', e => { e.preventDefault(); window.MadarWin.installVirtual(); });
+        $('#winSet')?.addEventListener('click', e => { e.preventDefault(); window.MadarWin.displaySettings(); });
+      });
+    }
     // remote only (Android app): the remote page / Madar can drive this device without its picture
     if (window.MadarAndroid && $('#mirRemoteOnly')) { $('#mirRemoteOnly').hidden = false; $('#mirRemoteOnly').addEventListener('click', async () => { try { saveSettings({ remoteOnly: true }); await this.host.start({ controlOnly: true }); } catch (e) { alertBox(e.message || 'لم يبدأ'); } }); }
     // HDMI card: pick it (the card is chosen by itself when its name says so; a list appears when there are several)
@@ -641,6 +665,18 @@ class App {
     if (!l.length) return null;
     const near = this.devices ? [...this.devices.nearby.keys()] : [];
     return l.find(d => near.includes(d.code)) || l.find(d => d.code === settings.browserCode) || l[0];
+  }
+  // «مركز المباراة»: the match details and your other matches wrapped around the window you watch it in
+  async matchCenter(win) {
+    const W = this.windows;
+    win ||= (this.mirrorWin && W.windows.includes(this.mirrorWin) ? this.mirrorWin : null) || this.controls?.pointedWindow?.() || [...W.windows].reverse().find(w => w.video || w.kind === 'web');
+    if (!win) { await this.plus?.matchMode(); return; }
+    const old = W.windows.find(w => w.side?.isMatch);
+    if (old) { old.side.dispose(); old.side = null; W.refreshTargets(); if (old === win) { this.toast('أُغلق مركز المباراة', 1500); return; } }
+    const { MatchView } = await import('./matchview.js');
+    win.side = new MatchView(win, this);
+    this.sports?.refresh?.(true);
+    this.toast('⚽ مركز المباراة', 1500);
   }
   browserOnline() {
     const d = this.browserDevice(); if (!d) return false;
@@ -1279,6 +1315,8 @@ class App {
     const n = CMD.norm(t);
     if (/(التلفاز|التلفزيون|الشاشه الكبيره|الصاله|السياره|الهاتف|الجوال|اهل البيت|كل الاجهزه)/.test(n) && !/(فوق|على) التلفاز|شاشه التابلت|وضع السفر/.test(n)) return this.askAssistant(t);
     // a question about Madar itself (what is open, the score, the next prayer, the timer, how do I…): answered here at once
+    // about the window you look at («من هذا اللاعب؟» «ماذا يحدث في هذا الفيديو؟» «لخّص هذه الصفحة»)
+    if (/(هذا|هذي|هذه|ذا) (الفيديو|المقطع|اللاعب|النافذه|الصفحه|الشاشه|الصوره|المشهد|البث|المذيع|الشخص|الفريق|المكان)|(ماذا|وش|ايش|شو) (يحدث|يصير|قاعد يصير) (في|بال)|(اشرح|فسر|ترجم) (لي )?(اللي|الذي|ما) (في|على) (الشاشه|النافذه|الفيديو)/.test(n)) { this.extras?.askWindow(t); return; }
     const ans = BRAIN.answer(this, t);
     if (ans) { this.say(ans, t); return; }
     const question = BRAIN.isQuestion(t);
@@ -1286,7 +1324,7 @@ class App {
     // a question runs here only when it clearly names a command («ماذا تستطيع»، «ما هذا»)
     if (steps && (!question || (steps.length === 1 && (['help', 'look'].includes(steps[0].cmd.id) || steps[0].cmd.says.some(s => s.length >= 6 && n.includes(s)))))) {
       CMD.runPlan(this, steps);
-      this.toast('🎙 ' + steps.map(s => s.cmd.desc.split(' («')[0]).join(' ← '), 2200); this.log('أمر صوتي: ' + t + ' → ' + steps.map(s => s.cmd.id).join(' + '));
+      this.toast('🎙 ' + (steps[0].routine ? 'روتين «' + steps[0].routine + '»' : steps.map(s => s.cmd.desc.split(' («')[0].split(':')[0]).join(' ← ')), 2200); this.log('أمر صوتي: ' + t + ' → ' + steps.map(s => s.cmd.id).join(' + '));
       return;
     }
     this.askAssistant(t);
@@ -1336,6 +1374,7 @@ class App {
     if (!settings.lite) this.slam.update(this.camVideo, now, this.renderQ);
     if (settings.viewMode === 'desktop' && settings.eyeTrack) this.gaze.update(this.camVideo, now);
     this.controls.update(dt);
+    this.headGest?.update(now);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
     this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.together?.update(now); this.welcome?.update(now); this.smartBar?.update(now); this.remote?.pollPads(now);

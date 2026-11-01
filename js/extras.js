@@ -699,6 +699,32 @@ export class Extras {
       app.notify({ icon: '👁', title: 'ما أراه', body: r.say }); speak(r.say); this.logAnswer('👁 ' + q, r.say);
     } catch (e) { app.toast('تعذّر التعرف: ' + (e.message || 'الشبكة'), 2500); }
   }
+  // ---------------------------------------------------------------- ask about the window you look at
+  // «من هذا اللاعب؟» «ماذا يحدث في هذا الفيديو؟» «لخّص هذه الصفحة»: a picture of that window (a video, the HDMI
+  // screen, a mirrored device) goes to the vision model with its title; a YouTube video or a page goes to the
+  // assistant with what it is
+  async askWindow(q, w) {
+    const app = this.app;
+    w ||= app.controls?.pointedWindow?.() || [...app.windows.windows].reverse().find(x => x.video || x.kind === 'web');
+    if (!w) return app.toast('انظر إلى نافذة ثم اسأل', 2000);
+    const name = w.title || w.name || (w.yt ? 'فيديو يوتيوب' : '');
+    if (w.kind === 'web' && w.yt) return app.askAssistant(q + ' (السؤال عن فيديو يوتيوب مفتوح عنوانه «' + name + '»' + (w.ytState?.times?.[0] ? '، عند الدقيقة ' + Math.floor(w.ytState.times[0] / 60) : '') + ')');
+    if (w.kind === 'web') { if (/(لخص|ملخص|اختصر)/.test(q)) return this.summarize(w.pageUrl || w.url, name); return app.askAssistant(q + ' (السؤال عن صفحة مفتوحة: «' + name + '» ' + (w.pageUrl || w.url) + ')'); }
+    const v = w.video;
+    if (!v || !v.videoWidth) return app.askAssistant(q + (name ? ' (عن «' + name + '»)' : ''));
+    const k = Math.min(1, 1000 / Math.max(v.videoWidth, v.videoHeight)), c = document.createElement('canvas');
+    c.width = v.videoWidth * k; c.height = v.videoHeight * k;
+    let img;
+    try { c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); img = c.toDataURL('image/jpeg', 0.82); } catch { return app.askAssistant(q + (name ? ' (عن «' + name + '»)' : '')); }
+    app.notify({ icon: '👁', title: 'أنظر إلى النافذة…', body: q });
+    try {
+      const r = await post('/vision/ask', { image: img, q: q + (name ? ' — هذه لقطة من «' + name + '»' : '') });
+      if (!r.ok) throw new Error(r.error || '');
+      app.notifier.cur = null; app.notifier.queue = [];
+      app.say ? app.say(r.say, q) : (app.notify({ icon: '👁', title: q, body: r.say }), speak(r.say));
+      this.logAnswer('👁 ' + q, r.say);
+    } catch (e) { app.toast('تعذّر التعرف: ' + (e.message || 'الشبكة'), 2500); }
+  }
   // ---------------------------------------------------------------- Safari's summary
   async summarize(url, title) {
     const app = this.app; app.toast('📝 تلخيص الصفحة…', 4000);

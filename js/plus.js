@@ -76,8 +76,11 @@ export class Plus {
       else main = W.open({ kind: 'web', url: 'https://drivecast.c-p.workers.dev/hihi2' });
     }
     // the scores and the day beside it
-    const score = W.windows.find(w => w.type === 'dcdash') || app.extras.widget('dcdash');
-    const today = W.windows.find(w => w.type === 'today') || app.extras.widget('today');
+    // «مركز المباراة» wraps the game (details on the left, your matches on the right); the old widgets only if it's off
+    const centre = settings.matchCenter !== false && main;
+    if (centre) setTimeout(() => app.matchCenter(main), 300);
+    const score = centre ? null : W.windows.find(w => w.type === 'dcdash') || app.extras.widget('dcdash');
+    const today = centre ? null : W.windows.find(w => w.type === 'today') || app.extras.widget('today');
     const yaw = W.forwardYaw(), h = W.headLocal();
     const put = (w, a, d, y, s) => { if (!w) return; const g = w.group; g.position.set(h.x - Math.sin(yaw + a) * d, h.y + y, h.z - Math.cos(yaw + a) * d); g.lookAt(h.x, h.y + y, h.z); if (s) g.scale.setScalar(s); };
     put(main, 0, 2.2, 0.05, 2.0);
@@ -91,6 +94,7 @@ export class Plus {
     app.toast('⚽ وضع المباراة — اضغط مرة أخرى للعودة', 2500);
   }
   exitMatch() {
+    this.app.windows.windows.forEach(w => { if (w.side?.isMatch) { w.side.dispose(); w.side = null; } });
     const app = this.app, m = this.matchOn; this.matchOn = null; if (!m) return;
     for (const w of app.windows.windows) w.group.visible = true;
     saveSettings({ environment: m.env }); if (m.imm != null) app.extras?.portal?.set?.(m.imm);

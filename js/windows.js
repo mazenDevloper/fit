@@ -689,6 +689,7 @@ class PicturePanel {
 }
 
 const SIZE_AR = { normal: 'عادي', wide: 'عريض 21:9', ultra: 'عريض جداً 32:9' };
+const _wp = new THREE.Vector3();
 export class VideoWindow extends SpatialWindow {
   isMuted() { return !!this.video?.muted; }
   applyVolume() { const v = this.video; if (!v) return; v.muted = this.mute; setElementVolume(v, this.vol ?? 1); if (!this.mute && v.paused && !this.userPaused) v.play().catch(() => {}); }
@@ -1034,12 +1035,20 @@ export class VideoWindow extends SpatialWindow {
     if (this.sphere) this.sphere.position.copy(this.mgr.headLocal());
     this.mat.uniforms.uHas.value = v.readyState >= 2 && this.tex ? 1 : 0;
     // smart heat: only the video you look at gets every frame; the others refresh at 15 fps (cooler phone)
-    const ex = this.mgr.app.extras, side = settings.smartHeat !== false && ex?.lookedWin && ex.lookedWin !== this && ex.lookedWin.kind === 'video' && performance.now() - (ex.lookedAt || 0) < 8000;
+    // + a video far to the side of your view (over 40°) gets 8 fps, and one you are not looking at (while you look at
+    //   anything else - a page, a widget) 15 fps; the one you look at always gets every frame
+    const ex = this.mgr.app.extras, heat = settings.smartHeat !== false, looked = ex?.lookedWin === this && performance.now() - (ex.lookedAt || 0) < 8000;
+    let far = false;
+    if (heat && !looked && now - (this.angAt || 0) > 250) { this.angAt = now; const wp = this.group.getWorldPosition(_wp).normalize(); this.farOff = wp.dot(this.mgr.app.headForward) < 0.77; }
+    far = heat && !looked && this.farOff;
+    const side = far || (heat && !looked && ex?.lookedWin && ex.lookedWin !== this && performance.now() - (ex.lookedAt || 0) < 8000);
     if (this.stream && this.tex && v.readyState >= 2 && v.videoWidth && now - (this.texChk || 0) > 1000) {
       this.texChk = now;
       if (!this.texW || this.texW !== v.videoWidth || this.texH !== v.videoHeight) { this.texW = v.videoWidth; this.texH = v.videoHeight; this.setAspect(v.videoWidth / v.videoHeight); this.setupTexture(); }
+      // a Windows ultra-wide screen (32:9): curve it around you and make it big, like a real ultra-wide monitor
+      if (!this.ultraDone && v.videoWidth / v.videoHeight >= 2.3) { this.ultraDone = true; this.setCurved?.(true); this.group.scale.multiplyScalar(1.6); this.updateRadius?.(); this.mgr.changed?.(); this.mgr.app.toast('🖥 شاشة ألترا وايد منحنية', 2000); }
     }
-    if (this.tex && v.readyState >= 2 && (this.stream ? now - (this.texAt || 0) >= 30 : v.currentTime !== this.lastFrameTime) && (now - (this.texAt || 0) >= (side ? 66 : settings.coolMax ? 39 : settings.cool ? 32 : 0)) && this.inView(now)) {
+    if (this.tex && v.readyState >= 2 && (this.stream ? now - (this.texAt || 0) >= 30 : v.currentTime !== this.lastFrameTime) && (now - (this.texAt || 0) >= (far ? 125 : side ? 66 : settings.coolMax ? 39 : settings.cool ? 32 : 0)) && this.inView(now)) {
       this.lastFrameTime = v.currentTime; this.texAt = now;
       if (this.canvas) { try { this.cctx.drawImage(v, 0, 0, this.canvas.width, this.canvas.height); this.tex.needsUpdate = true; } catch {} }
       else this.tex.needsUpdate = true;
@@ -2070,6 +2079,7 @@ export class WindowManager {
     const i = this.windows.indexOf(win); if (i < 0) return;
     this.windows.splice(i, 1);
     this.root.remove(win.group);
+    win.side?.dispose(); win.side = null;
     win.dispose();
     this.refreshTargets();
     this.app.interaction?.forget(win);
@@ -2196,7 +2206,7 @@ export class WindowManager {
     for (const w of this.windows) {
       // Cinema: only the chosen window stays visible. Pieces pinned to another environment wait for it.
       w.group.visible = !this.guard && (!this.cinema || w === this.cinema) && (!w.envPin || w.envPin === env);
-      w.update(dt, now); w.matchTick?.(); w.chrome?.(performance.now());
+      w.update(dt, now); w.matchTick?.(); w.chrome?.(performance.now()); w.side?.update(now);
       if (w.glow) w.updateGlow(now);
       // Pinned to the view: the window glides to stay straight ahead at the same distance.
       if (w.headLock && w.kind !== 'model') {

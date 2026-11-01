@@ -121,7 +121,7 @@ function drawLine(ctx, words, x0, x1, base, fs, th, center) {
     const ww = ws[i] * sx;
     if (w.end) ayahMark(ctx, x - ww / 2, base - fs * 0.3, fs * 0.46, w.t, th);
     else { ctx.save(); ctx.translate(x, base); if (sx !== 1) ctx.scale(sx, 1); ctx.fillStyle = th.ink; ctx.fillText(w.t, 0, 0); ctx.restore(); }
-    out.push({ x0: x - ww, x1: x, key: w.key, pos: w.pos, end: w.end });
+    out.push({ x0: x - ww, x1: x, key: w.key, pos: w.pos, end: w.end, t: w.t });
     x -= ww + gap * sx;
   });
   return out;
@@ -519,6 +519,7 @@ export class ReaderWindow {
     const token = this.showToken = {};
     const [a, b] = await Promise.all([this.render(first, this.rtl ? 'R' : 'L'), this.render(first + 1, this.rtl ? 'L' : 'R')]);
     if (token !== this.showToken) return;
+    if (this.hifz?.on && this.first != null && this.first !== first) setTimeout(() => { if (this.hifz?.on) { this.hifz.errs.clear(); this.hifz.seq = this.hifz.sequence(); this.hifz.cur = 0; this.hifz.skipMarks(); this.hifz.draw(); } }, 50);
     this.first = first;
     this.setTex(this.rtl ? 'R' : 'L', a); this.setTex(this.rtl ? 'L' : 'R', b);
     this.afterShow();
@@ -595,6 +596,8 @@ export class ReaderWindow {
     }
   }
   next() { this.turn(1); }
+  // «وضع الحفظ» (hifz.js): recite, the covered words appear as you say them
+  async hifzToggle(on) { if (!this.hifz) { const { Hifz } = await import('./hifz.js'); this.hifz = new Hifz(this); } if (on === false || (on == null && this.hifz.on)) this.hifz.stop(); else this.hifz.start(); }
   prev() { this.turn(-1); }
   async goTo(n) { this.recite?.stop(); this.speaker?.stop(); await this.show(n); }
   async goToKey(key) { const n = await this.book.pageOf(key); await this.show(n); this.setFocus(key); }
