@@ -1194,9 +1194,11 @@ function hasAlpha(c) {
 // The window's glass frame (around the picture): one Liquid Glass texture drawn once and shared by every window -
 // the lit rim and the corner shine show in the margin, nothing is redrawn per frame
 let FRAME_TEX = null;
+export function redrawFrameGlass() { FRAME_TEX?.userData.redraw?.(); }
 function frameGlass() {
   if (FRAME_TEX) return FRAME_TEX;
-  const { ctx, texture } = canvasTexture(512, 320);
+  const { canvas, ctx, texture } = canvasTexture(512, 320);
+  texture.userData.redraw = () => { ctx.clearRect(0, 0, 512, 320); material(ctx, 0, 0, 512, 320, 40, { tint: ['rgba(150,154,170,0.55)', 'rgba(100,104,122,0.48)'] }); texture.needsUpdate = true; };
   material(ctx, 0, 0, 512, 320, 40, { tint: ['rgba(150,154,170,0.55)', 'rgba(100,104,122,0.48)'] });
   texture.needsUpdate = true; FRAME_TEX = texture; return texture;
 }

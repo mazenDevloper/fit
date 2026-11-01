@@ -1,7 +1,7 @@
 // visionOS 27-style system pieces: the three-panel Control Center (opened by looking up at the chevron,
 // from the launcher or by voice) and notifications that grow when you look at them.
 import * as THREE from 'three';
-import { CanvasPanel, panelGlass, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
+import { CanvasPanel, IconButton, panelGlass, glass, text, icon, roundRect, COLORS, blip } from './ui.js';
 import { settings, saveSettings } from './config.js';
 import { ENVS, ENV_ORDER, envKey } from './envs.js';
 
@@ -48,8 +48,12 @@ export class ControlCenter {
     this.status = mk(0.42, 0.56, (ctx, W, H, p) => this.drawStatus(ctx, W, H, p));
     // three panels on a gentle arc around you
     [[this.env, -0.5, 0.32], [this.quick, 0, 0], [this.status, 0.5, -0.32]].forEach(([c, x, ry]) => { c.mesh.position.set(x, 0, Math.abs(x) * 0.18); c.mesh.rotation.y = ry; });
+    // the visionOS close button under the middle panel (and ✕ in its corner)
+    this.closeBtn = new IconButton('close', 0.06, () => { blip('close', settings.sounds); this.close(); });
+    this.closeBtn.mesh.position.set(0, -0.39, 0.01); this.closeBtn.mesh.material.depthTest = false; this.closeBtn.mesh.renderOrder = 951;
+    this.group.add(this.closeBtn.mesh);
   }
-  get targets() { return this.group.visible ? [this.env.mesh, this.quick.mesh, this.status.mesh] : []; }
+  get targets() { return this.group.visible ? [this.env.mesh, this.quick.mesh, this.status.mesh, this.closeBtn.mesh] : []; }
   redraw() { if (!this.group.visible || !this.env) return; this.env.redraw(); this.quick.redraw(); this.status.redraw(); }
   open() {
     this.build();
@@ -62,9 +66,14 @@ export class ControlCenter {
     if (!this.group.visible) return;
     if (now - (this.tick || 0) > 1000) { this.tick = now; this.status.redraw(); }   // the clock and countdowns
   }
-  frame(ctx, W, H, title) {
+  frame(ctx, W, H, title, p) {
     panelGlass(ctx, 0, 0, W, H, 56);
-    glass(ctx, 0, 0, W, H, 56);
+    if (p) {   // ✕ in the top corner
+      const hv = p.isHover('x');
+      ctx.beginPath(); ctx.arc(64, 58, 30, 0, 7); ctx.fillStyle = hv ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.16)'; ctx.fill();
+      icon(ctx, 'close', 64, 58, 30, '#fff');
+      p.region(24, 18, 80, 80, () => { blip('close', settings.sounds); this.close(); }, 'x');
+    }
     text(ctx, title, W - 46, 58, 32, { align: 'right', weight: 800, color: COLORS.dim });
   }
   drawStatus(ctx, W, H) {
@@ -89,7 +98,7 @@ export class ControlCenter {
     });
   }
   drawQuick(ctx, W, H, p) {
-    this.frame(ctx, W, H, 'التحكم السريع');
+    this.frame(ctx, W, H, 'التحكم السريع', p);
     const a = this.app;
     const items = [
       ['eye', 'النظر', settings.dwell, ['#818cf8', '#4f46e5'], () => saveSettings({ dwell: !settings.dwell })],

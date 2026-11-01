@@ -515,7 +515,8 @@ export class FastReceiver {
     this.ctx = this.canvas.getContext('2d', { alpha: false, desynchronized: true });
     this.track = this.canvas.captureStream().getVideoTracks()[0];
     conn.on('data', d => this.piece(d));
-    this.watch = setInterval(() => { if (this.started && performance.now() - this.last > 4000) this.onStall?.(); }, 1000);
+    this.st = { dec: 0, shown: 0, drop: 0, late: 0 };
+    this.watch = setInterval(() => { if (this.started && performance.now() - this.last > 4000) this.onStall?.(); const s = this.st; this.onStats?.({ fps: s.shown, src: s.dec, drop: s.drop, late: s.late }); this.st = { dec: 0, shown: 0, drop: 0, late: 0 }; }, 1000);
   }
   ask() { try { this.conn.send(new Uint8Array([1]).buffer); } catch {} }
   piece(d) {
@@ -560,9 +561,9 @@ export class FastReceiver {
   // Wi-Fi delivers pictures in bursts: they wait a moment (~70 ms) and are shown at the pace they were captured,
   // so the motion is even instead of fast-slow-fast. If the queue grows the clock catches up (never a growing delay).
   show(f) {
-    this.last = performance.now();
+    this.last = performance.now(); this.st.dec++;
     (this.q ||= []).push(f);
-    if (this.q.length > 5) { this.q.shift().close(); this.base = null; }   // too far behind: drop the oldest, resync
+    if (this.q.length > 5) { this.q.shift().close(); this.base = null; this.st.late++; }   // too far behind: drop the oldest, resync
     if (!this.raf) { const tick = () => { this.raf = requestAnimationFrame(tick); this.paint(); }; this.raf = requestAnimationFrame(tick); }
   }
   paint() {
@@ -570,12 +571,12 @@ export class FastReceiver {
     const now = performance.now(), ts = q[0].timestamp / 1000;
     if (this.base == null) this.base = now - ts + 70;
     let f = null;
-    while (q.length && this.base + q[0].timestamp / 1000 <= now) { f?.close(); f = q.shift(); }
+    while (q.length && this.base + q[0].timestamp / 1000 <= now) { if (f) { f.close(); this.st.drop++; } f = q.shift(); }
     if (!f) { if (this.base + ts - now > 250) this.base = now - ts; return; }   // the clock drifted: resync
     const w = f.displayWidth, h = f.displayHeight;
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     try { this.ctx.drawImage(f, 0, 0, w, h); } catch {}
-    f.close();
+    f.close(); this.st.shown++;
     if (!this.started) { this.started = true; this.onFirst?.(this.track); }
   }
   close() { clearInterval(this.watch); cancelAnimationFrame(this.raf); (this.q || []).forEach(f => { try { f.close(); } catch {} }); this.q = []; try { this.dec?.close(); } catch {} try { this.conn.close(); } catch {} try { this.track.stop(); } catch {} }
@@ -645,13 +646,14 @@ export class ScreenViewer {
             this.fastTrack = track;
             const st = new MediaStream([track, ...(this.rtcStream ? this.rtcStream.getAudioTracks() : [])]);
             if (this.got) onStream?.(st); else { this.got = true; clearTimeout(timer); res(st); }
-            onDelay?.({ ms: 0, fps: 0, relay: false, lost: 0, fast: true });
+            onDelay?.({ ms: 0, fps: 0, relay: false, lost: 0, fast: true, first: true });
           }, () => {
             // no pieces for 4 s: back to the ordinary picture
             if (gen !== this.gen || !this.fastTrack) return;
             this.fastTrack = null; rx.close(); this.fast = null;
             if (this.rtcStream) onStream?.(this.rtcStream);
           });
+          rx.onStats = st => { if (gen === this.gen && this.fastTrack) onDelay?.({ fast: true, ...st }); };
         });
       });
       peer.on('call', call => {

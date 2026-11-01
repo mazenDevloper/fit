@@ -1,10 +1,11 @@
 // «الشريط الذكي»: a glass bar fixed below your view (it stays in the room and only follows when you turn away).
-// Its items change with what is open: a video → sound · seek · size · distance; a web page → text size · size ·
-// distance; always → sharpness and immersion. Every item works the same way: select it (look + pinch, OK on a remote,
+// It sets Madar itself: the environment, immersion, the glass, sharpness, and the sound of what plays. Every item works the same way: select it (look + pinch, OK on a remote,
 // a tap), then slide left / right - a pinch-drag on the bar, the remote's or the controller's arrows - to lower / raise.
 import * as THREE from 'three';
 import { CanvasPanel, icon, blip } from './ui.js';
-import { material, label, SYS } from './vos.js';
+import { material, label, SYS, GLASS, setGlass } from './vos.js';
+import { ENVS, ENV_ORDER, envKey } from './envs.js';
+import { redrawFrameGlass } from './windows.js';
 import { settings, saveSettings } from './config.js';
 
 const W_M = 1.15, H_M = 0.12, DIST = 1.05, Y = -0.34, FOLLOW = 0.6;   // metres; FOLLOW = how far you turn before it follows (rad)
@@ -36,24 +37,30 @@ export class SmartBar {
     return this.last || a.extras?.mediaWindows?.()[0] || ws.filter(w => w.kind === 'video' || w.kind === 'web').slice(-1)[0] || null;
   }
   items() {
-    const a = this.app, w = this.focus(), out = [];
-    const v = w?.video;
-    if (v && w.setVolume) out.push({ id: 'vol', ic: w.isMuted?.() ? 'mute' : 'sound', name: 'الصوت', val: Math.round((w.vol ?? 1) * 100) + '%', f: w.vol ?? 1,
-      step: d => w.setVolume((w.vol ?? 1) + d * 0.05, false) });
-    if (v && isFinite(v.duration) && v.duration > 0) out.push({ id: 'seek', ic: 'fwd', name: 'التقديم', val: fmt(v.currentTime) + ' / ' + fmt(v.duration), f: v.currentTime / v.duration,
-      step: d => { v.currentTime = clamp(v.currentTime + d * 10, 0, v.duration - 0.5); } });
-    if (w && w.kind === 'web' && w.send) out.push({ id: 'zoom', ic: 'plus', name: 'حجم النص', val: Math.round((w.zoom || 1) * 100) + '%', f: ((w.zoom || 1) - 0.7) / 1.1,
-      step: d => { w.zoom = clamp(Math.round(((w.zoom || 1) + d * 0.05) * 100) / 100, 0.7, 1.8); w.send({ type: 'zoom', value: w.zoom }); } });
-    if (w && w.scaleBy) out.push({ id: 'size', ic: 'flat', name: 'الحجم', val: Math.round(w.group.scale.x * 100) + '%', f: clamp(w.group.scale.x / 3, 0, 1),
-      step: d => w.scaleBy(d > 0 ? 1.05 : 1 / 1.05) });
-    if (w) out.push({ id: 'dist', ic: 'target', name: 'المسافة', val: w.group.position.length().toFixed(1) + ' م', f: clamp(w.group.position.length() / 5, 0, 1),
-      step: d => { const p = w.group.position, h = a.windows.headLocal?.() || new THREE.Vector3(); const rel = p.clone().sub(h), L = rel.length(); const nl = clamp(L + d * 0.1, 0.5, 6); p.copy(h.add(rel.multiplyScalar(nl / L))); w.updateRadius?.(); w.layout?.(); a.windows.changed(); } });
-    out.push({ id: 'sharp', ic: 'eye', name: 'الحدة', val: Math.round(settings.sharpen * 100) + '%', f: settings.sharpen / 1.5,
-      step: d => { saveSettings({ sharpen: clamp(Math.round((settings.sharpen + d * 0.05) * 100) / 100, 0, 1.5) }); a.renderer.applySettings(); } });
+    // Madar itself, not a window: the place you are in, how much of it, the glass, the sharpness - and the sound of
+    // what plays
+    const a = this.app, out = [];
+    const cur = envKey(settings.environment), order = ENV_ORDER, i = Math.max(0, order.indexOf(cur));
+    out.push({ id: 'env', ic: 'globe', name: 'البيئة', val: ENVS[cur]?.label || cur, f: i / Math.max(1, order.length - 1),
+      step: d => { const k = order[(i + d + order.length) % order.length]; saveSettings({ environment: k }); a.renderEnvChoices?.(); a.control?.redraw(); } });
     const portal = a.extras?.portal;
     if (portal?.set) { const lv = portal.level ?? settings.immersion ?? 1; out.push({ id: 'imm', ic: 'sun', name: 'الانغماس', val: Math.round(lv * 100) + '%', f: lv,
       step: d => portal.set(clamp(Math.round(((portal.level ?? settings.immersion ?? 1) + d * 0.1) * 10) / 10, 0, 1)) }); }
+    out.push({ id: 'glass', ic: 'stack', name: 'الزجاج', val: Math.round(GLASS * 100) + '%', f: (GLASS - 0.3) / 1.3,
+      step: d => { setGlass(Math.round((GLASS + d * 0.1) * 10) / 10); saveSettings({ glass: GLASS }); this.repaintGlass(); } });
+    out.push({ id: 'sharp', ic: 'eye', name: 'الحدة', val: Math.round(settings.sharpen * 100) + '%', f: settings.sharpen / 1.5,
+      step: d => { saveSettings({ sharpen: clamp(Math.round((settings.sharpen + d * 0.05) * 100) / 100, 0, 1.5) }); a.renderer.applySettings(); } });
+    const w = a.extras?.mediaWindows?.().find(x => x.video && !x.video.paused) || a.extras?.mediaWindows?.()[0];
+    if (w?.setVolume) out.push({ id: 'vol', ic: w.isMuted?.() ? 'mute' : 'sound', name: 'الصوت', val: Math.round((w.vol ?? 1) * 100) + '%', f: w.vol ?? 1,
+      step: d => w.setVolume((w.vol ?? 1) + d * 0.05, false) });
     return out;
+  }
+  // every glass surface drawn again with the new amount of glass
+  repaintGlass() {
+    const a = this.app;
+    redrawFrameGlass();
+    a.windows.windows.forEach(w => { try { w.toolbar?.redraw(); w.panel?.redraw(); w.more?.redraw(); if (w.panelKind) w.draw?.(); } catch {} });
+    try { a.launcher?.panel?.redraw(); a.control?.redraw(); a.notifier?.panel?.redraw(); } catch {}
   }
 
   // ---- input: select, then slide

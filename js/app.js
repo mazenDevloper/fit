@@ -44,7 +44,7 @@ import { SmartBar } from './smartbar.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '142';
+export const APP_VERSION = '143';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -270,7 +270,7 @@ class App {
           else if (!c.control && c.why) this.log('التحكم: ' + c.why);
         },
         // the delay meter: a small badge on the window (green < 200 ms, amber < 500, red above)
-        onDelay: d => { if (d.fast) { this.toast('⚡ المسار السلس: ترميز العتاد H.264 مباشرة من الجهاز', 2500); this.mirrorWin?.setBadge?.('⚡ H.264 · سلس', '#22c55e'); return; } if (this.viewer?.caps?.hdmi || settings.delayMeter) { const v = this.mirrorWin?.video; const dg = v ? ` · ${v.videoWidth}×${v.videoHeight} r${v.readyState}${v.paused ? ' ⏸' : ''}` : ''; this.mirrorWin?.setBadge?.(`${d.ms < 200 ? '🟢' : d.ms < 500 ? '🟡' : '🔴'} ${d.ms} ms · ${d.fps} fps${d.relay ? ' · عبر خادم' : ' · مباشر'}${dg}`, d.ms < 200 ? '#22c55e' : d.ms < 500 ? '#eab308' : '#ef4444'); } },
+        onDelay: d => { if (d.fast) { if (d.first) this.toast('⚡ المسار السلس: ترميز العتاد H.264 مباشرة من الجهاز', 2500); const bad = d.drop > 2 || d.fps < d.src - 3; this.mirrorWin?.setBadge?.(`⚡ H.264 · ${d.fps ?? '…'} fps` + (d.src ? ` من ${d.src}` : '') + (d.drop ? ` · سقط ${d.drop}` : '') + (d.late ? ` · تأخر ${d.late}` : ''), bad ? '#eab308' : '#22c55e'); return; } if (this.viewer?.caps?.hdmi || settings.delayMeter) { const v = this.mirrorWin?.video; const dg = v ? ` · ${v.videoWidth}×${v.videoHeight} r${v.readyState}${v.paused ? ' ⏸' : ''}` : ''; this.mirrorWin?.setBadge?.(`${d.ms < 200 ? '🟢' : d.ms < 500 ? '🟡' : '🔴'} ${d.ms} ms · ${d.fps} fps${d.relay ? ' · عبر خادم' : ' · مباشر'}${dg}`, d.ms < 200 ? '#22c55e' : d.ms < 500 ? '#eab308' : '#ef4444'); } },
       });
       if (!this.active) { this.viewer.close(); return; }
       if (this.mirrorWin && this.windows.windows.includes(this.mirrorWin)) {
@@ -1327,7 +1327,10 @@ class App {
     // Idle: 45 s without moving your head, nothing playing or animating → 6 pictures a second (any movement: full speed)
     if (settings.idleSlow !== false && this.lastQ && now - (this.movingAt || 0) > 45000 && now - this.last < 160 && !this.hands.slots?.some(s => s.active)
       && !this.windows.windows.some(w => (w.video && !w.video.paused) || w.kind === 'web' || w.kind === 'game' || w.kind === 'coach' || w.moving)) return;
-    if ((settings.cool || settings.lite) && this.lastQ) {
+    // a live picture (HDMI card, shared screen, broadcast) is drawn at full speed even in cool mode: at 30 drawings a
+    // second a 50 / 60 fps picture loses frames in an uneven pattern - the stutter "every second"
+    const liveVideo = this.windows.windows.some(w => w.video && !w.video.paused && w.group.visible && (w.video.srcObject || w.remote || w.live));
+    if ((settings.cool || settings.lite) && this.lastQ && !liveVideo) {
       if ((settings.coolMax || settings.lite || now - (this.movingAt || 0) > 250) && now - this.last < 28) return;
     }
     (this.lastQ ||= new THREE.Quaternion()).copy(this.renderQ);

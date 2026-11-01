@@ -44,6 +44,11 @@ if (IOS && typeof CanvasRenderingContext2D !== 'undefined') {
 // panels on the iPhone use fewer pixels (sharp enough at 1-2 m in the headset, much less to redraw and upload)
 export const PX = IOS ? 0.78 : 1;
 
+// ---- how much glass: «الزجاج» in the smart bar (0.3 = almost clear, 1 = normal, 1.6 = frosted, more solid)
+import { settings as _S } from './config.js';
+export let GLASS = Math.max(0.3, Math.min(1.6, _S.glass ?? 1));
+export function setGlass(v) { GLASS = Math.max(0.3, Math.min(1.6, v)); }
+
 // ---- shapes
 export function rr(ctx, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);
@@ -64,7 +69,9 @@ export function material(ctx, x, y, w, h, r, { hi = false, tint = null, a = 1 } 
   const g = ctx.createLinearGradient(x, y, x + w * 0.6, y + h);
   if (tint) { g.addColorStop(0, tint[0]); g.addColorStop(1, tint[1]); }
   else { g.addColorStop(0, hi ? 'rgba(170,172,186,0.70)' : 'rgba(132,134,150,0.58)'); g.addColorStop(0.55, hi ? 'rgba(120,122,138,0.62)' : 'rgba(92,94,110,0.50)'); g.addColorStop(1, hi ? 'rgba(140,142,158,0.66)' : 'rgba(108,110,126,0.54)'); }
-  ctx.fillStyle = g; ctx.fill();
+  ctx.save(); ctx.globalAlpha *= Math.min(1, GLASS); ctx.fillStyle = g; ctx.fill();
+  if (GLASS > 1) { ctx.globalAlpha = (GLASS - 1) * 0.7; ctx.fillStyle = 'rgba(40,42,54,0.9)'; ctx.fill(); }   // frosted: a deeper body
+  ctx.restore();
   ctx.clip();
   const m = Math.max(w, h);
   const s1 = ctx.createRadialGradient(x + w * 0.16, y, 0, x + w * 0.16, y, m * 0.7);
