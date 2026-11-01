@@ -45,7 +45,7 @@ export function roundRect(ctx, x, y, w, h, r) {
 // visionOS 27 glass (vos.js): translucent grey, lit top edge and rim
 export function glass(ctx, x, y, w, h, r, hi = false) { material(ctx, x, y, w, h, r, { hi }); }
 
-export const TEXT_SCALE = 1.12;   // all spatial UI text slightly larger
+export const TEXT_SCALE = 1.22;   // all spatial UI text larger (it was hard to read in the headset)
 export function text(ctx, str, x, y, size, opts = {}) {
   ctx.save();
   size *= TEXT_SCALE;
@@ -55,8 +55,9 @@ export function text(ctx, str, x, y, size, opts = {}) {
   ctx.textBaseline = opts.baseline || 'middle';
   ctx.direction = opts.dir === 'auto' ? (/[؀-ۿ]/.test(str) ? 'rtl' : 'ltr') : (opts.dir || 'rtl');
   // fit: shrink the text (down to 62%) so the whole label shows, before cutting it with …
-  if (opts.maxWidth && opts.fit && ctx.measureText(str).width > opts.maxWidth) {
-    const k = Math.max(0.5, opts.maxWidth / ctx.measureText(str).width);
+  // too long: shrink it to fit (down to 62 %) before cutting it with … - for every label, not only fit ones
+  if (opts.maxWidth && ctx.measureText(str).width > opts.maxWidth) {
+    const k = Math.max(opts.fit ? 0.5 : 0.62, opts.maxWidth / ctx.measureText(str).width);
     size *= k; ctx.font = `${opts.weight || 500} ${size}px ${FONT}`;
   }
   if (opts.maxWidth) {

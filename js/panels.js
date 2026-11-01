@@ -74,7 +74,7 @@ export class Launcher {
     // visionOS 27 app icon (vos.js): vivid round icon, layered white symbol, glass cap; it grows a little when looked at
     const hov = p.isHover(id), R = hov ? r * 1.1 : r;
     appIcon(ctx, icon, ic, cx, cy, R, { hover: hov });
-    floatLabel(ctx, label, cx, cy + r + 36, 29, r * 2.7);
+    floatLabel(ctx, label, cx, cy + r + 40, 34, r * 2.9);
     p.region(cx - r * 1.2, cy - r * 1.2, r * 2.4, r * 2.4 + 44, () => { blip('tap', settings.sounds); action(); }, id);
   }
   turnPage(d) { const n = this.pages || 1; if (n < 2) return false; this.page = (this.page + d + n) % n; blip('tap', settings.sounds); this.panel.redraw(); return true; }

@@ -99,12 +99,12 @@ export class Widget {
     if (t === 'clock') {
       // Apple Clock: the analog face (S / L), face + city and digital time (M), Liquid Glass numerals (XS)
       const d = new Date();
-      if (xs) { glassNumerals(ctx, d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), W / 2, H / 2, H * 0.62); return; }
+      if (xs) { glassNumerals(ctx, d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), W / 2, H / 2, H * 0.5, { tall: 1.5 }); return; }
       if (this.size === 'm') {
         clockFace(ctx, H * 0.52, H / 2, H * 0.4, d);
         label(ctx, 'مسقط', W - H * 0.12, H * 0.26, H * 0.09, { weight: 700, align: 'right', color: SYS.label2 });
         const tm = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), avail = W - H * 1.1;
-        glassNumerals(ctx, tm, W - H * 0.12, H * 0.5, Math.min(H * 0.3, avail / (tm.length * 0.6)), { align: 'right' });
+        glassNumerals(ctx, tm, W - H * 0.12, H * 0.5, Math.min(H * 0.3, avail / (tm.length * 0.5)), { align: 'right', tall: 1.45 });
         label(ctx, d.toLocaleDateString('ar', { weekday: 'long', day: 'numeric', month: 'long' }), W - H * 0.12, H * 0.76, H * 0.075, { weight: 600, align: 'right', color: SYS.label2 });
         return;
       }

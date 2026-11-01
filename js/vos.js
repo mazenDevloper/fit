@@ -57,39 +57,58 @@ export function softShadow(ctx, cx, cy, rx, ry, a = 0.45) {
 }
 // the visionOS glass material: translucent grey that lets the room through, a lit top edge, a darker bottom
 export function material(ctx, x, y, w, h, r, { hi = false, tint = null, a = 1 } = {}) {
+  // Liquid Glass (the mood board): clear grey glass, a bright sweep from the top corner, a softer one at the opposite
+  // corner, a white rim lit at the top-left and the bottom-right - all gradients, no blur (cheap on the iPhone)
   ctx.save(); ctx.globalAlpha *= a;
   rr(ctx, x, y, w, h, r);
-  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  const g = ctx.createLinearGradient(x, y, x + w * 0.6, y + h);
   if (tint) { g.addColorStop(0, tint[0]); g.addColorStop(1, tint[1]); }
-  else { g.addColorStop(0, hi ? 'rgba(150,152,165,0.66)' : 'rgba(118,120,134,0.56)'); g.addColorStop(1, hi ? 'rgba(112,114,128,0.62)' : 'rgba(84,86,100,0.52)'); }
+  else { g.addColorStop(0, hi ? 'rgba(170,172,186,0.70)' : 'rgba(132,134,150,0.58)'); g.addColorStop(0.55, hi ? 'rgba(120,122,138,0.62)' : 'rgba(92,94,110,0.50)'); g.addColorStop(1, hi ? 'rgba(140,142,158,0.66)' : 'rgba(108,110,126,0.54)'); }
   ctx.fillStyle = g; ctx.fill();
   ctx.clip();
-  const sh = ctx.createLinearGradient(0, y, 0, y + Math.min(h, r * 2));
-  sh.addColorStop(0, 'rgba(255,255,255,0.20)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = sh; ctx.fillRect(x, y, w, Math.min(h, r * 2));
-  ctx.lineWidth = Math.max(2, Math.min(w, h) * 0.012);
-  const rim = ctx.createLinearGradient(0, y, 0, y + h);
-  rim.addColorStop(0, 'rgba(255,255,255,0.55)'); rim.addColorStop(0.3, 'rgba(255,255,255,0.14)'); rim.addColorStop(1, 'rgba(255,255,255,0.22)');
-  ctx.strokeStyle = rim; rr(ctx, x + 1, y + 1, w - 2, h - 2, Math.max(0, r - 1)); ctx.stroke();
+  const m = Math.max(w, h);
+  const s1 = ctx.createRadialGradient(x + w * 0.16, y, 0, x + w * 0.16, y, m * 0.7);
+  s1.addColorStop(0, 'rgba(255,255,255,0.42)'); s1.addColorStop(0.5, 'rgba(255,255,255,0.08)'); s1.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = s1; ctx.fillRect(x, y, w, h);
+  const s2 = ctx.createRadialGradient(x + w, y + h, 0, x + w, y + h, m * 0.45);
+  s2.addColorStop(0, 'rgba(255,255,255,0.16)'); s2.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = s2; ctx.fillRect(x, y, w, h);
+  const lw = Math.max(2, Math.min(w, h) * 0.014);
+  ctx.lineWidth = lw;
+  const rim = ctx.createLinearGradient(x, y, x + w, y + h);
+  rim.addColorStop(0, 'rgba(255,255,255,0.95)'); rim.addColorStop(0.35, 'rgba(255,255,255,0.22)'); rim.addColorStop(0.7, 'rgba(255,255,255,0.14)'); rim.addColorStop(1, 'rgba(255,255,255,0.55)');
+  ctx.strokeStyle = rim; rr(ctx, x + lw / 2, y + lw / 2, w - lw, h - lw, Math.max(0, r - lw / 2)); ctx.stroke();
+  // the thin glint along the top edge
+  const gl = ctx.createLinearGradient(x + w * 0.08, 0, x + w * 0.62, 0);
+  gl.addColorStop(0, 'rgba(255,255,255,0)'); gl.addColorStop(0.5, 'rgba(255,255,255,0.95)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gl; ctx.fillRect(x + w * 0.08, y + lw * 0.6, w * 0.54, Math.max(1.5, lw * 0.7));
   ctx.restore();
 }
 
 // ---- type helper (the OS font, Apple text styles: weight carries the hierarchy)
-export function label(ctx, str, x, y, size, { weight = 600, color = SYS.label, align = 'center', dir = 'auto', maxWidth = 0, font = SF, baseline = 'middle' } = {}) {
+export function label(ctx, str, x, y, size, { weight = 600, color = SYS.label, align = 'center', dir = 'auto', maxWidth = 0, font = SF, baseline = 'middle', wrap = false } = {}) {
   ctx.save();
   ctx.font = `${weight} ${size}px ${font}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = baseline;
   ctx.direction = dir === 'auto' ? (/[؀-ۿ]/.test(String(str)) ? 'rtl' : 'ltr') : dir;
   let s = String(str);
   if (maxWidth && ctx.measureText(s).width > maxWidth) {
-    const k = Math.max(0.7, maxWidth / ctx.measureText(s).width); ctx.font = `${weight} ${size * k}px ${font}`;
+    // two lines first (whole words), then a smaller size; «…» only as the very last resort
+    const words = s.split(' ');
+    if (wrap && words.length > 1) {
+      let best = null;
+      for (let i = 1; i < words.length; i++) { const a = words.slice(0, i).join(' '), b = words.slice(i).join(' '); const m = Math.max(ctx.measureText(a).width, ctx.measureText(b).width); if (!best || m < best.m) best = { a, b, m }; }
+      const k = Math.min(1, maxWidth / best.m); ctx.font = `${weight} ${size * Math.max(0.78, k)}px ${font}`;
+      ctx.fillText(best.a, x, y - size * 0.55); ctx.fillText(best.b, x, y + size * 0.55); ctx.restore(); return;
+    }
+    const k = Math.max(0.66, maxWidth / ctx.measureText(s).width); ctx.font = `${weight} ${size * k}px ${font}`;
     while (s.length > 1 && ctx.measureText(s).width > maxWidth) s = s.slice(0, -2) + '…';
   }
   ctx.fillText(s, x, y); ctx.restore();
 }
 // a label floating over the room (Home View names): a cheap legible shadow - the text once dark and offset, then white
 export function floatLabel(ctx, str, x, y, size, maxWidth) {
-  label(ctx, str, x + 1.5, y + 2, size, { weight: 600, color: 'rgba(0,0,0,0.55)', maxWidth });
-  label(ctx, str, x, y, size, { weight: 600, color: '#fff', maxWidth });
+  label(ctx, str, x + 1.5, y + 2, size, { weight: 600, color: 'rgba(0,0,0,0.6)', maxWidth, wrap: true });
+  label(ctx, str, x, y, size, { weight: 600, color: '#fff', maxWidth, wrap: true });
 }
 
 // ---- visionOS app icon: a circle with a vivid gradient, a white symbol with a little depth, glass on top
@@ -111,8 +130,10 @@ export function appIcon(ctx, glyph, ic, cx, cy, R, { hover = false, round = true
 }
 
 // ---- Liquid Glass numerals (the iOS 26 / 27 Lock Screen clock): clear glass letters with lit edges
-export function glassNumerals(ctx, str, x, y, size, { weight = 700, align = 'center', font = SF } = {}) {
+export function glassNumerals(ctx, str, x, y, size, { weight = 700, align = 'center', font = SF, tall = 1 } = {}) {
   ctx.save();
+  // tall = the iOS 26 / 27 stretched Lock Screen clock: the numerals drawn narrow and stretched upwards
+  if (tall !== 1) { ctx.translate(x, y); ctx.scale(1, tall); ctx.translate(-x, -y); size /= Math.sqrt(tall); }
   ctx.font = `${weight} ${size}px ${font}`; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.direction = 'ltr';
   const top = y - size * 0.5, bot = y + size * 0.5;
   const body = ctx.createLinearGradient(0, top, 0, bot);

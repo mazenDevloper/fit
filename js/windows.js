@@ -1197,7 +1197,7 @@ export class PanelWindow extends SpatialWindow {
     super(mgr, 'panel');
     this.panelKind = panel;
     this.canCurve = false;
-    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.42], pad: [1, 0.86], matches: [1, 0.8], store: [1, 0.7], scoreboard: [0.78, 1] };
+    const specs = { welcome: [1, 0.72], guide: [1, 0.74], clock: [1, 0.5], pad: [1, 0.86], matches: [1, 0.8], store: [1, 0.7], scoreboard: [0.78, 1] };
     const [w, h] = specs[panel] || [1, 0.6];
     this.aspect = w / h;
     this.cv = canvasTexture(1400, Math.round(1400 * h / w));
@@ -1254,7 +1254,7 @@ export class PanelWindow extends SpatialWindow {
       material(ctx, 0, 0, W, H, H * 0.16, { a: 0.75 });
       const now = new Date();
       vLabel(ctx, now.toLocaleDateString('ar', { weekday: 'long', day: 'numeric', month: 'long' }), W / 2, H * 0.17, H * 0.1, { weight: 600 });
-      glassNumerals(ctx, now.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), W / 2, H * 0.6, H * 0.62);
+      glassNumerals(ctx, now.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(/\s?[ap]m/i, ''), W / 2, H * 0.6, H * 0.56, { tall: 1.55 });
       texture.needsUpdate = true; return;
     }
     const g = ctx.createLinearGradient(0, 0, W, H);
