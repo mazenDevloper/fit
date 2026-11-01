@@ -6,6 +6,7 @@ import android.content.Context;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Build;
+import android.os.SystemClock;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.view.WindowManager;
@@ -161,6 +162,7 @@ public class ControlService extends AccessibilityService {
         if (f == null && root != null) f = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
         if ("ok".equals(d)) {
             if (Build.VERSION.SDK_INT >= 33 && performGlobalAction(GLOBAL_ACTION_DPAD_CENTER)) return;
+            if (curNode != null && SystemClock.uptimeMillis() - picked < 15000) { clickPicked(); return; }
             if (f == null) return;
             AccessibilityNodeInfo c = f; int up = 0;
             while (c != null && !c.isClickable() && up++ < 6) c = c.getParent();
@@ -174,6 +176,9 @@ public class ControlService extends AccessibilityService {
             if (g != 0 && performGlobalAction(g)) return;
         }
         Integer dir = DIR.get(d); if (dir == null) return;
+        // Android 12 and older (TV boxes like the T95Z): many launchers and players don't report focus, so the
+        // arrows move Madar's own focus ring between the items on screen, nearest first in that direction
+        if (f == null || SystemClock.uptimeMillis() - picked < 15000) { if (spatial(d)) return; }
         if (root == null) return;
         if (f == null) {   // nothing focused yet: the first focusable thing on screen
             AccessibilityNodeInfo n = firstFocusable(root, 0);
@@ -181,13 +186,114 @@ public class ControlService extends AccessibilityService {
             return;
         }
         AccessibilityNodeInfo n = f.focusSearch(dir);
-        if (n != null) { n.performAction(AccessibilityNodeInfo.ACTION_FOCUS); n.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS); }
+        if (n != null) { n.performAction(AccessibilityNodeInfo.ACTION_FOCUS); n.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS); Rect r = new Rect(); n.getBoundsInScreen(r); pick(n, r); }
+        else if (spatial(d)) { /* moved to the nearest item that way */ }
         else {   // no focus next to it (touch apps): scroll that way instead
             int[] sz = size(); float W = sz[0], H = sz[1];
             float dx = "left".equals(d) ? -0.3f : "right".equals(d) ? 0.3f : 0, dy = "up".equals(d) ? -0.3f : "down".equals(d) ? 0.3f : 0;
             gesture(W / 2, H / 2, W / 2 - dx * W, H / 2 - dy * H, 250);
         }
     }
+
+    // ---- Madar's own focus: every visible item that can be pressed, in every window; arrows go to the nearest one
+    private AccessibilityNodeInfo curNode; private Rect curRect; private long picked;
+    private android.view.View ring; private WindowManager.LayoutParams ringLp;
+    private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+    private void collect(AccessibilityNodeInfo n, java.util.List<AccessibilityNodeInfo> out, int depth, float W, float H) {
+        if (n == null || depth > 40 || out.size() > 400) return;
+        if (!n.isVisibleToUser()) return;
+        if (n.isClickable() || n.isFocusable() || n.isCheckable()) {
+            Rect r = new Rect(); n.getBoundsInScreen(r);
+            if (r.width() > 8 && r.height() > 8 && !(r.width() > W * 0.95f && r.height() > H * 0.9f)) out.add(n);
+        }
+        for (int i = 0; i < n.getChildCount(); i++) collect(n.getChild(i), out, depth + 1, W, H);
+    }
+    private java.util.List<AccessibilityNodeInfo> items() {
+        int[] sz = size(); java.util.List<AccessibilityNodeInfo> out = new java.util.ArrayList<>();
+        try { for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) { if (w.getType() == android.view.accessibility.AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY) continue; collect(w.getRoot(), out, 0, sz[0], sz[1]); } } catch (Exception ignored) { }
+        if (out.isEmpty()) collect(getRootInActiveWindow(), out, 0, sz[0], sz[1]);
+        return out;
+    }
+    private boolean spatial(String d) {
+        java.util.List<AccessibilityNodeInfo> list = items(); if (list.isEmpty()) return false;
+        Rect from = curRect;
+        if (from == null || SystemClock.uptimeMillis() - picked > 15000) {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            AccessibilityNodeInfo f = root == null ? null : root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (f != null) { from = new Rect(); f.getBoundsInScreen(from); }
+            else { // nothing yet: start from the item nearest the top-left (top-right in Arabic apps it hardly matters)
+                AccessibilityNodeInfo best = null; Rect br = null;
+                for (AccessibilityNodeInfo n : list) { Rect r = new Rect(); n.getBoundsInScreen(r); if (br == null || r.top + r.left < br.top + br.left) { best = n; br = r; } }
+                pick(best, br); return true;
+            }
+        }
+        float cx = from.exactCenterX(), cy = from.exactCenterY();
+        AccessibilityNodeInfo best = null; Rect bestR = null; double bestScore = Double.MAX_VALUE;
+        for (AccessibilityNodeInfo n : list) {
+            Rect r = new Rect(); n.getBoundsInScreen(r);
+            if (r.equals(from)) continue;
+            float dx = r.exactCenterX() - cx, dy = r.exactCenterY() - cy, major, minor;
+            switch (d) {
+                case "right": if (r.left < from.right - 4 && dx < 12) continue; major = Math.max(0, r.left - from.right); minor = Math.abs(dy); break;
+                case "left": if (r.right > from.left + 4 && dx > -12) continue; major = Math.max(0, from.left - r.right); minor = Math.abs(dy); break;
+                case "down": if (r.top < from.bottom - 4 && dy < 12) continue; major = Math.max(0, r.top - from.bottom); minor = Math.abs(dx); break;
+                default: if (r.bottom > from.top + 4 && dy > -12) continue; major = Math.max(0, from.top - r.bottom); minor = Math.abs(dx); break;
+            }
+            // the same row / column first (overlap on the other axis), then the closest
+            boolean overlap = ("left".equals(d) || "right".equals(d)) ? (r.bottom > from.top && r.top < from.bottom) : (r.right > from.left && r.left < from.right);
+            double score = major + minor * 2.2 + (overlap ? 0 : 400);
+            if (score < bestScore) { bestScore = score; best = n; bestR = r; }
+        }
+        if (best == null) {
+            // the end of a list: scroll it that way, the next items appear
+            AccessibilityNodeInfo c = curNode; int up = 0;
+            while (c != null && !c.isScrollable() && up++ < 8) c = c.getParent();
+            if (c != null) { c.performAction("down".equals(d) || "right".equals(d) ? AccessibilityNodeInfo.ACTION_SCROLL_FORWARD : AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD); return true; }
+            return false;
+        }
+        pick(best, bestR);
+        return true;
+    }
+    private void pick(AccessibilityNodeInfo n, Rect r) {
+        if (n == null || r == null) return;
+        curNode = n; curRect = new Rect(r); picked = SystemClock.uptimeMillis();
+        if (n.isFocusable()) n.performAction(AccessibilityNodeInfo.ACTION_FOCUS);
+        n.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS);
+        showRing(r);
+    }
+    private void clickPicked() {
+        AccessibilityNodeInfo c = curNode; int up = 0;
+        while (c != null && !c.isClickable() && up++ < 6) c = c.getParent();
+        boolean ok = c != null && c.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        if (!ok && curRect != null) gesture(curRect.exactCenterX(), curRect.exactCenterY(), curRect.exactCenterX(), curRect.exactCenterY(), 60);
+        // the screen changes after a click: start fresh from what gets focus there
+        curRect = null; curNode = null; hideRing();
+    }
+    /** a green rounded ring around the item the remote is on (drawn above every app) */
+    private void showRing(Rect r) {
+        ui.post(() -> {
+            try {
+                WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                float dp = getResources().getDisplayMetrics().density; int pad = (int) (4 * dp);
+                if (ring == null) {
+                    ring = new android.view.View(this);
+                    android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+                    g.setCornerRadius(14 * dp); g.setStroke((int) (4 * dp), 0xFF34D399); g.setColor(0x2234D399);
+                    ring.setBackground(g);
+                    ringLp = new WindowManager.LayoutParams(10, 10, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                            android.graphics.PixelFormat.TRANSLUCENT);
+                    ringLp.gravity = android.view.Gravity.TOP | android.view.Gravity.START;
+                    wm.addView(ring, ringLp);
+                }
+                ringLp.x = r.left - pad; ringLp.y = r.top - pad; ringLp.width = r.width() + pad * 2; ringLp.height = r.height() + pad * 2;
+                wm.updateViewLayout(ring, ringLp); ring.setVisibility(android.view.View.VISIBLE);
+                ui.removeCallbacks(ringOff); ui.postDelayed(ringOff, 15000);
+            } catch (Exception ignored) { }
+        });
+    }
+    private final Runnable ringOff = this::hideRing;
+    private void hideRing() { ui.post(() -> { if (ring != null) ring.setVisibility(android.view.View.GONE); }); }
     private AccessibilityNodeInfo firstFocusable(AccessibilityNodeInfo n, int depth) {
         if (n == null || depth > 30) return null;
         if (n.isFocusable() && n.isVisibleToUser()) return n;

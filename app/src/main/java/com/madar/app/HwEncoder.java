@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
  * The smooth path for a shared screen / HDMI card: the tablet's own hardware H.264 encoder, fed straight from the
  * capture surface (no pictures copied, no JPEG, no second encoding in the page). The pieces go to the headset as
  * they are and the iPhone decodes them in hardware too. Every key frame carries SPS/PPS, so a viewer can start
- * (or recover) at any key frame; one comes every second, or at once when asked.
+ * (or recover) at any key frame; one comes every 10 s, or at once when asked.
  */
 final class HwEncoder {
     interface Sink { void onNal(byte[] data, int len, boolean key, long ptsMs); }
@@ -73,7 +73,9 @@ final class HwEncoder {
         f.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         f.setInteger(MediaFormat.KEY_BIT_RATE, bps);
         f.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
-        f.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+        // a full picture every 10 s (and at once when a viewer asks): a key frame every second was a burst every
+        // second, and the picture hitched once a second on Wi-Fi
+        f.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 10);
         // a still screen keeps sending (the viewer never thinks the picture froze)
         f.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L);
         if (extras) {
