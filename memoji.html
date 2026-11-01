@@ -62,7 +62,7 @@ const stage = document.getElementById('stage');
 const R = new THREE.WebGLRenderer({ antialias: true, alpha: true }); R.outputColorSpace = THREE.SRGBColorSpace; R.setPixelRatio(Math.min(2, devicePixelRatio));
 stage.appendChild(R.domElement);
 const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50); cam.position.set(0, 0.15, 6.4);
-let F = new M.Floating(cfg); scene.add(F.group);
+let F = new M.Floating(cfg, M.envFor(R)); scene.add(F.group);
 const size = () => { const h = stage.clientHeight; R.setSize(h, h, false); cam.aspect = 1; cam.updateProjectionMatrix(); };
 addEventListener('resize', size); size();
 let yaw = 0, drag = null, talkUntil = 0;

@@ -10,7 +10,7 @@ export class MemojiActor {
     if (this.ready) return this.ready;
     this.ready = import('./memoji.js').then(M => {
       this.M = M; const { cfg } = M.load(); this.cfgKey = JSON.stringify(cfg);
-      this.F = new M.Floating(cfg); this.F.group.scale.setScalar(SIZE); this.F.group.visible = false;
+      this.F = new M.Floating(cfg, M.envFor(this.app.renderer.renderer)); this.F.group.scale.setScalar(SIZE); this.F.group.visible = false;
       this.app.renderer.scene.add(this.F.group);
       // edited in another window / tab: rebuild
       addEventListener('storage', e => { if (e.key === M.KEY) this.refresh(); });
