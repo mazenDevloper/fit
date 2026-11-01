@@ -61,7 +61,9 @@ final class UvcSource {
                     List<Size> list = helper.getSupportedSizeList();
                     for (Size s : list) {
                         if (s.type != UVCCamera.UVC_VS_FRAME_MJPEG || s.height > 1080) continue;
-                        if (best == null || s.width * s.height > best.width * best.height || (s.width == best.width && s.fps > best.fps)) best = s;
+                        // smooth first: a size the card sends at 50 / 60 fps beats a bigger one at 30 (sport, live TV)
+                        boolean fast = s.fps >= 48, bestFast = best != null && best.fps >= 48;
+                        if (best == null || (fast && !bestFast) || (fast == bestFast && (s.width * s.height > best.width * best.height || (s.width == best.width && s.fps > best.fps)))) best = s;
                     }
                 } catch (Exception ignored) { }
                 if (best == null) try {
