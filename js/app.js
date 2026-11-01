@@ -40,10 +40,11 @@ import { Plus } from './plus.js';
 import { NextLevel } from './nextlevel.js';
 import { Together } from './together.js';
 import { Welcome } from './welcome.js';
+import { SmartBar } from './smartbar.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '141';
+export const APP_VERSION = '142';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -130,6 +131,7 @@ class App {
     this.gaze.onBlinkClick = () => { if (this.interaction.realTap()) this.toast('نقر بالعين', 800); };
     this.extras = new Extras(this);
     this.remote = new Remote(this);
+    this.smartBar = new SmartBar(this);   // «الشريط الذكي» below your view: select an item, slide left / right
     this.welcome = new Welcome(this);     // «مرحباً»: greeting + date + prayer + match + devices; shared clipboard; prayer pause
     this.together = new Together(this);   // «شاهد معاً»: voices + the same video at the same second (LiveKit)
     this.nx = new NextLevel(this);   // the free libraries: Arabic 3D text, glass dock, glow, real places, physics, gestures, Whisper
@@ -196,7 +198,7 @@ class App {
     n.hidden = false;
   }
 
-  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || []), ...(this.gallery?.targets || []), ...(this.extras?.targets || []), ...(this.nx?.targets || []), ...(this.welcome?.targets || [])]; }
+  systemTargets() { return [...(this.launcher?.targets || []), ...(this.calibration?.targets || []), ...(this.control?.targets || []), ...(this.lookUp?.targets || []), ...(this.notifier?.targets || []), ...(this.gallery?.targets || []), ...(this.extras?.targets || []), ...(this.nx?.targets || []), ...(this.welcome?.targets || []), ...(this.smartBar?.targets || [])]; }
   notify(n) { if (this.active && this.notifier) this.notifier.push(n); else this.toast(n.title, 3000); }
   links() { return loadLinks(); }
   toast(msg, ms) { this.toastUI.show(msg, ms); }
@@ -1339,7 +1341,7 @@ class App {
     this.controls.update(dt);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
-    this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.together?.update(now); this.welcome?.update(now); this.remote?.pollPads(now);
+    this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.together?.update(now); this.welcome?.update(now); this.smartBar?.update(now); this.remote?.pollPads(now);
     this.toastUI.update(now, this.renderQ);
     this.sports?.update(now, this.renderQ);
     if (this.room) { if (!this.room.group.parent) this.room.attach(this.windows.root); this.room.update(now, this.renderQ); }

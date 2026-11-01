@@ -198,6 +198,8 @@ export class Remote {
   ask() { const [, ar] = ACTIONS[this.learn.i]; this.app.toast(`🎮 ${this.learn.i + 1}/${ACTIONS.length} · اضغط الزر الذي تريده لـ «${ar}»`, 15000); }
   act(a) {
     const app = this.app, c = app.controls;
+    // an item of «الشريط الذكي» is selected: the arrows raise / lower it
+    if ((a === 'left' || a === 'right') && app.smartBar?.takeArrow(a === 'right' ? 1 : -1)) return;
     if (a === 'select') app.onRealTap();
     else if (a === 'launcher') app.toggleLauncher();
     else if (a === 'recenter') { c.reset?.(); app.recenter(); }

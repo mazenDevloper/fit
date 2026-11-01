@@ -300,7 +300,8 @@ export class Controls {
     if (edge(11)) { const w = this.pointedWindow(); if (w && w.kind === 'model') this.toggleOrbit(w); }
     if (edge(4) || edge(5)) { const w = this.pointedWindow(); if (w && w.scaleBy) { w.scaleBy(edge(5) ? 1.15 : 1 / 1.15); this.rumble(gp, 0.2, 20); } }
     if (b[12]) this.nav.y += 0.8 * dt; if (b[13]) this.nav.y -= 0.8 * dt;
-    if (edge(14) || edge(15)) { if (!this.scrollPointed(0, edge(14) ? -350 : 350)) this.look.yaw += edge(14) ? Math.PI / 6 : -Math.PI / 6; }
+    if ((edge(14) || edge(15)) && this.app.smartBar?.takeArrow(edge(15) ? 1 : -1)) { /* «الشريط الذكي» */ }
+    else if (edge(14) || edge(15)) { if (!this.scrollPointed(0, edge(14) ? -350 : 350)) this.look.yaw += edge(14) ? Math.PI / 6 : -Math.PI / 6; }
     this.pad.prev = b;
   }
   pointedWindow() {

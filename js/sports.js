@@ -164,6 +164,7 @@ export class Sports {
     if (every && now - this.timer > every) { this.timer = now; this.refresh(true); }
     this.island.update(now, Q);
     this.goal.update(now, Q);
+    this.clock.below = this.island.mesh.visible ? this.island.bottomY : null;
     this.clock.update(now, Q);
   }
 }
@@ -223,10 +224,11 @@ class Island {
     this.mesh.visible = on; if (!on) return;
     const every = settings.lite ? 1000 : live.length ? 90 : 1000;   // the score breathes; the countdown ticks each second
     if (now - (this.drawn || 0) > every) { this.drawn = now; this.panel.redraw(); }
-    // the first row sits right under the clock; more rows go downwards (bigger in sports mode)
-    const k = settings.sportsMode ? 1.4 : 1;
+    // the islands touch the top of your view (no gap above them); the clock sits right under them
+    const k = settings.sportsMode ? 1.4 : 1, TOP = 0.462;
     this.mesh.scale.setScalar(k);
-    this.mesh.position.set(0, 0.405 - ROW_H * k / 2 - ROW_H * k * (ROWS - 1) / 2, -1.15).applyQuaternion(Q);
+    this.mesh.position.set(0, TOP - ROW_H * ROWS * k / 2, -1.15).applyQuaternion(Q);
+    this.bottomY = TOP - ROW_H * k * (live.length + (ev ? 1 : 0));
     this.mesh.quaternion.copy(Q);
   }
 }
@@ -283,7 +285,9 @@ class Clock {
     const on = settings.clock !== false && this.app.active;
     this.mesh.visible = on; if (!on) return;
     const m = new Date().getMinutes(); if (m !== this.min) { this.min = m; this.panel.redraw(); }
-    this.mesh.position.set(0, 0.45, -1.2).applyQuaternion(Q);
+    // at the top when there are no islands; right under them when there are (their bottom, at the clock's distance)
+    const y = this.below == null ? 0.45 : this.below * (1.2 / 1.15) - 0.03;
+    this.mesh.position.set(0, y, -1.2).applyQuaternion(Q);
     this.mesh.quaternion.copy(Q);
   }
 }
