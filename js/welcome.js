@@ -38,7 +38,14 @@ export class Welcome {
     glass(ctx, 4, 4, w - 8, h - 8, 70);   // the same visionOS glass as every window
     const T = (s, x, y, size, color = '#fff', weight = 800, align = 'right') => { ctx.font = `${weight} ${size}px ${FONT}`; ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(s, x, y); };
     // your Memoji, in the free corner (assets/me-memoji.svg)
-    if (ME.complete && ME.naturalWidth) { try { ctx.drawImage(ME, 70, 24, 200, 200); } catch {} }
+    // in a round frame with its own soft backdrop (like an Apple contact picture), so it never floats on the glass
+    if (ME.complete && ME.naturalWidth) { try {
+      const cx = 170, cy = 128, r = 100, g = ctx.createLinearGradient(0, cy - r, 0, cy + r);
+      g.addColorStop(0, '#9aa6c4'); g.addColorStop(1, '#5d6788');
+      ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fillStyle = g; ctx.fill(); ctx.clip();
+      ctx.drawImage(ME, cx - r * 1.05, cy - r * 0.98, r * 2.1, r * 2.1); ctx.restore();
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.stroke();
+    } catch {} }
     T(d.greet + ' 👋', w - 70, 120, 78);
     T(`اليوم ${d.date.weekday} ${d.date.day} ${d.date.month} · ${d.date.hijri}`, w - 70, 190, 40, 'rgba(226,232,250,0.75)', 700);
     // prayer + match tiles
