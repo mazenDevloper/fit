@@ -45,7 +45,7 @@ h3{font-size:15px;color:var(--fg2);font-weight:600;margin:18px 4px 10px}
 </style>
 </head>
 <body>
-<header><button id="x" class="round" aria-label="إلغاء">✕</button><button id="ok" class="round" aria-label="حفظ">✓</button></header>
+<header><button id="x" class="round" aria-label="إلغاء">✕</button><button id="anim" class="round" aria-label="Animoji: وجهك يحرّك الميموجي" style="background:var(--chip);color:var(--fg);font-size:22px">🎭</button><button id="ok" class="round" aria-label="حفظ">✓</button></header>
 <div id="stage" aria-label="معاينة الميموجي — اسحب لتدويره"></div>
 <nav id="tabs"></nav>
 <main id="panel"></main>
@@ -150,6 +150,15 @@ document.getElementById('ok').onclick = () => {
   setTimeout(() => { if (history.length > 1 && document.referrer) history.back(); }, 900);
 };
 document.getElementById('x').onclick = () => { cfg = JSON.parse(saved); rebuild(); draw(); toast('أُلغيت التغييرات'); setTimeout(() => { if (history.length > 1 && document.referrer) history.back(); }, 700); };
+// Animoji: the front camera, your face moves the Memoji (blinks, mouth, head)
+let stopFace = null;
+document.getElementById('anim').onclick = async e => {
+  const b = e.currentTarget;
+  if (stopFace) { stopFace(); stopFace = null; b.style.background = ''; toast('أُوقف Animoji'); return; }
+  toast('Animoji: جاري التحميل…');
+  try { const A = await import('./js/animoji.js'); stopFace = await A.track((bs, rot) => F.drive(bs, rot)); b.style.background = 'var(--accent)'; toast('🎭 حرّك رأسك وافتح فمك ورمش'); }
+  catch (err) { toast('تعذّر تشغيل الكاميرا: ' + (err.message || err)); }
+};
 draw();
 </script>
 </body>

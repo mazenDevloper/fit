@@ -45,10 +45,11 @@ import * as CMD from './commands.js';
 import * as BRAIN from './brain.js';
 import { HeadGestures } from './headgest.js';
 import { MemojiActor } from './memojiactor.js';
+import { Meeting } from './meeting.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '157';
+export const APP_VERSION = '158';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -137,7 +138,8 @@ class App {
     this.remote = new Remote(this);
     this.version = APP_VERSION;
     this.headGest = new HeadGestures(this);
-    this.memojiActor = new MemojiActor(this);   // your 3D Memoji beside the welcome card and the answers   // nod = نعم, shake = لا on a notification
+    this.memojiActor = new MemojiActor(this);
+    this.meeting = new Meeting(this);   // «غرفة الاجتماع»: five Memoji characters answer together   // your 3D Memoji beside the welcome card and the answers   // nod = نعم, shake = لا on a notification
     this.smartBar = new SmartBar(this);   // «الشريط الذكي» below your view: select an item, slide left / right
     this.welcome = new Welcome(this);     // «مرحباً»: greeting + date + prayer + match + devices; shared clipboard; prayer pause
     this.together = new Together(this);   // «شاهد معاً»: voices + the same video at the same second (LiveKit)
@@ -1315,6 +1317,12 @@ class App {
   voiceCommand(t) {
     t = t.trim(); if (!t) return;
     const n = CMD.norm(t);
+    // in the meeting room: everything that isn't a Madar command is a question for the five characters
+    if (this.meeting?.open) {
+      if (/(انه|انهي|اغلق|سكر|خلص|الغ) (ال)?اجتماع/.test(n)) return this.meeting.stop();
+      const st = CMD.plan(t);
+      if (!(st && st.length && st[0].score >= 1.2 && !['meeting', 'ask_persona'].includes(st[0].cmd.id))) return this.meeting.ask(t, CMD.personaIn?.(t));
+    }
     if (/(التلفاز|التلفزيون|الشاشه الكبيره|الصاله|السياره|الهاتف|الجوال|اهل البيت|كل الاجهزه)/.test(n) && !/(فوق|على) التلفاز|شاشه التابلت|وضع السفر/.test(n)) return this.askAssistant(t);
     // a question about Madar itself (what is open, the score, the next prayer, the timer, how do I…): answered here at once
     // about the window you look at («من هذا اللاعب؟» «ماذا يحدث في هذا الفيديو؟» «لخّص هذه الصفحة»)
@@ -1379,6 +1387,7 @@ class App {
     this.controls.update(dt);
     this.headGest?.update(now);
     this.memojiActor?.update(now);
+    this.meeting?.update(now);
     this.interaction.update(dt, now);
     this.windows.update(dt, now);
     this.extras.update(dt, now); this.plus?.update(now); this.nx?.update(dt, now); this.together?.update(now); this.welcome?.update(now); this.smartBar?.update(now); this.remote?.pollPads(now);

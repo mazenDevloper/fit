@@ -198,6 +198,8 @@ export const COMMANDS = [
   ['ask_window', 'الذكاء', 'اسأل عن النافذة التي تنظر إليها («من هذا اللاعب؟»، «ماذا يحدث في هذا الفيديو؟»)', ['اسال عن النافذه', 'عن هذا الفيديو', 'عن هذي النافذه'], (a, x, t) => a.extras?.askWindow(t)],
   ['memoji_edit', 'الأدوات', 'صمّم الميموجي (وجهك ثلاثي الأبعاد: البشرة، الشعر، اللحية، النظارات، الكمة والمصر…)', ['الميموجي', 'ميموجي', 'صمم الميموجي', 'عدل الميموجي', 'شكلي', 'افاتار'], a => a.windows.open({ kind: 'web', url: new URL('memoji.html', location.href).href, title: 'ميموجي', direct: true })],
   ['memoji_show', 'الأدوات', 'اعرض الميموجي أمامك', ['اعرض الميموجي', 'وريني الميموجي'], a => { const w = a.controls?.pointedWindow?.() || a.windows.windows.at(-1); a.memojiActor?.show(w?.panel?.mesh || w?.content || a.welcome?.card || a.notifier?.mesh, 15000); }],
+  ['meeting', 'الذكاء', 'غرفة الاجتماع: خمس شخصيات ميموجي (المبتكر، المنطقي، الرياضي، المشجّع، المتعصّب) تجيب معاً', ['غرفه الاجتماع', 'اجتماع', 'الاجتماع', 'اجمع الشخصيات', 'الشخصيات'], (a, x, t) => { a.meeting?.start(); }],
+  ['ask_persona', 'الذكاء', 'اسأل شخصية واحدة: «اسأل المنطقي هل أشتري…»', ['اسال المبتكر', 'اسال المنطقي', 'اسال الرياضي', 'اسال المشجع', 'اسال المتعصب'], (a, x, t) => a.meeting?.ask(norm(t).replace(/^.*?اسال\s+\S+\s*/, '') || t, personaIn(t))],
   ['draw', 'الذكاء', 'الرسم في الهواء', ['ارسم', 'الرسم'], a => a.extras?.sketch.toggle()],
   ['orb', 'الذكاء', 'كرة المساعد العائمة', ['كره المساعد', 'المساعد العائم'], a => { const on = !settings.orb; saveSettings({ orb: on }); a.extras?.orb.show(on); }],
   // ---- settings
@@ -263,6 +265,8 @@ export const COMMANDS = [
   ['clock_hud', 'الإعدادات', 'الساعة أعلى النظر', ['الساعه فوق', 'ساعه النظر'], a => tog(a, 'clock', 'الساعة')],
 ];
 
+// which character a sentence names («اسأل المنطقي…»)
+export const personaIn = t => { const n = norm(t); return /المبتكر/.test(n) ? 'innovator' : /المنطقي/.test(n) ? 'logical' : /الرياضي/.test(n) ? 'athlete' : /المشجع/.test(n) ? 'cheer' : /المتعصب/.test(n) ? 'fanatic' : null; };
 // ---------------------------------------------------------------- matching
 const LIST = COMMANDS.map(([id, group, desc, says, run]) => ({ id, group, desc, says: says.map(norm), run }));
 export const byId = id => LIST.find(c => c.id === id);

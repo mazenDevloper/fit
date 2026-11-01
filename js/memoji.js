@@ -57,12 +57,12 @@ export function envFor(renderer) {
   return envs.get(renderer);
 }
 export function lights() {
-  // soft studio light: mostly a big even fill, a gentle key from the front-top, a faint warm rim
+  // studio light with shape: a key from the upper left that models the nose, cheeks and brow, a cooler fill, a warm rim
   const L = new THREE.Group();
-  L.add(new THREE.HemisphereLight(0xfffaf4, 0xa0786a, 1.7));
-  const key = new THREE.DirectionalLight(0xfff4ea, 1.15); key.position.set(-0.6, 1.0, 3); L.add(key);
-  const fill = new THREE.DirectionalLight(0xfff0e8, 0.7); fill.position.set(1.6, -0.4, 2.4); L.add(fill);
-  const rim = new THREE.DirectionalLight(0xffe8d8, 0.5); rim.position.set(1.2, 1.5, -2.5); L.add(rim);
+  L.add(new THREE.HemisphereLight(0xfff6ee, 0x6a4a40, 0.9));
+  const key = new THREE.DirectionalLight(0xfff1e2, 2.2); key.position.set(-1.6, 1.8, 2.4); L.add(key);
+  const fill = new THREE.DirectionalLight(0xe8eeff, 0.45); fill.position.set(2, 0.2, 2); L.add(fill);
+  const rim = new THREE.DirectionalLight(0xffdcc4, 1.1); rim.position.set(1.8, 1.4, -2.2); L.add(rim);
   return L;
 }
 
@@ -146,7 +146,7 @@ function skinTex() {
 }
 function skinMat(hex, env) {
   const T = skinTex();
-  return new THREE.MeshPhysicalMaterial({ color: new THREE.Color(hex), vertexColors: true, roughness: 0.82, roughnessMap: T.rough, normalMap: T.normal, normalScale: new THREE.Vector2(0.05, 0.05), metalness: 0, sheen: 0.6, sheenColor: new THREE.Color('#ff9a7e'), sheenRoughness: 0.55, clearcoat: 0.12, clearcoatRoughness: 0.55, envMap: env, envMapIntensity: 0.6, side: THREE.DoubleSide });
+  return new THREE.MeshPhysicalMaterial({ color: new THREE.Color(hex), vertexColors: true, roughness: 0.82, roughnessMap: T.rough, normalMap: T.normal, normalScale: new THREE.Vector2(0.05, 0.05), metalness: 0, sheen: 0.6, sheenColor: new THREE.Color('#ff9a7e'), sheenRoughness: 0.55, clearcoat: 0.12, clearcoatRoughness: 0.55, envMap: env, envMapIntensity: 0.4, side: THREE.DoubleSide });
 }
 function hairMat(hex, env, kind = 'hair', o = {}) {
   return new THREE.MeshPhysicalMaterial({ color: new THREE.Color(hex), map: strands(kind), roughness: 0.48, metalness: 0, sheen: 0.8, sheenColor: new THREE.Color(hex).offsetHSL(0, 0, 0.25), sheenRoughness: 0.4, envMap: env, envMapIntensity: 0.6, ...o });
@@ -181,7 +181,8 @@ function face(P, x, y, talk = 0, blink = 0) {
     d -= 0.02 * g2(x, y, s * EYE.x, EYE.y, 0.14, 0.1);        // a shallow socket (the eye sits ON the face)
     d += 0.015 * g2(x, y, s * EYE.x, 0.21, 0.16, 0.05);       // brow
     d += 0.04 * g2(x, y, s * 0.42, -0.32, 0.15, 0.13);        // cheeks
-    d += 0.03 * P.nose[1] * g2(x, y, s * 0.07 * P.nose[1], -0.33, 0.04, 0.035);   // nostril wings
+    d += 0.04 * P.nose[1] * g2(x, y, s * 0.085 * P.nose[1], -0.32, 0.035, 0.03);  // nostril wings
+    d -= 0.012 * g2(x, y, s * 0.125 * P.nose[1], -0.31, 0.015, 0.035);            // the crease beside each wing
     if (!P.noEyes) {
       const t = (Math.abs(x) - EYE.x) / EYE.w, tc = Math.max(-1.2, Math.min(1.2, t)), inside = 1 - ss(0.9, 1.25, Math.abs(t));
       const yu = eyeUp(Math.max(-1, Math.min(1, tc))), yl = eyeLow(Math.max(-1, Math.min(1, tc)));
@@ -191,8 +192,12 @@ function face(P, x, y, talk = 0, blink = 0) {
     }
   }
   // a small button nose: almost no bridge, a round tip
-  d += 0.024 * Math.exp(-(x * x) / (2 * 0.05 * 0.05)) * ss(0.05, -0.22, y) * ss(-0.38, -0.27, y);
-  d += 0.095 * P.nose[0] * g2(x, y, 0, -0.29, 0.082 * P.nose[1], 0.07 * P.nose[0]);
+  // Apple's nose: a soft bridge rising from between the eyes, a tip that is wider than tall (not a ball), and
+  // wings that sit back from it
+  const br = Math.exp(-(x * x) / (2 * 0.045 * 0.045)) * ss(0.02, -0.12, y) * ss(-0.36, -0.26, y);
+  d += br * (0.03 + 0.05 * ss(-0.05, -0.25, y)) * P.nose[0];
+  d += 0.07 * P.nose[0] * g2(x, y, 0, -0.285, 0.075 * P.nose[1], 0.05 * P.nose[0]);
+  d -= 0.012 * g2(x, y, 0, -0.33, 0.035, 0.012);             // the tip's underside turns in
   d -= 0.012 * g2(x, y, 0, -0.37, 0.06, 0.02);              // under the nose
   // soft lips
   const ym = mouthY(P, x), yl = mouthLow(P, x, talk), inX = Math.max(0, 1 - (x / (P.mw * 1.3)) ** 2);
@@ -258,6 +263,7 @@ function paint(P, x, y, uz, lipC) {
   { const yl0 = mouthLow(P, 0); k += f * 0.07 * g2(x, y, 0, yl0 - 0.03, 0.06, 0.01); k -= f * 0.15 * g2(0, y, 0, yl0 - 0.075, 1, 0.016) * inX; }   // lower lip shine, its shadow
   if (P.hairFront != null) k -= f * 0.16 * g2(0, y, 0, P.hairFront - 0.04, 1, 0.045) * (1 - ss(0.5, 0.75, Math.abs(x)));   // the hair's shadow on the forehead
   // skin is not grey in shadow: light passes under it and comes back warm (subsurface) - darken red less
+  k = 1 - (1 - k) * 1.7;   // deeper painted shadows (contrast)
   const sh = 1 - Math.min(1, k);
   return [Math.max(0, r * (1 - sh * 0.62)), Math.max(0, gC * (1 - sh * 1.08)), Math.max(0, b * (1 - sh * 1.18))];
 }
@@ -444,7 +450,7 @@ export function build(cfg = DEFAULT, { env = null, lite = false } = {}) {
     add(new THREE.SphereGeometry(0.17, 24, 18), hairMat(hw, env, 'hair'), new THREE.Vector3(0, 1.36, -0.05));
   } else if (cfg.head === 'kumma' || cfg.head === 'massar') {
     const tex = kummaTexture(hw, cfg.head === 'massar');
-    const km = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.75, sheen: 0.5, sheenColor: new THREE.Color('#ffffff'), envMap: env, envMapIntensity: 0.6, side: THREE.DoubleSide });
+    const km = new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.75, sheen: 0.5, sheenColor: new THREE.Color('#ffffff'), envMap: env, envMapIntensity: 0.4, side: THREE.DoubleSide });
     if (cfg.head === 'kumma') {
       add(new THREE.CylinderGeometry(0.97, 1.0, 0.6, 72, 1, true), km, new THREE.Vector3(0, 0.82, -0.02), null, [-0.12, 0, 0]);
       add(new THREE.SphereGeometry(0.97, 72, 16, 0, Math.PI * 2, 0, 0.5), plain(hw, env, { roughness: 0.75 }), new THREE.Vector3(0, 0.66, -0.06), [1, 0.85, 1], [-0.12, 0, 0]);
@@ -505,8 +511,10 @@ export function dispose(g) { g.traverse(o => { o.geometry?.dispose?.(); if (o.ma
 // ---------------------------------------------------------------- alive: floats, looks at you, blinks, talks
 export class Floating {
   // env: the renderer's room light (envFor(renderer)); the head brings its own lights
-  constructor(cfg, env = null) { this.cfg = cfg; this.env = env; this.group = new THREE.Group(); this.rig = lights(); this.group.add(this.rig); this.head = build(cfg, { env }); this.group.add(this.head); this.blinkAt = 0; this.t0 = performance.now(); }
-  rebuild(cfg) { this.cfg = cfg; this.group.remove(this.head); dispose(this.head); this.head = build(cfg, { env: this.env }); this.group.add(this.head); }
+  constructor(cfg, env = null, opts = {}) { this.cfg = cfg; this.env = env; this.lite = !!opts.lite; this.group = new THREE.Group(); this.rig = lights(); this.group.add(this.rig); this.head = build(cfg, { env, lite: this.lite }); this.group.add(this.head); this.blinkAt = performance.now() + Math.random() * 3000; this.t0 = performance.now() - Math.random() * 5000; }
+  rebuild(cfg) { this.cfg = cfg; this.group.remove(this.head); dispose(this.head); this.head = build(cfg, { env: this.env, lite: this.lite }); this.group.add(this.head); }
+  // Animoji: a face from the camera moves this one (MediaPipe blendshapes + head rotation)
+  drive(bs, rot) { this.face = { bs, rot, at: performance.now() }; }
   update(now, lookAt, talking = false) {
     const t = (now - this.t0) / 1000, H = this.head;
     H.position.y = Math.sin(t * 1.4) * 0.06;
@@ -520,6 +528,11 @@ export class Floating {
       const goal = talking ? 0.25 + Math.abs(Math.sin(t * 11)) * 0.6 : 0;
       head.morphTargetInfluences[0] += (goal - head.morphTargetInfluences[0]) * 0.35;
       head.morphTargetInfluences[1] = close;
+      const F = this.face;
+      if (F && now - F.at < 500) {
+        const b = F.bs; head.morphTargetInfluences[0] = Math.min(1, (b.jawOpen || 0) * 1.6); head.morphTargetInfluences[1] = Math.max(close, Math.min(1, ((b.eyeBlinkLeft || 0) + (b.eyeBlinkRight || 0)) / 2 * 1.3));
+        if (F.rot) { this.fr = this.fr || { x: 0, y: 0, z: 0 }; for (const k of ['x', 'y', 'z']) this.fr[k] += ((k === 'x' ? 1 : -1) * F.rot[k] - this.fr[k]) * 0.5; H.rotation.set(this.fr.x, this.fr.y, this.fr.z); }
+      }
     }
   }
 }
