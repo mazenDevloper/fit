@@ -2079,7 +2079,8 @@ export class WindowManager {
     const i = this.windows.indexOf(win); if (i < 0) return;
     this.windows.splice(i, 1);
     this.root.remove(win.group);
-    win.side?.dispose(); win.side = null;
+    // side panels attached by the manager (YouTube / match centre) - not the reader's own two tafsir pages (also «side»)
+    if (typeof win.side?.dispose === 'function') { win.side.dispose(); win.side = null; }
     win.dispose();
     this.refreshTargets();
     this.app.interaction?.forget(win);
@@ -2206,7 +2207,7 @@ export class WindowManager {
     for (const w of this.windows) {
       // Cinema: only the chosen window stays visible. Pieces pinned to another environment wait for it.
       w.group.visible = !this.guard && (!this.cinema || w === this.cinema) && (!w.envPin || w.envPin === env);
-      w.update(dt, now); w.matchTick?.(); w.chrome?.(performance.now()); w.side?.update(now);
+      w.update(dt, now); w.matchTick?.(); w.chrome?.(performance.now()); if (typeof w.side?.update === 'function') w.side.update(now);
       if (w.glow) w.updateGlow(now);
       // Pinned to the view: the window glides to stay straight ahead at the same distance.
       if (w.headLock && w.kind !== 'model') {
