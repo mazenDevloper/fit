@@ -174,6 +174,10 @@ function drawQuranPage(ctx, page, side, th) {
 }
 
 // ---------------------------------------------------------------- the Quran as a "book"
+// the heavy steps (drawing a page with its Quran shaping, uploading it) wait their turn, one per animation frame
+let drawQ = Promise.resolve();
+const frameSlot = () => (drawQ = drawQ.then(() => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)))));
+
 class QuranBook {
   constructor() { this.id = 'quran'; this.title = 'المصحف الشريف'; this.rtl = true; this.count = Q.PAGES; this.quran = true; this.pages = new Map(); }
   async open() { await Q.readerFonts(); }
@@ -483,6 +487,7 @@ export class ReaderWindow {
     let p = this.cache.get(k);
     if (p) { this.cache.delete(k); this.cache.set(k, p); return p.then(c => { if (c.layout) this.layouts.set(n, c.layout); return c; }); }
     p = (async () => {
+      await frameSlot();   // one page per frame: opening the mushaf never freezes the room
       const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH;
       const ctx = cv.getContext('2d');
       let layout = null;
@@ -498,6 +503,8 @@ export class ReaderWindow {
         }
       }
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+      // its upload to the GPU (with mipmaps) in a frame of its own too, before it is shown
+      await frameSlot(); try { this.app.renderer?.renderer?.initTexture?.(tex); } catch {}
       if (layout) this.layouts.set(n, layout);
       return { cv, tex, layout, n };
     })();

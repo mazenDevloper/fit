@@ -186,6 +186,9 @@ export class Launcher {
         ['sliders', 'نظارة جديدة', 'معالج من ٣ خطوات', () => { this.close(); a.plus?.headsetWizard(); }],
         ['play', 'ريموت VR Park', settings.remote ? 'يعمل · اضغط لإيقافه' : '@+C مؤشر · @+D أزرار', () => { this.close(); a.remote?.toggle(); }],
         ['play', 'تعلّم أزرار الريموت', 'اضغط كل زر عندما يُطلب', () => { this.close(); a.remote?.startLearn(); }],
+        ['play', 'ريموت للكاميرا وريموت للحركة', Object.keys(settings.padRoles || {}).length ? 'مُعيّن · اضغط لإعادة التعيين' : 'اضغط زراً في كل ريموت', () => { this.close(); a.remote?.startRoles(); }],
+        ['play', 'نظر سلس بالعصا', settings.padSmoothLook ? 'يعمل · العصا تنظر بلا قفزات' : 'بدل الدوران بقفزات ٣٠°', () => { saveSettings({ padSmoothLook: !settings.padSmoothLook }); this.panel.redraw(); }],
+        ...(Object.keys(settings.padRoles || {}).length ? [['play', 'إلغاء أدوار الريموت', 'ريموت واحد لكل شيء', () => { this.close(); a.remote?.clearRoles(); }]] : []),
         ['play', 'ريموت 1 وحده', 'أندرويد: وضع اللعب', () => { this.close(); a.remote?.startLearnPad(0); }],
         ['play', 'ريموت 2 وحده', 'أندرويد: وضع اللعب', () => { this.close(); a.remote?.startLearnPad(1); }],
       ];

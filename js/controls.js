@@ -255,8 +255,19 @@ export class Controls {
   //  L1/R1 smaller/bigger   L2/R2 scroll page   left stick move   right stick turn (snap in headset) / look
   //  D-pad ↑↓ up/down, ←→ turn   Options/Menu launcher   Share/View environment   L3 recenter   R3 orbit
   pollPad(dt, set) {
-    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
-    const gp = pads.find(p => p.connected && !window.__padCustom?.has(p.index)) || null;
+    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(p => p && p.connected && !window.__padCustom?.has(p.index)) : [];
+    // two VR Park remotes with roles («ريموت للكاميرا وريموت للحركة»): one virtual pad - the camera remote's stick
+    // is the right stick (look), the movement remote's stick the left one (walk); the buttons of both work
+    const roles = settings.padRoles || {}, key = p => 'pad' + p.index + ':' + (p.id || '').replace(/[^a-z0-9]/gi, '').slice(0, 24);
+    const lookPad = pads.find(p => roles[key(p)] === 'look'), movePad = pads.find(p => roles[key(p)] === 'move');
+    let gp = pads[0] || null;
+    if (lookPad || movePad) {
+      const base = lookPad || movePad, axes = [0, 0, 0, 0], buttons = [];
+      if (movePad) { axes[0] = movePad.axes[0] || 0; axes[1] = movePad.axes[1] || 0; }
+      if (lookPad) { axes[2] = lookPad.axes[0] || 0; axes[3] = lookPad.axes[1] || 0; }
+      for (const p of [lookPad, movePad]) if (p) p.buttons.forEach((b, i) => { const o = buttons[i] ||= { pressed: false, value: 0 }; o.pressed ||= b.pressed; o.value = Math.max(o.value, b.value || 0); });
+      gp = { id: 'roles:' + (lookPad?.id || '') + '|' + (movePad?.id || ''), index: base.index, axes, buttons, vibrationActuator: base.vibrationActuator, roles: true };
+    }
     if (!gp) { if (this.pad.id) { this.app.toast('انفصلت يد التحكم'); this.pad.id = null; } this.padPtr.down = false; return; }
     if (gp.id !== this.pad.id) {
       this.pad.id = gp.id; this.pad.prev = [];
@@ -267,21 +278,31 @@ export class Controls {
       if (!settings.padGuideShown) { settings.padGuideShown = true; saveSettings({}); setTimeout(() => this.app.windows.open({ kind: 'panel', panel: 'pad' }), 600); }
     }
     const ax = gp.axes, b = gp.buttons.map(x => x.pressed), val = i => (gp.buttons[i] && gp.buttons[i].value) || 0;
-    const dz = v => Math.abs(v) < 0.15 ? 0 : v;
+    // VR Park sticks are rough (they jump straight to full, the vertical axis is noisy): a wider dead zone, a soft
+    // curve (fine control near the middle) and a short ease (~0.12 s) so the view glides instead of jumping
+    const dz = v => { const a = Math.abs(v); if (a < 0.18) return 0; const t = (a - 0.18) / 0.82; return Math.sign(v) * t * t * (3 - 2 * t); };
+    const sm = this.pad.sm ||= [0, 0, 0, 0], ease = 1 - Math.exp(-dt / 0.12);
+    const smooth = (i, v) => (sm[i] += (v - sm[i]) * ease, Math.abs(sm[i]) < 0.01 ? 0 : sm[i]);
     const now = performance.now();
     const any = b.some(Boolean) || ax.some(v => Math.abs(v) > 0.3);
     if (any) this.padPtr.last = now;
     if (this.app.lensAdjust?.isOpen) { const e = i => b[i] && !this.pad.prev[i]; this.app.lensAdjust.pad(ax, val, e, dt); this.pad.prev = b; set([0, 0], [0, 0]); return; }
     // Movement and look
-    let rx = dz(ax[2] || 0), ry = dz(ax[3] || 0);
-    if (!this.direct) {
+    let rx = smooth(2, dz(ax[2] || 0)), ry = smooth(3, dz(ax[3] || 0));
+    // a camera remote (or «نظر سلس»): the stick turns the view smoothly in every direction, also in the headset,
+    // the vertical slower than the horizontal (comfort)
+    if (!this.direct && (gp.roles && lookPad || settings.padSmoothLook)) {
+      this.look.yaw -= rx * 1.5 * dt;
+      this.look.pitch = THREE.MathUtils.clamp(this.look.pitch - ry * 0.9 * dt, -1.2, 1.2);
+      rx = 0; ry = 0;
+    } else if (!this.direct) {
       // Headset: right stick X snaps 30° (comfortable), right stick Y scrolls the page you point at.
       if (Math.abs(rx) > 0.7 && !this.pad.snapped) { this.pad.snapped = true; if (this.orbit) this.orbitBy(-Math.sign(rx) * Math.PI / 6); else this.look.yaw -= Math.sign(rx) * Math.PI / 6; this.rumble(gp, 0.15, 30); }
       if (Math.abs(rx) < 0.3) this.pad.snapped = false;
       if (ry) this.scrollPointed(ry * 900 * dt);
       rx = 0; ry = 0;
     }
-    set([dz(ax[0] || 0), dz(ax[1] || 0)], [rx, ry]);
+    set([smooth(0, dz(ax[0] || 0)), smooth(1, dz(ax[1] || 0))], [rx, ry * 0.65]);
     // Triggers scroll (analog)
     const tr = val(7) - val(6);
     if (Math.abs(tr) > 0.05) this.scrollPointed(tr * 1400 * dt);

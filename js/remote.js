@@ -136,10 +136,40 @@ export class Remote {
     saveSettings({ remote: true }); this.padLearn = { key: this.padKey(gp), idx: gp.index, i: 0, map: {}, prev: gp.buttons.map(b => b.pressed), ax: [...gp.axes] };
     this.app.toast('🎮 ريموت ' + (i + 1) + ': ' + ACTIONS[0][1] + ' — اضغط الزر أو حرّك العصا', 15000);
   }
+  // «ريموت للكاميرا وريموت للحركة»: press any button on the remote for the camera, then on the one for walking
+  // (a single remote: press it twice → it is the camera; «إلغاء الأدوار» goes back to one remote for everything)
+  startRoles() {
+    const pads = this.pads();
+    if (!pads.length) { this.app.toast('🎮 لم أجد ريموت في وضع اللعب — شغّله (@+B غالباً) واضغط أي زر فيه', 4000); return; }
+    this.roleLearn = { step: 'look', roles: {}, prev: new Map(pads.map(p => [p.index, p.buttons.map(b => b.pressed)])), t: performance.now() };
+    this.app.toast('🎥 اضغط أي زر في الريموت الذي تريده للكاميرا (النظر)', 15000);
+  }
+  clearRoles() { saveSettings({ padRoles: {} }); this.app.toast('أُلغيت الأدوار: ريموت واحد لكل شيء', 2500); }
+  rolesStep(list) {
+    const R = this.roleLearn; if (!R) return false;
+    if (performance.now() - R.t > 30000) { this.roleLearn = null; this.app.toast('انتهت مهلة تعيين الريموت', 2000); return false; }
+    for (const gp of list) {
+      const prev = R.prev.get(gp.index) || [], now = gp.buttons.map(b => b.pressed);
+      R.prev.set(gp.index, now);
+      if (!now.some((b, i) => b && !prev[i])) continue;
+      const key = this.padKey(gp);
+      if (R.step === 'look') {
+        R.roles = { [key]: 'look' }; R.step = 'move';
+        if (list.length < 2) { saveSettings({ padRoles: R.roles }); this.roleLearn = null; this.app.toast('✓ هذا الريموت للكاميرا: العصا تنظر بسلاسة', 3000); return true; }
+        this.app.toast('🚶 الآن اضغط زراً في ريموت الحركة', 15000);
+      } else if (R.roles[key] !== 'look') {
+        R.roles[key] = 'move'; saveSettings({ padRoles: R.roles }); this.roleLearn = null;
+        this.app.toast('✓ ريموت للكاميرا وريموت للحركة', 3000);
+      }
+      return true;
+    }
+    return true;
+  }
   // per frame (from the app loop): each mapped pad drives Madar by itself; unmapped pads stay with the usual controls
   pollPads(now) {
     const list = this.pads(); if (!list.length) return;
     const maps = settings.padMaps || {}; window.__padCustom = new Set();
+    if (this.rolesStep(list)) { list.forEach(p => window.__padCustom.add(p.index)); return; }   // assigning: the buttons do nothing else
     for (const gp of list) {
       const key = this.padKey(gp), L = this.padLearn;
       if (L && L.idx === gp.index) {
