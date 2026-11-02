@@ -49,7 +49,7 @@ import { Meeting } from './meeting.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '161';
+export const APP_VERSION = '162';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -1056,7 +1056,7 @@ class App {
     this.controls.sync(); this.controls.reset();
     if (settings.viewMode === 'desktop' && settings.eyeTrack) setTimeout(() => this.gaze.start(), 1200);
     if (this.host?.stream) setTimeout(() => this.showLocalScreen(), 1500);   // already sharing on this computer: show it here too
-    else if (settings.mirrorCode) setTimeout(() => this.connectMirror(settings.mirrorCode), 2000);
+    // no automatic connection to the last screen: it opens only when you ask (الأجهزة / «شغل شاشة التابلت»)
     if (settings.viewMode === 'desktop') { setTimeout(() => this.toast('WASD للتحرك · الأسهم أو السحب للنظر · M القائمة · F ملء الشاشة', 6000), 2500); }
     if (settings.walk && !IOS) setTimeout(() => this.slam.start(), 1500);
     this.head.recenter();

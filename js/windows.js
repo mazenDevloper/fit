@@ -215,7 +215,10 @@ function homography(w, h, [p0, p1, p2, p3]) {
 let glowTex = null, glowCv = null, glowCtx = null;
 // Websites that work like apps inside Madar: [name, url, letter, colour].
 export const WEB_APPS = [
-  ['يوتيوب', 'https://m.youtube.com/', 'Y', '#ff0033'], ['شاهد', 'https://shahid.mbc.net/ar', 'ش', '#14b8a6'],
+  // first: YouTube and DriveCast in Madar's own view (the player in the middle, channels + suggestions beside it)
+  ['يوتيوب', 'https://m.youtube.com/', 'Y', '#ff0033', a => a.openYouTube('youtube')],
+  ['DriveCast', 'https://drivecast.c-p.workers.dev/media', 'D', '#0a84ff', a => a.openYouTube('drivecast')],
+  ['شاهد', 'https://shahid.mbc.net/ar', 'ش', '#14b8a6'],
   ['نتفليكس', 'https://www.netflix.com/', 'N', '#e50914'], ['سبوتيفاي', 'https://open.spotify.com/', 'S', '#1db954'],
   ['إكس', 'https://x.com/', 'X', '#111111'], ['إنستغرام', 'https://www.instagram.com/', 'I', '#d62976'],
   ['تيك توك', 'https://www.tiktok.com/', 'T', '#25f4ee'], ['خرائط', 'https://www.google.com/maps', 'M', '#4285f4'],
@@ -1265,7 +1268,7 @@ export class PanelWindow extends SpatialWindow {
       if (!l.some(x => x.url === url)) { l.unshift({ id: 'l' + Date.now(), title: name, url }); saveLinks(l); this.mgr.app.toast('أُضيف «' + name + '» إلى تطبيقاتك', 2000); }
       this.draw(); return true;
     }
-    this.mgr.open({ kind: 'web', url, title: name });
+    if (cell.app[4]) cell.app[4](this.mgr.app); else this.mgr.open({ kind: 'web', url, title: name });
     return true;
   }
   draw() {
