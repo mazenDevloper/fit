@@ -49,7 +49,7 @@ import { Meeting } from './meeting.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '162';
+export const APP_VERSION = '163';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -592,8 +592,9 @@ class App {
       };
       $('#winMirror').addEventListener('click', async () => { const d = await list(); go(d.find(x => x.id === sel.value) || d.find(x => x.primary) || d[0]); });
       $('#winExtend').addEventListener('click', async () => {
-        const d = await list(), u = d.find(x => x.ultra && !x.primary);
-        if (u) { sel.value = u.id; return go(u); }
+        const d = await list(), u = d.find(x => x.ultra && !x.primary) || d.find(x => !x.primary);
+        // any second screen works (best at 5120×1440 = 32:9); only with no second screen at all are the setup steps shown
+        if (u) { sel.value = u.id; if (!u.ultra) msg('الشاشة الثانية ' + u.w + '×' + u.h + ' — اجعلها 5120×1440 من إعدادات العرض لتصبح ألترا وايد'); return go(u); }
         msg('لا توجد شاشة ألترا وايد بعد. مرة واحدة: <a href="#" id="winVdd" style="color:#7cc4ff">ثبّت Virtual Display Driver</a> (مجاني) ثم من <a href="#" id="winSet" style="color:#7cc4ff">إعدادات العرض</a> اجعل الشاشة الجديدة «تمديد» بدقة 5120×1440، ثم اضغط «ممتدة» مرة أخرى');
         $('#winVdd')?.addEventListener('click', e => { e.preventDefault(); window.MadarWin.installVirtual(); });
         $('#winSet')?.addEventListener('click', e => { e.preventDefault(); window.MadarWin.displaySettings(); });
