@@ -219,6 +219,8 @@ export class ScreenHost {
       if (window.MadarAndroid?.startUvc) this.stream = await androidStream(() => this.stop(), 'startUvc');
       else this.stream = await hdmiStream(opts.deviceId);
       this.stream.getVideoTracks()[0].addEventListener('ended', () => this.stop());
+    // a computer screen is text: the encoder keeps every pixel and lowers the frame rate instead of the resolution
+    this.stream.getVideoTracks().forEach(t => { try { t.contentHint = 'text'; } catch {} });
     }
     else if (window.MadarAndroid) { this.hdmi = false; this.stream = await androidStream(() => this.stop()); clearInterval(this.capT); this.capT = setInterval(() => { const k = JSON.stringify(this.caps()); if (k !== this.lastCaps) { this.lastCaps = k; this.sendCaps(); this.status(); } }, 2000); }
     else {
@@ -226,7 +228,7 @@ export class ScreenHost {
     if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('هذا المتصفح لا يدعم مشاركة الشاشة — استخدم Chrome أو Edge على الكمبيوتر');
     // a chosen Windows monitor (Madar for Windows): its own size - up to 5120×1440 for the virtual ultra-wide one
     const D = opts.display, V = D ? { frameRate: { ideal: D.ultra ? 30 : 30, max: 60 }, width: { ideal: D.w }, height: { ideal: D.h } } : { frameRate: { ideal: 30, max: 30 }, width: { ideal: 1920 }, height: { ideal: 1080 } };
-    this.ultra = !!D?.ultra;
+    this.ultra = !!D && (D.ultra || D.w >= 3000);   // a big extended screen: more bits for its text
     try { this.stream = await navigator.mediaDevices.getDisplayMedia({ video: V, audio: true }); }
     catch (e) { throw new Error(e.name === 'NotAllowedError' ? 'أُلغيت المشاركة أو لم يُسمح بها' : 'هذا الجهاز لا يسمح بمشاركة الشاشة من المتصفح'); }
     this.stream.getVideoTracks()[0].addEventListener('ended', () => this.stop());
@@ -303,7 +305,9 @@ export class ScreenHost {
         const p = snd.getParameters(); p.encodings = p.encodings && p.encodings.length ? p.encodings : [{}];
         p.encodings[0].maxBitrate = rate; p.encodings[0].maxFramerate = this.hdmi ? Math.min(60, this.stream?.getVideoTracks()[0]?.getSettings?.().frameRate || 30) : 30;
         if (this.hdmi) { p.encodings[0].priority = 'high'; p.encodings[0].networkPriority = 'high'; const w = this.stream?.getVideoTracks()[0]?.getSettings?.().width || 0; if (w > 1280) p.encodings[0].scaleResolutionDownBy = w / 1280; p.encodings[0].maxBitrate = 6000000; }
-        p.degradationPreference = this.hdmi || this.quality === 'game' || this.quality === 'low' ? 'maintain-framerate' : 'balanced';
+        // the screen's text stays sharp: when the network or the computer is busy, fewer frames instead of blurry
+        // pixels («balanced» shrank a 5120×1440 screen to a fraction of its size a few seconds after it started)
+        p.degradationPreference = this.hdmi || this.quality === 'game' || this.quality === 'low' ? 'maintain-framerate' : 'maintain-resolution';
         snd.setParameters(p).catch(() => {});
       } catch {}
     });
