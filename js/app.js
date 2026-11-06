@@ -49,7 +49,7 @@ import { Meeting } from './meeting.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '165';
+export const APP_VERSION = '166';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -1317,6 +1317,7 @@ class App {
   // Madar's commands and what is on screen, and it answers with the steps to run.
   voiceCommand(t) {
     t = t.trim(); if (!t) return;
+    this.lastSaid = t;   // the words exactly as heard (commands that type or search use them, not the normalized form)
     const n = CMD.norm(t);
     // in the meeting room: everything that isn't a Madar command is a question for the five characters
     if (this.meeting?.open) {

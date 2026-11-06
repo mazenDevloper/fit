@@ -34,6 +34,10 @@ const grow = (x, f) => x.group && (x.scaleBy ? x.scaleBy(f) : x.group.scale.mult
 const SIZE = t => { const n = norm(t); return /(الترا|اولترا|عريض جدا|عريضه جدا|32)/.test(n) ? 'ultra' : /(عادي|طبيعي|الاصلي|رجع المقاس|16)/.test(n) ? 'normal' : /(عريض|عريضه|وايد سكرين|21)/.test(n) ? 'wide' : null; };
 const WEB = a => [a.controls?.pointedWindow?.(), ...[...a.windows.windows].reverse()].find(w => w?.kind === 'web') || null;
 const READER = a => a.windows.windows.find(w => w.kind === 'reader');
+// what you said after «… الكمبيوتر» / «برنامج», exactly as spoken (hamza and taa marbuta kept for typing)
+const rawAfter = (a, x) => { const m = String(a.lastSaid || '').match(/(?:الكمبيوتر|الكومبيوتر|بالكمبيوتر|برنامج)\s+(.+)$/); return (m?.[1] || String(x || '')).trim(); };
+// the shared computer to control: the one you look at, else any screen window that allows control
+const PC = a => { const ws = a.windows.windows.filter(w => w.remote && typeof w.typeText === 'function'), p = a.controls?.pointedWindow?.(); const w = ws.find(x => x === p) || ws.find(x => x.control) || ws[0]; if (!w) { a.toast('افتح شاشة الكمبيوتر في مدار أولاً', 2500); return null; } if (!w.control) { a.toast(w.remote?.caps?.why || 'للتحكم شغّل Madar Agent على الكمبيوتر', 3500); return null; } return w; };
 const web = (a, url, title) => a.windows.open({ kind: 'web', url, title });
 const tog = (a, key, label, on = settings[key] === false) => { saveSettings({ [key]: on }); a.toast((on ? '✓ ' : '✕ ') + label, 1500); a.control?.redraw(); };
 const vol = (a, d, mute) => { const w = V(a); if (!w?.setVolume) return a.toast('لا شيء يعمل', 1500); if (mute != null) w.setVolume(w.vol ?? 1, mute); else w.stepVolume(d); };
@@ -139,7 +143,7 @@ export const COMMANDS = [
   ['youtube', 'المواقع', 'يوتيوب: يبحث ويشغّل ما طلبت («شغل سورة الكوثر بصوت ياسر الدوسري في اليوتيوب، الأجمل الأطول»)', ['يوتيوب', 'اليوتيوب'], (a, x, t) => ytPlay(a, t)],
   ['shahid', 'المواقع', 'شاهد', ['شاهد نت', 'منصه شاهد', 'افتح شاهد'], a => web(a, 'https://shahid.mbc.net', 'شاهد')],
   ['netflix', 'المواقع', 'نتفلكس', ['نتفلكس', 'نتفليكس'], a => web(a, 'https://www.netflix.com', 'Netflix')],
-  ['open_site', 'المواقع', 'افتح موقعاً بالاسم أو الرابط', ['افتح موقع', 'روح لموقع', 'ادخل موقع'], (a, x) => { if (!x) return; const u = /^https?:/.test(x) ? x : /\./.test(x) ? 'https://' + x.replace(/\s/g, '') : 'https://www.google.com/search?btnI=1&q=' + encodeURIComponent(x); web(a, u, x); }],
+  ['open_site', 'المواقع', 'افتح موقعاً بالاسم أو الرابط', ['افتح موقع', 'روح لموقع', 'ادخل موقع'], (a, x, t) => { const r = String(a.lastSaid || '').match(/موقع\s+(.+)$/)?.[1]?.trim(); if (r) x = r; if (!x) return; const u = /^https?:/.test(x) ? x : /\./.test(x) ? 'https://' + x.replace(/\s/g, '') : 'https://www.google.com/search?btnI=1&q=' + encodeURIComponent(x); web(a, u, x); }],
   ['drivecast', 'المواقع', 'DriveCast مدار: الفيديو في الوسط ومكتبتك والمقترحات حوله', ['درايف كاست', 'درايفكاست', 'دي سي'], a => a.openYouTube('drivecast')],
   ['cplay_site', 'المواقع', 'موقع DriveCast كما هو (cplay2)', ['سي بلاي', 'كبلاي', 'موقع درايف'], a => a.openCplay()],
   ['yt_view', 'المواقع', 'يوتيوب مدار: الفيديو في الوسط وقنواتك والمقترحات على الجانبين', ['يوتيوب مدار', 'واجهه يوتيوب', 'افتح يوتيوب'], a => a.openYouTube('youtube')],
@@ -252,6 +256,10 @@ export const COMMANDS = [
   ['spatial_audio', 'الإعدادات', 'الصوت المكاني', ['الصوت المكاني'], a => tog(a, 'spatialAudio', 'الصوت المكاني')],
   ['finger_mouse', 'الإعدادات', 'الإصبع فأرة', ['الاصبع فاره', 'الماوس بالاصبع'], a => tog(a, 'handDwell', 'الإصبع فأرة', !settings.handDwell)],
   ['stabilizer', 'الإعدادات', 'المثبّت (يثبّت الصورة)', ['المثبت', 'ثبت الصوره'], a => tog(a, 'stabilizer', 'المثبّت', !settings.stabilizer)],
+  // the shared computer (Madar Agent): open a program from Start, type, press keys - by voice
+  ['pc_open', 'الأجهزة', 'افتح برنامجاً في الكمبيوتر المشارَك («افتح في الكمبيوتر الآلة الحاسبة»)', ['افتح في الكمبيوتر', 'شغل في الكمبيوتر', 'افتح برنامج'], (a, x, t) => { const w = PC(a); if (!w) return; const name = rawAfter(a, x); if (!name) return a.toast('قل اسم البرنامج بعد «افتح في الكمبيوتر»', 2500); w.key('home'); setTimeout(() => w.typeText(name), 700); setTimeout(() => w.key('enter'), 1500); a.toast('💻 أفتح «' + name + '»', 2000); }],
+  ['pc_type', 'الأجهزة', 'اكتب في الكمبيوتر المشارَك ما تقوله', ['اكتب في الكمبيوتر', 'اكتب بالكمبيوتر'], (a, x, raw) => { const w = PC(a); if (!w) return; const t = rawAfter(a, x); if (t) { w.typeText(t); a.toast('⌨️ ' + t, 1500); } }],
+  ['pc_enter', 'الأجهزة', 'اضغط إنتر في الكمبيوتر المشارَك', ['اضغط انتر', 'ارسل في الكمبيوتر'], a => PC(a)?.key('enter')],
   ['face_together', 'الفيديو', 'وجهي في «شاهد معاً» (ميموجيك يتحرك بوجهك)', ['وجهي في الغرفه', 'ارسل وجهي', 'الميموجي في الغرفه'], a => a.together?.faceToggle()],
   ['mic_together', 'الفيديو', 'المايكروفون في «شاهد معاً»', ['المايكروفون', 'المايك'], a => a.together?.toggleMic()],
   ['head_gestures', 'الإعدادات', 'الرد بالرأس على التنبيهات: إيماءة = نعم، هزّة = لا', ['الرد بالراس', 'اوامر الراس', 'ايماءه الراس'], a => tog(a, 'headGestures', 'الرد بالرأس')],
