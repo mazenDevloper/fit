@@ -35,7 +35,7 @@ const SIZE = t => { const n = norm(t); return /(الترا|اولترا|عريض
 const WEB = a => [a.controls?.pointedWindow?.(), ...[...a.windows.windows].reverse()].find(w => w?.kind === 'web') || null;
 const READER = a => a.windows.windows.find(w => w.kind === 'reader');
 // what you said after «… الكمبيوتر» / «برنامج», exactly as spoken (hamza and taa marbuta kept for typing)
-const rawAfter = (a, x) => { const m = String(a.lastSaid || '').match(/(?:الكمبيوتر|الكومبيوتر|بالكمبيوتر|برنامج)\s+(.+)$/); return (m?.[1] || String(x || '')).trim(); };
+const rawAfter = (a, x) => { const m = String(a.lastSaid || '').match(/(?:الكمبيوتر|الكومبيوتر|بالكمبيوتر|برنامج)\s+(.+)$/); return (m?.[1]?.split(/\s+ثم\s+/)[0] || String(x || '')).trim(); };
 // the shared computer to control: the one you look at, else any screen window that allows control
 const PC = a => { const ws = a.windows.windows.filter(w => w.remote && typeof w.typeText === 'function'), p = a.controls?.pointedWindow?.(); const w = ws.find(x => x === p) || ws.find(x => x.control) || ws[0]; if (!w) { a.toast('افتح شاشة الكمبيوتر في مدار أولاً', 2500); return null; } if (!w.control) { a.toast(w.remote?.caps?.why || 'للتحكم شغّل Madar Agent على الكمبيوتر', 3500); return null; } return w; };
 const web = (a, url, title) => a.windows.open({ kind: 'web', url, title });
@@ -143,7 +143,7 @@ export const COMMANDS = [
   ['youtube', 'المواقع', 'يوتيوب: يبحث ويشغّل ما طلبت («شغل سورة الكوثر بصوت ياسر الدوسري في اليوتيوب، الأجمل الأطول»)', ['يوتيوب', 'اليوتيوب'], (a, x, t) => ytPlay(a, t)],
   ['shahid', 'المواقع', 'شاهد', ['شاهد نت', 'منصه شاهد', 'افتح شاهد'], a => web(a, 'https://shahid.mbc.net', 'شاهد')],
   ['netflix', 'المواقع', 'نتفلكس', ['نتفلكس', 'نتفليكس'], a => web(a, 'https://www.netflix.com', 'Netflix')],
-  ['open_site', 'المواقع', 'افتح موقعاً بالاسم أو الرابط', ['افتح موقع', 'روح لموقع', 'ادخل موقع'], (a, x, t) => { const r = String(a.lastSaid || '').match(/موقع\s+(.+)$/)?.[1]?.trim(); if (r) x = r; if (!x) return; const u = /^https?:/.test(x) ? x : /\./.test(x) ? 'https://' + x.replace(/\s/g, '') : 'https://www.google.com/search?btnI=1&q=' + encodeURIComponent(x); web(a, u, x); }],
+  ['open_site', 'المواقع', 'افتح موقعاً بالاسم أو الرابط', ['افتح موقع', 'روح لموقع', 'ادخل موقع'], (a, x, t) => { const r = String(a.lastSaid || '').match(/موقع\s+(.+)$/)?.[1]?.split(/\s+ثم\s+/)[0].trim(); if (r) x = r; if (!x) return; const u = /^https?:/.test(x) ? x : /\./.test(x) ? 'https://' + x.replace(/\s/g, '') : 'https://www.google.com/search?btnI=1&q=' + encodeURIComponent(x); web(a, u, x); }],
   ['drivecast', 'المواقع', 'DriveCast مدار: الفيديو في الوسط ومكتبتك والمقترحات حوله', ['درايف كاست', 'درايفكاست', 'دي سي'], a => a.openYouTube('drivecast')],
   ['cplay_site', 'المواقع', 'موقع DriveCast كما هو (cplay2)', ['سي بلاي', 'كبلاي', 'موقع درايف'], a => a.openCplay()],
   ['yt_view', 'المواقع', 'يوتيوب مدار: الفيديو في الوسط وقنواتك والمقترحات على الجانبين', ['يوتيوب مدار', 'واجهه يوتيوب', 'افتح يوتيوب'], a => a.openYouTube('youtube')],
