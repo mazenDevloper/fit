@@ -18,6 +18,7 @@ function sim(a, b) {
   return 1 - d[m][n] / Math.max(m, n);
 }
 const OK = 0.62;
+const DAY = 86400000, STEPS = [1, 3, 7, 14, 30, 60];
 
 export class Hifz {
   constructor(reader) {
@@ -126,8 +127,10 @@ export class Hifz {
     this.draw();
   }
   pageDone(n) {
-    const pages = { ...(settings.hifzPages || {}) }, e = this.pageErr[n] || 0;
-    pages[n] = { at: Date.now(), errors: e, ok: e <= 1 };
+    const pages = { ...(settings.hifzPages || {}) }, e = this.pageErr[n] || 0, prev = pages[n];
+    // spaced review: a clean recitation moves the page one step further (1, 3, 7, 14, 30, 60 days), a weak one back to the start
+    const stage = e <= 1 ? Math.min(STEPS.length - 1, (prev?.ok ? (prev.stage ?? -1) : -1) + 1) : 0;
+    pages[n] = { at: Date.now(), errors: e, ok: e <= 1, stage, due: Date.now() + STEPS[stage] * DAY };
     saveSettings({ hifzPages: pages });
     this.app.toast(e <= 1 ? '✓ صفحة ' + n + ' محفوظة' + (e ? ' (خطأ واحد)' : '') : 'صفحة ' + n + ': ' + e + ' أخطاء — أعدها', 2500);
   }
@@ -142,4 +145,12 @@ export class Hifz {
 export function hifzStats() {
   const p = settings.hifzPages || {}, ok = Object.entries(p).filter(([, v]) => v.ok).map(([k]) => +k).sort((a, b) => a - b);
   return { count: ok.length, pages: ok, last: Object.entries(p).sort((a, b) => b[1].at - a[1].at)[0] };
+}
+
+// «مراجعتي»: the memorized pages whose review day has come (oldest first). A page saved before the schedule existed
+// is due a day after it was memorized.
+export function hifzDue(now = Date.now()) {
+  const p = settings.hifzPages || {};
+  return Object.entries(p).filter(([, v]) => v.ok || v.stage === 0).map(([k, v]) => ({ page: +k, due: v.due ?? (v.at + DAY), stage: v.stage ?? 0 }))
+    .filter(x => x.due <= now).sort((a, b) => a.due - b.due);
 }
