@@ -49,7 +49,7 @@ import { Meeting } from './meeting.js';
 
 const $ = s => document.querySelector(s);
 const FIRST_RUN = 'madar.firstRun.v1';
-export const APP_VERSION = '167';
+export const APP_VERSION = '168';
 const ANDROID_APK = 'https://github.com/mazenDevloper/fit/releases/download/android-latest/Madar.apk';
 
 // a tenth of a second of silence (a valid WAV), to unlock the audio element during a real tap
@@ -159,8 +159,14 @@ class App {
     this.bindStageInput();
     this.checkCrash();
     this.renderLog();
-    window.addEventListener('error', e => { this.log('خطأ: ' + (e.message || e.error)); if (this.active) this.toast('حدث خطأ: ' + String(e.message || '').slice(0, 60)); });
-    window.addEventListener('unhandledrejection', e => { this.log('خطأ: ' + String(e.reason && e.reason.message || e.reason).slice(0, 120)); });
+    // 🧯 a problem is logged here and sent to DriveCast's server on its own (/crash: one list for DriveCast, the TV and Madar;
+    // links are cut there) — no raw error text on the glass, at most 10 a session, the same one once
+    let crashN = 0; const crashSeen = new Set();
+    const report = m => { m = String(m || '').slice(0, 500); if (!m || crashSeen.has(m) || crashN++ >= 10) return; crashSeen.add(m);
+      const body = JSON.stringify({ app: 'madar', ver: APP_VERSION, dev: (window.MadarIOS ? 'iOS app' : /Android/.test(navigator.userAgent) ? 'Android' : 'web') + ' · ' + (navigator.platform || ''), msg: m });
+      try { navigator.sendBeacon?.('https://studio.c-p.workers.dev/crash', body) || fetch('https://studio.c-p.workers.dev/crash', { method: 'POST', body, keepalive: true }).catch(() => {}); } catch (e) {} };
+    window.addEventListener('error', e => { const m = (e.message || e.error) + (e.filename ? ' @' + e.filename.split('/').pop() + ':' + e.lineno : ''); this.log('خطأ: ' + m); report(m); });
+    window.addEventListener('unhandledrejection', e => { const m = String(e.reason && e.reason.message || e.reason).slice(0, 200); this.log('خطأ: ' + m); if (!/abort|network|fetch|load failed/i.test(m)) report('promise: ' + m); });
     this.hands.onChange(() => this.renderStatus());
     if (IOS) this.hands.useNative(); else this.hands.load();
     this.renderStatus();
