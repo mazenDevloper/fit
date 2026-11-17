@@ -119,7 +119,7 @@ export function answer(app, text) {
   // devices, battery, version
   if (has('متصل', 'الاجهزه', 'اجهزتي', 'التلفاز', 'السياره', 'التابلت')) { const o = app.hub?.others?.() || []; return o.length ? 'متصل الآن: ' + o.map(d => d.name + (d.playing ? ' (يعرض ' + (d.playing.title || 'شيئاً') + ')' : '')).join('، ') : 'لا أجهزة متصلة الآن'; }
   if (has('البطاريه', 'الشحن')) { const b = app.control?.battery; return b ? 'البطارية ' + pct(b.level) + (b.charging ? ' وتشحن' : '') : 'لا أعرف البطارية الآن'; }
-  if (has('النسخه', 'الاصدار', 'اي نسخه')) return 'مدار visionOS 27 · v' + (app.version || '');
+  if (has('النسخه', 'الاصدار', 'اي نسخه')) return 'مدار، النسخة ' + (app.version || '');
   // is X on?
   const key = Object.keys(ON).find(k => stem(n).includes(stem(norm(ON[k]))));
   if (key && has('هل', 'شغال', 'مفعل', 'يعمل')) return ON[key] + (isOn(key) ? ' يعمل' : ' متوقف');

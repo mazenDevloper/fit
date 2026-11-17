@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>مدار</title>
-<meta name="description" content="مدار · واجهة visionOS 27 على الآيفون ونظارة SBS">
+<meta name="description" content="مدار · شاشاتك معلّقة في غرفتك، من آيفونك والنظارة">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -92,6 +92,11 @@ input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline
 .toggle input::after{content:"";position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s}
 .toggle input:checked{background:var(--ok)} .toggle input:checked::after{transform:translateX(-20px)}
 details{margin-top:14px} summary{cursor:pointer;color:var(--accent);font-weight:650;font-size:15px}
+.more{padding:0}.more>summary{list-style:none;cursor:pointer;padding:16px 18px;font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.more>summary::-webkit-details-marker{display:none}.more>summary::after{content:"‹";font-size:22px;opacity:.6;transition:transform .25s}.more[open]>summary::after{transform:rotate(-90deg)}
+.more>section.card{background:none;border:0;border-top:1px solid var(--line);border-radius:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+.start .primary{margin-top:2px}
+.status[hidden]{display:none!important}
 .ghost{background:rgba(255,255,255,.06);border-radius:14px;padding:11px 14px;font-size:14px;margin-top:14px}
 .row2{display:flex;flex-wrap:wrap;gap:8px}
 .devme{display:flex;gap:14px;align-items:flex-start;justify-content:space-between}
@@ -148,7 +153,8 @@ html.ios-native.mr,html.ios-native body.in-mr,html.ios-native body.in-mr #stage{
 /* Let pages scroll natively under a finger (touch-action is combined along ancestors). */
 body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #stage.direct iframe{touch-action:auto}
 #stage.direct .eye .webwin, #stage.direct .eye .webwin iframe{pointer-events:auto}
-.envs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:8px 0 14px}
+.envs{display:flex;gap:8px;margin:8px -18px 14px;padding:2px 18px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none}.envs::-webkit-scrollbar{display:none}
+.envs button{flex:0 0 84px;scroll-snap-align:start;white-space:normal;line-height:1.25}
 .envs button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;border-radius:14px;background:rgba(255,255,255,.05);border:1.5px solid var(--line);font-size:13px;font-weight:700}
 .envs button i{width:100%;aspect-ratio:1.4;border-radius:10px;display:block}
 .envs button.on{border-color:var(--accent);background:rgba(124,196,255,.14)}
@@ -171,27 +177,28 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
 <main id="home">
   <header class="brand">
     <img src="icon-192.png" alt="">
-    <div><h1>مدار</h1><p>visionOS 27 · بيئة الواقع المختلط على آيفونك</p></div>
+    <div><h1>مدار</h1><p>شاشاتك معلّقة في غرفتك، من آيفونك والنظارة</p></div>
   </header>
 
-  <section class="card" aria-labelledby="readyTitle">
-    <h2 id="readyTitle">الجاهزية</h2>
-    <ul class="status">
+  <section class="card start" aria-label="ادخل إلى مدار">
+    <ul class="status" hidden>
       <li id="st-camera" data-state="wait"><span>الكاميرا الخلفية</span><em>يُطلب عند الدخول</em></li>
       <li id="st-motion" data-state="wait"><span>حساسات الحركة</span><em>يُطلب عند الدخول</em></li>
       <li id="st-hands" data-state="wait"><span>تتبع اليد</span><em>بانتظار</em></li>
       <li id="st-mode" data-state="wait"><span>وضع العرض</span><em>…</em></li>
     </ul>
-    <div class="field" style="margin-top:0"><label>البيئة</label></div>
-    <div id="envs" class="envs" role="group" aria-label="البيئة"></div>
     <button id="enter" class="primary" type="button">ادخل إلى مدار</button>
-    <button id="enter2d" type="button" style="margin-top:10px;width:100%" onclick="location.href='flat.html'">▭ ادخل إلى مدار 2D <small style="opacity:.7">— تطبيق بشاشة مقسومة: بث + نتائج…</small></button>
+    <button id="enter2d" class="ghost" type="button" style="width:100%" onclick="location.href='flat.html'">بدون نظارة (شاشة عادية)</button>
+    <div class="field"><label>البيئة</label></div>
+    <div id="envs" class="envs" role="group" aria-label="البيئة"></div>
     <button id="castMe" type="button" hidden style="margin-top:10px">📱 اعرض شاشة هذا الآيفون في مدار على جهاز آخر</button>
-    <p class="hint">يعمل أفقياً دائماً، سواء كان قفل الاتجاه مفعّلاً أم لا. للخروج: المس الشاشة بإصبعين لثانيتين، أو من القائمة ← الإعدادات ← الخروج.</p>
+    <p class="hint">للخروج: المس الشاشة بإصبعين لثانيتين.</p>
     <p id="homeError" class="err" hidden></p>
     <p id="crashNote" class="err" hidden></p>
   </section>
 
+  <details class="card more" id="moreHome">
+  <summary>الأجهزة والمشاركة والإعدادات</summary>
   <section id="install" class="card" aria-labelledby="installTitle">
     <h2 id="installTitle">ثبّته كتطبيق <small>لملء الشاشة</small></h2>
     <ol class="steps">
@@ -394,6 +401,8 @@ body.in-mr.direct, #stage.direct, #stage.direct .eye, #stage.direct .webwin, #st
       <pre id="logView" dir="auto" style="white-space:pre-wrap;font-size:12px;color:var(--dim);margin:8px 0 0;max-height:240px;overflow:auto"></pre>
     </details>
   </section>
+
+  </details>
 
   <footer>مدار <span id="appVer" dir="ltr"></span> · صور الكاميرا وملفاتك تبقى على جهازك، وما ترسله بين أجهزتك ينتقل مباشرة بينها. صفحات «متصفح مدار» تمر عبر خدمة صفحات مدار.</footer>
 </main>

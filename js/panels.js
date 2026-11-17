@@ -246,23 +246,27 @@ export class Launcher {
         a.hub?.op({ op: 'send', to: 'sys-' + c, msg: { type: 'wake', share: true } });
         a.toast('📺 يفتح شاشة ' + (String(d.name || '').split(' · ')[0] || c) + '…', 2500); a.connectMirror(c);
       }]);
+      // the Home View's first page: six apps (yours first — «ترتيب الشاشة»), then the folders; everything else is one tap away in «المزيد»
+      const CORE = ['المصحف', 'التطبيقات', 'المباريات', 'شاشة الآيفون', 'المكتبات', 'أمر صوتي'], ord = settings.appOrder || [];
+      const rank = x => { const i = ord.indexOf(x[1]); return i >= 0 ? i : 100 + (CORE.indexOf(x[1]) >= 0 ? CORE.indexOf(x[1]) : 50); };
+      const mainAll = list.filter(x => !FOLDERS.tools[2].includes(x[1])).sort((x, y) => rank(x) - rank(y));
       if (this.folder === 'screens') list = screens.length ? screens : [['cast', 'لا أجهزة', 'افتح مدار على التابلت أو التي في بوكس مرة واحدة', () => {}]];
       else if (this.folder === 'nx') list = nxItems;
       else if (this.folder === 'widgets') list = widgets;
       else if (this.folder === 'dc') list = dcItems;
       else if (this.folder === 'tools') list = list.filter(x => FOLDERS.tools[2].includes(x[1]));
+      else if (this.folder === 'more') list = mainAll.slice(6);
       else {
-        list = list.filter(x => !FOLDERS.tools[2].includes(x[1]));
-        list.unshift(['cast', 'HDMI · شاشات أجهزتي', scr.length ? '🟢 ' + scr.length + ' جهاز' : 'التابلت · التي في بوكس', () => { this.folder = 'screens'; this.page = 0; this.panel.redraw(); }]);
+        list = mainAll.slice(0, 6);
+        list.push(['cast', 'HDMI · شاشات أجهزتي', scr.length ? '🟢 ' + scr.length + ' جهاز' : 'التابلت · التي في بوكس', () => { this.folder = 'screens'; this.page = 0; this.panel.redraw(); }]);
         if (nxItems.length) list.push(['star', 'المستوى التالي', nxItems.length + ' ميزات جديدة', () => { this.folder = 'nx'; this.page = 0; this.panel.redraw(); }]);
         list.push([FOLDERS.dc[0], FOLDERS.dc[1], hubN ? '🟢 ' + hubN + ' جهاز متصل' : 'السيارة · التلفاز · الهاتف', () => { this.folder = 'dc'; this.page = 0; this.panel.redraw(); }]);
         list.push([FOLDERS.widgets[0], FOLDERS.widgets[1], widgets.length + ' أدوات', () => { this.folder = 'widgets'; this.page = 0; this.panel.redraw(); }], [FOLDERS.tools[0], FOLDERS.tools[1], 'مجلد', () => { this.folder = 'tools'; this.page = 0; this.panel.redraw(); }]);
-        // your own order: «ترتيب الشاشة» then tap tiles - each one tapped jumps to the front
-        const order = settings.appOrder || [];
-        list.sort((x, y) => { const i = order.indexOf(x[1]), j = order.indexOf(y[1]); return (i < 0 ? 999 : i) - (j < 0 ? 999 : j); });
+        list.push(['grid', 'المزيد', (mainAll.length - 6).toLocaleString('ar') + ' تطبيق', () => { this.folder = 'more'; this.page = 0; this.panel.redraw(); }]);
+        // your own order: «ترتيب الشاشة» then tap tiles (here or in «المزيد») - each one tapped jumps to the front page
         list.push(['sliders', this.edit ? 'تم الترتيب' : 'ترتيب الشاشة', this.edit ? 'اضغط لإنهاء' : 'اضغط الأيقونات لتقديمها', () => { this.edit = !this.edit; this.panel.redraw(); }]);
       }
-      if (!this.folder) this.allApps = list.slice();   // the phone remote's «التطبيقات» tab lists these
+      if (!this.folder) this.allApps = mainAll.slice();   // the phone remote's «التطبيقات» tab lists these
       if (this.folder) list.unshift(['chevR', 'رجوع', 'الشاشة الرئيسية', () => { this.folder = null; this.page = 0; this.panel.redraw(); }]);
       if (this.vision) {
         const n5 = Math.round(5 * (this.widthF || 1)), ROWS = [n5 - 1, n5, n5 - 1], per = ROWS[0] + ROWS[1] + ROWS[2], pages = Math.ceil(list.length / per);
@@ -273,7 +277,7 @@ export class Launcher {
         ROWS.forEach((n, row) => {
           for (let c = 0; c < n && i < slice.length; c++, i++) {
             const [ic, l, , act] = slice[i];
-            const run = this.edit && !this.folder && !/^(ترتيب الشاشة|تم الترتيب)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
+            const run = this.edit && (!this.folder || this.folder === 'more') && !/^(ترتيب الشاشة|تم الترتيب|المزيد)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
             const cx = W / 2 + 40 + ((n - 1) / 2 - c) * gx, cy = top0 + row * gy;   // right to left
             this.homeTile(ctx, p, cx, cy, r, ic, l, run, 'app' + i);
           }
@@ -287,7 +291,7 @@ export class Launcher {
       this.page = Math.min(this.page, pages - 1);
       list.slice(this.page * per, this.page * per + per).forEach(([ic, l, s, act], i) => {
         const [x, y] = cell(i);
-        const run = this.edit && !this.folder && !/^(ترتيب الشاشة|تم الترتيب)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
+        const run = this.edit && (!this.folder || this.folder === 'more') && !/^(ترتيب الشاشة|تم الترتيب|المزيد)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
         this.tile(ctx, p, x, y, tileW, tileH, ic, l, this.edit && !this.folder ? '⇧ إلى البداية' : s, run, 'app' + i);
       });
       if (pages > 1) this.pager(ctx, p, W, H, pages);
@@ -371,7 +375,7 @@ export class Launcher {
         ROWS.forEach((n, row) => {
           for (let c = 0; c < n && i < slice.length; c++, i++) {
             const [ic, l, , act] = slice[i];
-            const run = this.edit && !this.folder && !/^(ترتيب الشاشة|تم الترتيب)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
+            const run = this.edit && (!this.folder || this.folder === 'more') && !/^(ترتيب الشاشة|تم الترتيب|المزيد)$/.test(l) ? () => { const o = (settings.appOrder || []).filter(v => v !== l); o.unshift(l); saveSettings({ appOrder: o }); this.page = 0; this.panel.redraw(); } : act;
             const cx = W / 2 + 40 + ((n - 1) / 2 - c) * gx, cy = top0 + row * gy;   // right to left
             this.homeTile(ctx, p, cx, cy, r, ic, l, run, 'app' + i);
           }
