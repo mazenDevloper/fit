@@ -513,6 +513,9 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     // ---------- window.MadarAndroid ----------
     private class Bridge {
         @JavascriptInterface public void startCapture() { runOnUiThread(MainActivity.this::startCapture); }
+        /** woken with «share» (fit/tv «أيقظ أجهزة مدار», KeepService.shareFor): who to tell, once (null: nothing waiting) — the page's
+         *  autoShare() asks this; without it a woken device opened but never shared */
+        @JavascriptInterface public String takeAutoShare() { String t = autoShareTo; autoShareTo = null; return t; }
         @JavascriptInterface public void startUvc() { runOnUiThread(() -> {
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_PERMS);
             if (uvc == null) uvc = new UvcSource(MainActivity.this, new UvcSource.Sink() {
