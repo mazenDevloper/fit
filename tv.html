@@ -21,6 +21,15 @@
   #toast{position:absolute;left:50%;bottom:4vh;transform:translateX(-50%);background:rgba(20,24,36,.9);padding:1vw 2vw;border-radius:99px;font-size:1.6vw;display:none}
   #list{margin-top:1vw;display:flex;flex-direction:column;gap:.6vw}
   #list button{margin:0;background:rgba(255,255,255,.1);color:#fff;text-align:right}
+  /* 🎮 the control on the shared screen: touch on the picture + a floating button for Android's own buttons (AssistiveTouch) */
+  #view{touch-action:none}
+  #at{position:absolute;right:24px;bottom:24px;width:64px;height:64px;border-radius:50%;background:rgba(20,24,36,.72);border:2px solid rgba(255,255,255,.35);z-index:20;display:none;touch-action:none;padding:0;margin:0}
+  #at::after{content:"";position:absolute;inset:16px;border-radius:50%;background:rgba(255,255,255,.75)}
+  #atp{position:absolute;z-index:21;display:none;grid-template-columns:repeat(3,72px);gap:8px;padding:12px;border-radius:24px;background:rgba(14,17,26,.92);border:1px solid rgba(255,255,255,.18)}
+  #atp button{margin:0;width:72px;height:64px;padding:0;font-size:22px;border-radius:16px;background:rgba(255,255,255,.1);color:#fff;touch-action:none}
+  #atp button small{display:block;font-size:11px;opacity:.7;font-weight:400}
+  #atp button.on{background:#7cc4ff;color:#0b1020}
+  #ath{grid-column:1/-1;text-align:center;font-size:12px;color:#a9b3c9}
 </style>
 </head>
 <body>
@@ -38,6 +47,14 @@
 </div>
 <div id="view"></div>
 <div id="toast"></div>
+<button id="at" aria-label="أزرار الجهاز"></button>
+<div id="atp">
+  <button data-k="key:recents">▦<small>التطبيقات</small></button><button data-k="nav:up">▲<small>فوق</small></button><button data-k="key:back">↩<small>رجوع</small></button>
+  <button data-k="nav:left">◀<small>يسار</small></button><button data-k="nav:ok">OK<small>اختر</small></button><button data-k="nav:right">▶<small>يمين</small></button>
+  <button data-k="key:home">⌂<small>الرئيسية</small></button><button data-k="nav:down">▼<small>تحت</small></button><button data-k="media:play">⏯<small>تشغيل</small></button>
+  <button data-k="media:vol-">🔉<small>صوت -</small></button><button data-k="media:mute">🔇<small>كتم</small></button><button data-k="media:vol+">🔊<small>صوت +</small></button>
+  <div id="ath">اضغط مطوّلاً على أي زر = ضغطة مطوّلة</div>
+</div>
 <script type="module">
   import { deviceIdentity, pairedDevices, KIND_LABEL } from './js/config.js';
   import { DeviceHub } from './js/devices.js';
@@ -46,7 +63,7 @@
   const toast = (m, ms = 3500) => { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', ms); };
   const stopMedia = () => view.querySelectorAll('video,audio').forEach(m => { try { m.pause(); m.srcObject = null; m.removeAttribute('src'); m.load(); } catch {} });
   const show = el => { stopMedia(); view.innerHTML = ''; view.appendChild(el); view.style.display = 'block'; $('#home').style.display = 'none'; try { document.documentElement.requestFullscreen?.(); } catch {} };
-  const back = () => { stopMedia(); view.innerHTML = ''; view.style.display = 'none'; $('#home').style.display = 'flex'; };
+  const back = () => { stopMedia(); view.innerHTML = ''; view.style.display = 'none'; $('#home').style.display = 'flex'; $('#at').style.display = 'none'; $('#atp').style.display = 'none'; };
   document.addEventListener('keydown', e => { if (['Escape', 'Backspace', 'GoBack', 'BrowserBack'].includes(e.key) || e.keyCode === 10009 || e.keyCode === 461) { if (view.style.display === 'block') { e.preventDefault(); viewer.close(); back(); } } });
   const app = {
     toast,
@@ -70,11 +87,53 @@
   lib().then(() => { $('#qr').innerHTML = qrSvg(link, 300); });
   hub.start();
   const viewer = new ScreenViewer();
+  // 🎮 control of the shared screen: a tap is a tap there, a hold a long press, a drag a scroll; the floating button (AssistiveTouch)
+  // opens the device's own buttons — back, home, apps, the arrows and OK, volume — and a long press on one is a long press there
+  const input = m => viewer.send({ type: 'input', ...m });
+  function frac(v, e) {   // the point on the picture (object-fit: contain leaves bars around it), 0..1 of the shared screen
+    const r = v.getBoundingClientRect(), vw = v.videoWidth || 16, vh = v.videoHeight || 9, k = Math.min(r.width / vw, r.height / vh);
+    const w = vw * k, h = vh * k, x0 = r.left + (r.width - w) / 2, y0 = r.top + (r.height - h) / 2;
+    return [(e.clientX - x0) / w, (e.clientY - y0) / h];
+  }
+  function wire(v) {
+    let d = null;
+    v.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); v.setPointerCapture(e.pointerId);
+      const p = frac(v, e); if (p[0] < 0 || p[0] > 1 || p[1] < 0 || p[1] > 1) return;
+      d = { p, last: p, moved: false, long: false, t: setTimeout(() => { if (d && !d.moved) { d.long = true; input({ a: 'long', x: d.p[0], y: d.p[1] }); toast('ضغطة مطوّلة', 900); } }, 600) }; });
+    v.addEventListener('pointermove', e => { if (!d || d.long) return; const p = frac(v, e), dx = p[0] - d.last[0], dy = p[1] - d.last[1];
+      if (!d.moved && Math.hypot(p[0] - d.p[0], p[1] - d.p[1]) < 0.015) return;
+      d.moved = true; clearTimeout(d.t); input({ a: 'scroll', x: d.last[0], y: d.last[1], dx: -dx, dy: -dy }); d.last = p; });
+    const up = () => { if (!d) return; clearTimeout(d.t); if (!d.moved && !d.long) input({ a: 'tap', x: d.p[0], y: d.p[1] }); d = null; };
+    v.addEventListener('pointerup', up); v.addEventListener('pointercancel', () => { if (d) clearTimeout(d.t); d = null; });
+    v.addEventListener('contextmenu', e => e.preventDefault());
+    $('#at').style.display = 'block';
+  }
+  const at = $('#at'), atp = $('#atp');
+  function atPlace() { const r = at.getBoundingClientRect(), W = innerWidth, H = innerHeight, pw = 3 * 72 + 2 * 8 + 24, ph = 4 * 64 + 3 * 8 + 24 + 22;
+    atp.style.left = Math.max(8, Math.min(W - pw - 8, r.left + r.width / 2 - pw / 2)) + 'px'; atp.style.top = Math.max(8, Math.min(H - ph - 8, r.top - ph - 10 < 8 ? r.bottom + 10 : r.top - ph - 10)) + 'px'; }
+  { let dr = null;   // the floating button moves where you drag it; a short touch opens / closes the buttons
+    at.addEventListener('pointerdown', e => { e.preventDefault(); at.setPointerCapture(e.pointerId); const r = at.getBoundingClientRect(); dr = { x: e.clientX, y: e.clientY, l: r.left, t: r.top, moved: false }; });
+    at.addEventListener('pointermove', e => { if (!dr) return; const dx = e.clientX - dr.x, dy = e.clientY - dr.y; if (!dr.moved && Math.hypot(dx, dy) < 8) return; dr.moved = true;
+      at.style.right = 'auto'; at.style.bottom = 'auto'; at.style.left = Math.max(4, Math.min(innerWidth - 68, dr.l + dx)) + 'px'; at.style.top = Math.max(4, Math.min(innerHeight - 68, dr.t + dy)) + 'px'; if (atp.style.display === 'grid') atPlace(); });
+    at.addEventListener('pointerup', () => { if (dr && !dr.moved) { const open = atp.style.display !== 'grid'; atp.style.display = open ? 'grid' : 'none'; if (open) atPlace(); } dr = null; });
+  }
+  // a button: a short press sends the key, a hold (0.6 s) its long press — the arrows and OK as «long …» to DriveCast / the remote
+  function send(k, long) { const [kind, v] = k.split(':');
+    if (kind === 'nav') input({ a: 'nav', dir: long ? 'long ' + v : v });
+    else if (kind === 'key') input(long ? { a: 'nav', dir: 'long ' + v } : { a: 'key', key: v });
+    else input({ a: 'media', key: v }); }
+  for (const b of atp.querySelectorAll('button[data-k]')) {
+    let t = null, held = false;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); held = false; b.classList.add('on'); t = setTimeout(() => { held = true; send(b.dataset.k, true); toast('ضغطة مطوّلة', 900); }, 600); });
+    const end = () => { clearTimeout(t); b.classList.remove('on'); };
+    b.addEventListener('pointerup', () => { end(); if (!held) send(b.dataset.k, false); });
+    b.addEventListener('pointerleave', end); b.addEventListener('pointercancel', end); b.addEventListener('contextmenu', e => e.preventDefault());
+  }
   async function watch(code, tries = 0) {
     toast('جاري الاتصال بـ ' + code + '…');
     try {
       const stream = await viewer.connect(code, { onStream: s => { const v = view.querySelector('video'); if (v && v.srcObject !== s) { v.srcObject = s; v.play?.().catch(() => {}); } }, onEnd: () => { if (watch.busy) return; watch.busy = true; stopMedia(); toast('انقطع البث — إعادة الاتصال…'); setTimeout(() => { watch.busy = false; watch(code); }, 1500); } });
-      const v = document.createElement('video'); v.autoplay = true; v.playsInline = true; v.srcObject = stream; show(v);
+      const v = document.createElement('video'); v.autoplay = true; v.playsInline = true; v.srcObject = stream; show(v); wire(v);
       v.play().catch(() => { v.muted = true; v.play(); toast('اضغط OK لتشغيل الصوت'); v.onclick = () => { v.muted = false; }; });
       v.onpause = () => setTimeout(() => v.play().catch(() => {}), 300);
     } catch (e) { if (tries < 6) setTimeout(() => watch(code, tries + 1), 5000); else { toast(e.message || 'تعذّر الاتصال'); back(); } }
