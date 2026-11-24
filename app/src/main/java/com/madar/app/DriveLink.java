@@ -21,6 +21,11 @@ final class DriveLink {
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor();
     private static volatile long okAt = 0, failAt = 0;
 
+    /** DriveCast TV is on this box (it does the control when «تحكم مدار» is not running) */
+    static boolean present(android.content.Context c) {
+        for (String p : new String[] { "app.drivecast.tv", "app.drivecast.tv.lite" }) { try { c.getPackageManager().getPackageInfo(p, 0); return true; } catch (Exception ignored) { } }
+        return false;
+    }
     /** DriveCast answered recently (or we have not asked yet): worth sending to it */
     static boolean usable() { return okAt > failAt || System.currentTimeMillis() - failAt > 30_000; }
 

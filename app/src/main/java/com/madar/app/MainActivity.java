@@ -577,7 +577,8 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         @JavascriptInterface public void setQuality(int edge, int jpeg) { CaptureService.setQuality(edge, jpeg); }
         @JavascriptInterface public void setFps(int fps) { CaptureService.setFps(fps); }
         // Remote control of this tablet (see ControlService).
-        @JavascriptInterface public String controlState() { return ControlService.on() ? "on" : "off"; }
+        // on when «تحكم مدار» runs — or when DriveCast TV on this box does the control (boxes that never run «تحكم مدار»)
+        @JavascriptInterface public String controlState() { return ControlService.on() || DriveLink.present(MainActivity.this) ? "on" : "off"; }
         @JavascriptInterface public void input(String json) { ControlService.handle(json); }
         @JavascriptInterface public void openControlSettings() {
             runOnUiThread(() -> {
