@@ -64,14 +64,17 @@ public class ControlService extends AccessibilityService {
     /** Messages from the page: {a:'tap'|'scroll'|'key'|'text', x, y (0..1), dx, dy (fractions of the screen), key, value}. */
     static void handle(String json) {
         ControlService s = instance;
-        if (s == null || !(CaptureService.running || remoteOnly)) return;
-        try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
+        if (!(CaptureService.running || remoteOnly)) return;
+        try { if (s != null) s.run(new JSONObject(json)); else DriveLink.send(new JSONObject(json)); } catch (Exception ignored) { }   // no service (the box switches it off): through DriveCast
     }
 
     /** from «المركز» (KeepService): the remote works whenever Madar runs on this device, no sharing needed */
     static void handleRemote(String json) {
         ControlService s = instance;
-        if (s == null) { Popup.show(KeepService.inst, "فعّل «تحكم مدار» في إمكانية الوصول ليعمل الريموت", 5000); return; }
+        if (s == null) {   // the box never runs «تحكم مدار»: DriveCast's mouse service does the taps and keys
+            if (DriveLink.usable()) { try { DriveLink.send(new JSONObject(json)); } catch (Exception ignored) { } return; }
+            Popup.show(KeepService.inst, "فعّل «تحكم مدار» في إمكانية الوصول ليعمل الريموت", 5000); return;
+        }
         try { s.run(new JSONObject(json)); } catch (Exception ignored) { }
     }
 
