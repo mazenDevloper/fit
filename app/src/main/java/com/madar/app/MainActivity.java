@@ -135,7 +135,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     protected void onResume() {
         super.onResume();
         hideDot();
-        web.onResume();
+        if (web != null) web.onResume();
         immersive();
     }
 
@@ -237,7 +237,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     protected void onPause() {
         super.onPause();
         // While sharing, the page must keep sending this screen even when another app is in front.
-        if (!sharing()) web.onPause(); else { web.onResume(); web.resumeTimers(); if (canDot() && !isInPictureInPictureMode()) main.postDelayed(() -> { if (!hasWindowFocus() && sharing()) showDot(); }, 400); }
+        if (web == null) { /* the «keep» start: no page */ } else if (!sharing()) web.onPause(); else { web.onResume(); web.resumeTimers(); if (canDot() && !isInPictureInPictureMode()) main.postDelayed(() -> { if (!hasWindowFocus() && sharing()) showDot(); }, 400); }
     }
 
     @Override
@@ -246,7 +246,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         if (CaptureService.listener == this) CaptureService.listener = null;
         if (CaptureService.running) stopService(new Intent(this, CaptureService.class));
         if (browser != null) browser.stop();
-        web.destroy();
+        if (web != null) web.destroy();   // the «keep» start closes before the page exists
         super.onDestroy();
     }
 
