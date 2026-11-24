@@ -64,12 +64,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         if (!KeepService.prefs(this).getString("code", "").isEmpty()) KeepService.start(this);   // reachable for wake / remote
         // 📡 started by DriveCast to be reachable (this box never delivers background broadcasts to Madar): the always-on link up,
         // a code of its own when it never had one — no screen shown, back at once
-        if (getIntent() != null && getIntent().getBooleanExtra("keep", false)) {
-            if (KeepService.prefs(this).getString("code", "").isEmpty())
-                KeepService.setIdentity(this, String.valueOf(100000 + new java.security.SecureRandom().nextInt(900000)), Build.MODEL);
-            else KeepService.start(this);
-            finish(); overridePendingTransition(0, 0); return;
-        }
+        if (keepStart(getIntent())) { finish(); overridePendingTransition(0, 0); return; }
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -115,6 +110,14 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
         takeIntent(getIntent());
     }
 
+    /** the «keep» start (DriveCast): the always-on link up, a code of its own when it never had one */
+    private boolean keepStart(Intent i) {
+        if (i == null || !i.getBooleanExtra("keep", false)) return false;
+        if (KeepService.prefs(this).getString("code", "").isEmpty())
+            KeepService.setIdentity(this, String.valueOf(100000 + new java.security.SecureRandom().nextInt(900000)), Build.MODEL);
+        else KeepService.start(this);
+        return true;
+    }
     // woken from afar with «share»: the page starts streaming this screen as soon as it is ready (it asks for this)
     static volatile String autoShareTo = null;
     /** woken to share: once the capture runs, Madar steps aside (the TV shows what it showed; the sharing goes on behind) */
@@ -124,6 +127,7 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (keepStart(intent)) { moveTaskToBack(true); overridePendingTransition(0, 0); return; }   // Madar was already there: the «keep» start comes here
         takeIntent(intent);
         Uri data = intent.getData();
         if (data != null && HOST.equals(data.getHost())) web.loadUrl(data.toString());
