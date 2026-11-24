@@ -62,6 +62,14 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         if (!KeepService.prefs(this).getString("code", "").isEmpty()) KeepService.start(this);   // reachable for wake / remote
+        // 📡 started by DriveCast to be reachable (this box never delivers background broadcasts to Madar): the always-on link up,
+        // a code of its own when it never had one — no screen shown, back at once
+        if (getIntent() != null && getIntent().getBooleanExtra("keep", false)) {
+            if (KeepService.prefs(this).getString("code", "").isEmpty())
+                KeepService.setIdentity(this, String.valueOf(100000 + new java.security.SecureRandom().nextInt(900000)), Build.MODEL);
+            else KeepService.start(this);
+            finish(); overridePendingTransition(0, 0); return;
+        }
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
