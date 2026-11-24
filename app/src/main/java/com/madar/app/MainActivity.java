@@ -117,7 +117,9 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
 
     // woken from afar with «share»: the page starts streaming this screen as soon as it is ready (it asks for this)
     static volatile String autoShareTo = null;
-    private void takeIntent(Intent i) { if (i != null && i.getBooleanExtra("autoshare", false)) { autoShareTo = i.getStringExtra("shareTo"); if (autoShareTo == null) autoShareTo = ""; if (web != null) js("window.__madarAutoShare&&__madarAutoShare()"); } }
+    /** woken to share: once the capture runs, Madar steps aside (the TV shows what it showed; the sharing goes on behind) */
+    private boolean wokeShare;
+    private void takeIntent(Intent i) { if (i != null && i.getBooleanExtra("autoshare", false)) { wokeShare = true; autoShareTo = i.getStringExtra("shareTo"); if (autoShareTo == null) autoShareTo = ""; if (web != null) js("window.__madarAutoShare&&__madarAutoShare()"); } }
 
     @Override
     protected void onNewIntent(Intent intent) {
@@ -395,7 +397,9 @@ public class MainActivity extends Activity implements CaptureService.Listener, O
                         .putExtra(CaptureService.EXTRA_CODE, res)
                         .putExtra(CaptureService.EXTRA_DATA, data);
                 startForegroundService(i);
+                if (wokeShare) { wokeShare = false; main.postDelayed(() -> moveTaskToBack(true), 1800); }
             } else {
+                wokeShare = false;
                 js("window.__madarCapture&&__madarCapture('denied')");
             }
         } else if (req == REQ_FILE && fileCallback != null) {

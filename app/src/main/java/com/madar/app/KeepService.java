@@ -129,7 +129,7 @@ public class KeepService extends Service {
         ControlService.acceptUntil = System.currentTimeMillis() + 25_000;
         if (CaptureService.running) return;   // already streaming
         try {
-            startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_NO_ANIMATION)
                     .putExtra("autoshare", true).putExtra("shareTo", to));
         } catch (Exception ignored) { }
     }
