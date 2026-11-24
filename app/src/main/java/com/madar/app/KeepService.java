@@ -46,7 +46,11 @@ public class KeepService extends Service {
 
     static void start(Context c) {
         Intent k = new Intent(c, KeepService.class);
-        try { if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(k); else c.startService(k); } catch (Exception ignored) { }
+        try { if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(k); else c.startService(k); }
+        catch (Exception e) {   // said, and tried once more as a plain start (it promotes itself to the foreground in onStartCommand)
+            android.util.Log.w("Madar", "KeepService start: " + e);
+            try { c.startService(k); } catch (Exception e2) { android.util.Log.w("Madar", "KeepService plain start: " + e2); }
+        }
     }
     static SharedPreferences prefs(Context c) { return c.getSharedPreferences("madar.sys", MODE_PRIVATE); }
     /** the page tells us who this device is (its 6-digit code and name) */
